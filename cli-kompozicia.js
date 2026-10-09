@@ -17,15 +17,11 @@ import { fileURLToPath } from 'node:url';
 
 import { komponuj } from './core/kompozicia/index.js';
 import { loadProporcie } from './core/axes.js';
+import { mimeFormatu, suboryFontov } from './core/kompozicia/pisma.js';
 import { renderPng } from './png.js';
 
 const SCRIPT = 'node cli.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
-
-const FONTY = {
-  'Brnos Aires': { subor: 'fonts/brnos-aires.woff2', mime: 'font/woff2' },
-  Nunito: { subor: 'fonts/nunito-variable.ttf', mime: 'font/ttf' },
-};
 
 function die(msg) {
   console.error(`Chyba: ${msg}`);
@@ -56,15 +52,20 @@ function nacitajSpec(file) {
 }
 
 // Fonts used by text zones of the spec, as relative URLs from the output file.
+// The files come from the model in proporcie.json (kompozicia.pisma): a
+// variable font is one URL, a static font one URL per rez — a new Brnos Aires
+// cut lands in the CLI exports by adding its item there, nothing here.
 function fontyRelativne(outFile, spec) {
   const outDir = path.dirname(path.resolve(outFile));
   const pouzite = new Set(
     (spec.zony || []).filter((z) => z.typ === 'text' && z.text).map((z) => z.pismo || 'Brnos Aires'),
   );
   const urls = {};
-  for (const name of pouzite) {
-    const f = FONTY[name];
-    if (f) urls[name] = path.relative(outDir, path.join(ROOT, f.subor)).split(path.sep).join('/');
+  for (const { pismo, rezId, subor } of suboryFontov()) {
+    if (!pouzite.has(pismo)) continue;
+    const url = path.relative(outDir, path.join(ROOT, subor)).split(path.sep).join('/');
+    if (rezId === null) urls[pismo] = url;
+    else (urls[pismo] ??= {})[rezId] = url;
   }
   return urls;
 }
@@ -76,9 +77,11 @@ function fontyInline(spec) {
     (spec.zony || []).filter((z) => z.typ === 'text' && z.text).map((z) => z.pismo || 'Brnos Aires'),
   );
   const urls = {};
-  for (const name of pouzite) {
-    const f = FONTY[name];
-    if (f) urls[name] = `data:${f.mime};base64,${readFileSync(path.join(ROOT, f.subor)).toString('base64')}`;
+  for (const { pismo, rezId, subor, format } of suboryFontov()) {
+    if (!pouzite.has(pismo)) continue;
+    const dataUrl = `data:${mimeFormatu(format)};base64,${readFileSync(path.join(ROOT, subor)).toString('base64')}`;
+    if (rezId === null) urls[pismo] = dataUrl;
+    else (urls[pismo] ??= {})[rezId] = dataUrl;
   }
   return urls;
 }

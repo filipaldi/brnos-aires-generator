@@ -5,19 +5,24 @@
 
 import { komponuj } from './engine.js';
 import { vytvorMeranie } from './meranie.js';
+import { suboryFontov } from '../core/kompozicia/pisma.js';
 
-// Relative to this module, so the fonts resolve wherever the app is served
-// (repo server or a page hosted under a sub-path).
-const FONT_FILES = {
-  'Brnos Aires': '../fonts/brnos-aires.woff2',
-  'Nunito': '../fonts/nunito-variable.ttf',
-};
+// The font files come from the model in proporcie.json (kompozicia.pisma):
+// a variable font is one file, a static font one file per rez — a new Brnos
+// Aires cut lands in the exports by adding its item there, nothing here.
+// Paths are relative to the repository root, resolved against this module,
+// so the fonts resolve wherever the app is served (repo server or a page
+// hosted under a sub-path).
 
 // Absolute URLs: the downloaded SVG stays valid when opened from the server.
+// A variable font maps to one URL, a static font to { rezId: url } — the
+// shape styleForFonts and facesFontov expect.
 export function fontUrlsAbsolute() {
   const out = {};
-  for (const [name, path] of Object.entries(FONT_FILES)) {
-    out[name] = new URL(path, import.meta.url).href;
+  for (const { pismo, rezId, subor } of suboryFontov()) {
+    const url = new URL(`../${subor}`, import.meta.url).href;
+    if (rezId === null) out[pismo] = url;
+    else (out[pismo] ??= {})[rezId] = url;
   }
   return out;
 }
@@ -28,19 +33,31 @@ const zmerajText = vytvorMeranie(fontUrlsAbsolute());
 
 const dataUrlCache = new Map();
 
+async function naDataUrl(url) {
+  if (!dataUrlCache.has(url)) {
+    const blob = await (await fetch(url)).blob();
+    dataUrlCache.set(url, await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    }));
+  }
+  return dataUrlCache.get(url);
+}
+
+// The same URLs as data URLs — every file of every used font, so the SVG
+// image (which cannot fetch external resources) still sets text in the right
+// rez or weight.
 async function fontUrlsInlined() {
   const out = {};
-  for (const [name, path] of Object.entries(fontUrlsAbsolute())) {
-    if (!dataUrlCache.has(path)) {
-      const blob = await (await fetch(path)).blob();
-      dataUrlCache.set(path, await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      }));
+  for (const [pismo, urls] of Object.entries(fontUrlsAbsolute())) {
+    if (typeof urls === 'string') {
+      out[pismo] = await naDataUrl(urls);
+    } else {
+      out[pismo] = {};
+      for (const [rezId, url] of Object.entries(urls)) out[pismo][rezId] = await naDataUrl(url);
     }
-    out[name] = dataUrlCache.get(path);
   }
   return out;
 }

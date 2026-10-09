@@ -5,6 +5,9 @@
 import * as engine from './engine.js';
 import { TYPES, buildShape, defaultParams, computeAxes, paramSpec, proporcie } from '../core/index.js';
 import { featuresPoZmenePisma, fontFeatureSettings, predvoleneFeatures, FONTY } from '../core/kompozicia/features.js';
+import {
+  faceZony, facesFontov, fontFaceCss, jeVariabilne, osaPisma, predvolenePisma, rezyPisma,
+} from '../core/kompozicia/pisma.js';
 import { maxVelkost } from '../core/kompozicia/velkost.js';
 import { createViewer } from './viewer.js';
 import {
@@ -42,6 +45,19 @@ const zonesHost = $('#zones');
 const gridLines = $('#grid-lines');
 const bleedMark = $('#bleed-mark');
 const zoneBar = $('#zone-bar');
+
+// The static fonts' rezy (Brnos Aires) are declared here, not in ui.css: the
+// rules come from the model in proporcie.json, so dropping a new cut's file
+// into fonts/ and adding its item is all a second rez takes. Nunito, the
+// variable interface and sheet font, stays declared in ui.css. Absolute URLs,
+// the same ones the exports use.
+{
+  const style = document.createElement('style');
+  style.textContent = facesFontov(Object.fromEntries(
+    Object.entries(fontUrlsAbsolute()).filter(([, urls]) => typeof urls === 'object'),
+  )).map((face) => fontFaceCss(face, { swap: true })).join('\n');
+  document.head.append(style);
+}
 
 function loadSpec() {
   try {
@@ -315,6 +331,34 @@ function drawZoneBar() {
     return group;
   };
 
+  // The rez field next to the font select: a variable font gets a whole-number
+  // axis field (min–max of its weight axis), a static font a select of its
+  // rezy. A single rez shows locked, never hidden — the author sees the font
+  // does have a rez, just not two yet.
+  const poleRezu = (z) => {
+    if (jeVariabilne(z.pismo)) {
+      const { min, max, predvolene } = osaPisma(z.pismo);
+      return makeNumber('rez', `Rez písma — hrúbka ${min}–${max}`, z.hrubka ?? predvolene,
+        { min, max, step: 1 }, (v) => { z.hrubka = v; positionEditor(); });
+    }
+    const rezy = rezyPisma(z.pismo);
+    const select = document.createElement('select');
+    for (const rez of rezy) {
+      const option = document.createElement('option');
+      option.value = rez.id;
+      option.textContent = rez.nazov;
+      select.append(option);
+    }
+    select.value = z.rez ?? rezy[0].id;
+    if (rezy.length < 2) select.disabled = true;
+    select.addEventListener('input', () => {
+      z.rez = select.value;
+      positionEditor();
+      scheduleRender();
+    });
+    return makeField('rez', 'Rez písma', select);
+  };
+
   if (z.typ === 'text') {
     zoneBar.append(
       makeSelect('pismo', 'Písmo', FONTY.map((p) => [p, p]), z.pismo, (v) => {
@@ -322,9 +366,19 @@ function drawZoneBar() {
         // tags both fonts share keep their state, the rest reset to the
         // new font's defaults; the open features popover is stale, close it
         z.features = featuresPoZmenePisma(z.features, v);
+        // the rez field belongs to the font: the switch sets the new font's
+        // default rez (or axis weight) and drops the other field
+        delete z.rez;
+        delete z.hrubka;
+        Object.assign(z, predvolenePisma(v));
         zavriFeaturesPopover();
+        // the rez control changes its shape with the font — rebuild the bar
+        // (the guard would keep the stale field while the select has focus)
+        zoneBar.dataset.key = '';
+        drawZoneBar();
         positionEditor();
       }),
+      poleRezu(z),
       // whole dieliks: baselines of the text sit on the dielik grid this far apart
       makeNumber('riadok', 'Výška riadku v dielikoch', z.riadok, { min: 1, step: 1 },
         (v) => { z.riadok = v; positionEditor(); }),
@@ -477,6 +531,9 @@ const IKONY = {
     + '<circle cx="11.8" cy="10.8" r="2.2"/><path d="M14 13V8.6"/>',
   // small + large T
   velkost: '<path d="M1.5 3.5h7M5 3.5V13"/><path d="M9.5 8.5h5M12 8.5V13"/>',
+  // three lines of growing weight — the rez / axis weight of the font
+  rez: '<path d="M2.5 4h11" stroke-width="1"/>'
+    + '<path d="M2.5 8h11" stroke-width="1.7"/><path d="M2.5 12h11" stroke-width="2.6"/>',
   // lines with an up-down arrow
   riadok: '<path d="M8.5 3.5H15M8.5 8H15M8.5 12.5H15"/>'
     + '<path d="M4.5 2.2v11.6M2.5 4.2l2-2 2 2M2.5 11.8l2 2 2-2"/>',
@@ -813,6 +870,7 @@ function zoneToText(i, firstKey) {
   z.velkost = 80;
   z.zarovnanie = 'vlavo';
   z.features = predvoleneFeatures(z.pismo);
+  Object.assign(z, predvolenePisma(z.pismo));
   openEditor(i);
 }
 
@@ -849,14 +907,14 @@ function openEditor(i) {
 // top of its box, which depends on the font's own metrics. The offset is
 // measured live in a hidden mirror with the exact styles the editor gets
 // (a zero-size inline-block starts a line and sits with its bottom edge on
-// the baseline), never assumed from a formula. The zone's font features are
-// part of the mirrored styles — and of the cache key.
+// the baseline), never assumed from a formula. The zone's font features and
+// its rez weight are part of the mirrored styles — and of the cache key.
 const baselineCache = new Map();
 const warmedFonts = new Set();
 let metricBox = null;
 
-function firstBaselineOffset(family, fontPx, riadkovanie, ffs) {
-  const key = `${family}|${fontPx}|${riadkovanie}|${ffs}`;
+function firstBaselineOffset(family, weight, fontPx, riadkovanie, ffs) {
+  const key = `${family}|${weight}|${fontPx}|${riadkovanie}|${ffs}`;
   if (baselineCache.has(key)) return baselineCache.get(key);
   if (!metricBox) {
     const box = document.createElement('div');
@@ -868,12 +926,13 @@ function firstBaselineOffset(family, fontPx, riadkovanie, ffs) {
   }
   const { box, mark } = metricBox;
   box.style.fontFamily = family;
+  box.style.fontWeight = String(weight);
   box.style.fontSize = `${fontPx}px`;
   box.style.lineHeight = String(riadkovanie);
   box.style.fontFeatureSettings = ffs;
   const offset = mark.getBoundingClientRect().top - box.getBoundingClientRect().top;
   baselineCache.set(key, offset);
-  const shorthand = `${fontPx}px ${family}`;
+  const shorthand = `${weight} ${fontPx}px ${family}`;
   if (!warmedFonts.has(shorthand)) {
     // until the webfont loads the mirror reports the fallback's metrics;
     // re-measure and re-place once it is ready
@@ -896,9 +955,13 @@ function positionEditor() {
   const fontD = (z.riadok * z.velkost) / 100;
   const fontPx = fontD * dielikPx();
   const riadkovanie = z.riadok / fontD; // line height as a multiple of the font size
-  const family = z.pismo === 'Brnos Aires' ? "'Brnos Aires', serif" : "'Nunito', sans-serif";
+  // the same face the sheet's <text> gets: the rez family/weight of a static
+  // font or the zone's axis weight of a variable one
+  const face = faceZony(z);
+  const family = `'${face.family}', ${z.pismo === 'Brnos Aires' ? 'serif' : 'sans-serif'}`;
   const ffs = ffsZony(z);
   ta.style.fontFamily = family;
+  ta.style.fontWeight = String(face.weight);
   ta.style.fontSize = `${fontPx}px`;
   ta.style.lineHeight = `${z.riadok * dielikPx()}px`;
   ta.style.textAlign = z.zarovnanie === 'stred' ? 'center' : (z.zarovnanie === 'vpravo' ? 'right' : 'left');
@@ -908,7 +971,7 @@ function positionEditor() {
   // pushing the text, so the content box stays exactly on the zone rect and
   // wrapping, size and alignment match the sheet line for line.
   const baselinePx = fontD * proporcie.kompozicia.svg.riadokPrvy * dielikPx();
-  const top = r.top + baselinePx - firstBaselineOffset(family, fontPx, riadkovanie, ffs) - 1;
+  const top = r.top + baselinePx - firstBaselineOffset(family, face.weight, fontPx, riadkovanie, ffs) - 1;
   ta.style.left = `${r.left - 1}px`;
   ta.style.top = `${top}px`;
   ta.style.width = `${r.width + 2}px`;
@@ -929,6 +992,7 @@ function closeEditor() {
       z.typ = 'prazdna';
       delete z.text; delete z.pismo; delete z.velkost;
       delete z.zarovnanie; delete z.riadok; delete z.features;
+      delete z.rez; delete z.hrubka;
     }
   }
   ta.remove();
