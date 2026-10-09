@@ -163,17 +163,21 @@ function textLayer(zony, fg, cfg, zmerajText) {
     const r = z.rect;
     const anchor = z.zarovnanie === 'stred' ? 'middle' : z.zarovnanie === 'vpravo' ? 'end' : 'start';
     const x = z.zarovnanie === 'stred' ? r.x + r.w / 2 : z.zarovnanie === 'vpravo' ? r.x + r.w : r.x;
-    const lineH = z.velkost * z.riadkovanie;
-    const lines = zalamujText(z.text, r.w, { pismo: z.pismo, velkost: z.velkost, zmerajText, cfg });
+    // The row is the unit: baselines sit `riadok` dieliks apart, on the dielik
+    // grid, and the glyphs fill `velkost` % of the row — over 100 % the lines
+    // overlap, on purpose.
+    const velkostPisma = (z.riadok * z.velkost) / 100;
+    const lineH = z.riadok;
+    const lines = zalamujText(z.text, r.w, { pismo: z.pismo, velkost: velkostPisma, zmerajText, cfg });
     // A line fits while its baseline sits inside the zone (descenders may
     // still poke below); text that overflows only warns, it is never cut.
-    if (z.velkost * cfg.riadokPrvy + (lines.length - 1) * lineH > r.h + 1e-9) {
+    if (velkostPisma * cfg.riadokPrvy + (lines.length - 1) * lineH > r.h + 1e-9) {
       varovania.push(`Text v zóne ${i + 1} sa nezmestí, zmenši veľkosť.`);
     }
     lines.forEach((line, j) => {
-      const y = r.y + z.velkost * cfg.riadokPrvy + j * lineH;
+      const y = r.y + velkostPisma * cfg.riadokPrvy + j * lineH;
       parts.push(
-        `<text x="${f(x)}" y="${f(y)}" font-family="${esc(z.pismo)}" font-size="${f(z.velkost)}"`
+        `<text x="${f(x)}" y="${f(y)}" font-family="${esc(z.pismo)}" font-size="${f(velkostPisma)}"`
         + ` text-anchor="${anchor}" fill="${fg}" style="font-feature-settings: 'liga', 'ss01'">${esc(line)}</text>`);
     });
   });

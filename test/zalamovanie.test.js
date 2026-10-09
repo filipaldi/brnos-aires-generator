@@ -27,7 +27,7 @@ function specSZonou(zona) {
     zony: [{
       typ: 'text', x: 0, y: 0, w: 11, h: 9,
       text: 'Brnos Aires Tango Marathon',
-      pismo: 'Brnos Aires', velkost: 1, zarovnanie: 'vlavo', riadkovanie: 1.1,
+      pismo: 'Brnos Aires', riadok: 1, velkost: 100, zarovnanie: 'vlavo',
       ...zona,
     }],
   };
@@ -73,8 +73,23 @@ test('dlhý riadok v úzkej zóne sa zalomí do viacerých <text> prvkov', () =>
   for (const riadok of riadky) {
     assert.ok(znak(riadok, 'Brnos Aires', 1) <= 11, `riadok „${riadok}“ presahuje zónu`);
   }
-  // výška stačí: 0,8 + 2 · 1,1 = 3 ≤ 9, žiadne varovanie
+  // výška stačí: 0,8 + 2 · 1 = 2,8 ≤ 9, žiadne varovanie
   assert.ok(!varovania.some((v) => v.includes('nezmestí')), JSON.stringify(varovania));
+});
+
+test('veľkosť písma je % výšky riadku, riadky sedia na mriežke dielikov', () => {
+  const spec = specSZonou({ text: 'jeden\ndva\ntri štyri', w: 4, h: 20, riadok: 3, velkost: 150 });
+  const { svg } = komponuj(spec, { zmerajText: znak });
+  // písmo 3 · 150 % = 4,5 dielika, prvá linka 0,8 · 4,5 = 3,6, krok 3 dieliky
+  const ys = [...svg.matchAll(/<text[^>]* y="([^"]+)"/g)].map((m) => Number(m[1]));
+  assert.deepEqual(ys, [3.6, 6.6, 9.6, 12.6]);
+  assert.ok(svg.includes('font-size="4.5"'), 'veľkosť písma nie je 4,5 dielika');
+});
+
+test('text nezmestí sa na výšku aj s väčším riadkom → varovanie', () => {
+  // písmo 1,5, prvá linka 1,2 + ďalšie riadky po 3 dielikoch — na h 2 sa nezmestí
+  const { varovania } = komponuj(specSZonou({ h: 2, riadok: 3, velkost: 50 }), { zmerajText: znak });
+  assert.ok(varovania.includes('Text v zóne 1 sa nezmestí, zmenši veľkosť.'), JSON.stringify(varovania));
 });
 
 test('text nezmestí sa na výšku → varovanie, riadky ostanú celé', () => {

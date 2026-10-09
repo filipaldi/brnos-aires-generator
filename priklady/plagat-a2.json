@@ -56,9 +56,9 @@
       "okraj": 0,
       "text": "MILONGA\nDE OTOÑO",
       "pismo": "Brnos Aires",
-      "velkost": 3.0,
-      "zarovnanie": "vlavo",
-      "riadkovanie": 1.1
+      "riadok": 3,
+      "velkost": 100,
+      "zarovnanie": "vlavo"
     },
     {
       "typ": "text",
@@ -69,9 +69,9 @@
       "okraj": 0,
       "text": "sobota 25. októbra 2026, 20:00",
       "pismo": "Nunito",
-      "velkost": 0.9,
-      "zarovnanie": "vlavo",
-      "riadkovanie": 1.2
+      "riadok": 1,
+      "velkost": 90,
+      "zarovnanie": "vlavo"
     },
     {
       "typ": "fotka",

@@ -428,6 +428,49 @@ button, input, select { font: inherit; color: inherit; }
 
 #zone-bar select { width: auto; }
 
+/* whole-number fields of the bar stay narrow (okraj −20, percentá 10–200);
+   the spinner arrows would not leave room for three digits, values are typed */
+#zone-bar input[type="number"] { width: 5ch; }
+#zone-bar input[type="number"]::-webkit-inner-spin-button,
+#zone-bar input[type="number"]::-webkit-outer-spin-button { display: none; }
+
+#zone-bar .z-field { display: flex; align-items: center; gap: 3px; }
+
+/* one row height for inputs, selects and toggle groups (seg = 22 + border) */
+#zone-bar .z-field input, #zone-bar .z-field select { color: var(--ink); height: 24px; }
+
+#zone-bar .z-ico { display: flex; color: var(--ink); cursor: help; }
+
+#zone-bar .z-ico svg { display: block; width: 17px; height: 17px; }
+
+/* icon toggle group (zarovnanie, režim): one border around the buttons,
+   the pressed one fills with ink */
+#zone-bar .z-seg {
+  display: flex;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#zone-bar .z-tgl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+#zone-bar .z-tgl + .z-tgl { border-left: 1px solid var(--hairline); }
+
+#zone-bar .z-tgl:hover { background: var(--wash); }
+
+#zone-bar .z-tgl.zapnute { background: var(--ink); color: var(--paper); }
+
 #zone-bar .del {
   border: none;
   background: none;

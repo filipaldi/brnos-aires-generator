@@ -52,6 +52,24 @@ function okrajZoSpravania(spravanie) {
   throw new ValidationError(`Zóna: správanie prijíma iba prazdna | presah | okraj (dostal som „${spravanie}“).`);
 }
 
+// Legacy text model → the current one, the same conversion as the core's
+// normalizujSpec: `riadkovanie` (a multiple of the font size in dieliks)
+// became the row height `riadok` in whole dieliks with `velkost` as its
+// whole percentage. The defaults are the ones the stub had before.
+const STARY_TEXT = { velkost: 1.2, riadkovanie: 1.1 };
+
+function naNovyText(z) {
+  if ('riadok' in z || (!('riadkovanie' in z) && !('velkost' in z))) return z;
+  const staraVelkost = z.velkost ?? STARY_TEXT.velkost;
+  const riadok = Math.max(1, Math.round(staraVelkost * (z.riadkovanie ?? STARY_TEXT.riadkovanie)));
+  const { riadkovanie, ...zvysok } = z;
+  return {
+    ...zvysok,
+    riadok,
+    velkost: Math.min(200, Math.max(10, Math.round((staraVelkost / riadok) * 100))),
+  };
+}
+
 function validateZone(z, index) {
   const kde = `Zóna č. ${index + 1}`;
   if (!z || typeof z !== 'object') throw new ValidationError(`${kde} nie je objekt.`);
@@ -65,9 +83,9 @@ function validateZone(z, index) {
   if (z.typ === 'text') {
     if (typeof z.text !== 'string') throw new ValidationError(`${kde}: text musí byť reťazec.`);
     if (z.pismo !== undefined) enumv(z.pismo, `${kde}: písmo`, ['Brnos Aires', 'Nunito']);
-    if (z.velkost !== undefined) num(z.velkost, `${kde}: veľkosť písma`, { min: 0.1, max: 40 });
+    if (z.riadok !== undefined) num(z.riadok, `${kde}: riadok`, { min: 1, max: 20, integer: true });
+    if (z.velkost !== undefined) num(z.velkost, `${kde}: veľkosť`, { min: 10, max: 200, integer: true });
     if (z.zarovnanie !== undefined) enumv(z.zarovnanie, `${kde}: zarovnanie`, ['vlavo', 'stred', 'vpravo']);
-    if (z.riadkovanie !== undefined) num(z.riadkovanie, `${kde}: riadkovanie`, { min: 0.5, max: 4 });
   }
   if (z.typ === 'fotka') {
     if (typeof z.zdroj !== 'string' || !z.zdroj) {
@@ -135,8 +153,9 @@ export function normalizujSpec(input) {
   }
   if (spec.zony !== undefined) {
     if (!Array.isArray(spec.zony)) throw new ValidationError('Zóny musia byť pole.');
-    out.zony = spec.zony.map((z) => {
-      validateZone(z, spec.zony.indexOf(z));
+    out.zony = spec.zony.map((z, i) => {
+      if (z?.typ === 'text') z = naNovyText(z);
+      validateZone(z, i);
       const base = {
         typ: z.typ, x: z.x, y: z.y, w: z.w, h: z.h,
         okraj: z.okraj !== undefined ? z.okraj : okrajZoSpravania(z.spravanie),
@@ -144,8 +163,8 @@ export function normalizujSpec(input) {
       if (z.typ === 'text') {
         return {
           ...base, text: z.text ?? '', pismo: z.pismo || 'Brnos Aires',
-          velkost: z.velkost ?? 1.2, zarovnanie: z.zarovnanie || 'vlavo',
-          riadkovanie: z.riadkovanie ?? 1.1,
+          riadok: z.riadok ?? 3, velkost: z.velkost ?? 80,
+          zarovnanie: z.zarovnanie || 'vlavo',
         };
       }
       if (z.typ === 'fotka') {
@@ -296,10 +315,13 @@ function textZoneSvg(z, fill, dielikUnits) {
   const x = z.zarovnanie === 'stred' ? z.x + z.w / 2
     : (z.zarovnanie === 'vpravo' ? z.x + z.w - pad : z.x + pad);
   const lines = String(z.text).split('\n');
+  // same model as the core: baselines `riadok` dieliks apart, glyphs fill
+  // `velkost` % of the row
+  const velkostPisma = (z.riadok * z.velkost) / 100;
   const tspans = lines.map((line, i) => (
-    `<tspan x="${fmt(x)}" y="${fmt(z.y + z.velkost * 0.78 + i * z.velkost * z.riadkovanie)}">${esc(line)}</tspan>`
+    `<tspan x="${fmt(x)}" y="${fmt(z.y + velkostPisma * 0.78 + i * z.riadok)}">${esc(line)}</tspan>`
   )).join('');
-  return `<text font-family="${escAttr(z.pismo)}" font-size="${fmt(z.velkost)}" `
+  return `<text font-family="${escAttr(z.pismo)}" font-size="${fmt(velkostPisma)}" `
     + `text-anchor="${anchor}" fill="${fill}">${tspans}</text>`;
 }
 

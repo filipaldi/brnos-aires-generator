@@ -194,6 +194,7 @@ function okrajZoSpravania(spravanie, name) {
 
 function normalizujZonu(raw, index, stlpce, vyskaD) {
   const name = `zóna ${index + 1}`;
+  const typ = moznosti(raw.typ ?? 'text', `${name}.typ`, TYPY_ZONY);
   // dropped setting: the zone `spravanie` became the numeric `okraj`; when a
   // spec carries both, its `okraj` wins
   if (raw && 'spravanie' in raw) {
@@ -201,12 +202,31 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
     if (!('okraj' in zvysok)) zvysok.okraj = okrajZoSpravania(spravanie, name);
     raw = zvysok;
   }
+  // dropped setting: text line spacing `riadkovanie` (a multiple of the font
+  // size) became the dielik grid — `riadok` is the row height in whole
+  // dieliks, `velkost` the font size as its whole percentage. A size without
+  // `riadok` is read in the old units and converted (the defaults are the
+  // ones proporcie.json had before); when a spec carries both models, its
+  // `riadok` wins.
+  if (typ === 'text') {
+    const { riadkovanie, ...zvysok } = raw;
+    if (!('riadok' in raw) && (riadkovanie !== undefined || 'velkost' in raw)) {
+      const staraVelkost = raw.velkost ?? 1.2;
+      const riadok = Math.max(1, Math.round(staraVelkost * (riadkovanie ?? 1.1)));
+      raw = {
+        ...zvysok,
+        riadok,
+        velkost: Math.min(200, Math.max(10, Math.round((staraVelkost / riadok) * 100))),
+      };
+    } else {
+      raw = zvysok; // riadkovanie is gone either way
+    }
+  }
   polia(raw, [
     'typ', 'x', 'y', 'w', 'h', 'okraj',
-    'text', 'pismo', 'velkost', 'zarovnanie', 'riadkovanie',
+    'text', 'pismo', 'velkost', 'zarovnanie', 'riadok',
     'zdroj', 'rezim', 'posun', 'zoom',
   ], name);
-  const typ = moznosti(raw.typ ?? 'text', `${name}.typ`, TYPY_ZONY);
   const d = KOMP.zona[typ] || {};
   const zona = { typ, okraj: 0, ...d, ...raw };
   // a zone may start anywhere on the format; 64 capped grids wider or
@@ -228,9 +248,9 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
       throw new ValidationError(`${name}.text musí byť reťazec.`);
     }
     moznosti(zona.pismo, `${name}.pismo`, PISMA);
-    cislo(zona.velkost, `${name}.velkost`, { min: 0.1, max: 20 });
+    cislo(zona.riadok, `${name}.riadok`, { min: 1, max: 20, cele: true });
+    cislo(zona.velkost, `${name}.velkost`, { min: 10, max: 200, cele: true });
     moznosti(zona.zarovnanie, `${name}.zarovnanie`, ZOROVNANIE);
-    cislo(zona.riadkovanie, `${name}.riadkovanie`, { min: 0.5, max: 3 });
   }
   if (typ === 'fotka') {
     if (zona.zdroj != null && typeof zona.zdroj !== 'string') {
