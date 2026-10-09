@@ -357,6 +357,13 @@ function drawZoneBar() {
     }
   }
 
+  const dup = document.createElement('button');
+  dup.className = 'del';
+  dup.title = 'Duplikovať zónu';
+  dup.append(ikona('duplikovat', 'Duplikovať zónu'));
+  dup.addEventListener('click', duplicateZone);
+  zoneBar.append(dup);
+
   const del = document.createElement('button');
   del.className = 'del';
   del.title = 'Zmazať zónu';
@@ -489,6 +496,8 @@ const IKONY = {
     + '<rect x="8.1" y="2.5" width="6" height="6"/>',
   'rezim-prekrytie': '<rect x="2" y="2.5" width="9.5" height="9.5"/>'
     + '<rect x="4.5" y="4.5" width="9" height="9" fill="currentColor" stroke="none"/>',
+  // duplicate: a rect in front, the square behind it by its top and left edges
+  duplikovat: '<rect x="5.5" y="5.5" width="9" height="9"/><path d="M10.5 3.5h-7v7"/>',
   // "fi" set in the interface font (its own ligature): the typographic
   // features button; a glyph, not a line drawing, so it stays legible at 16 px
   features: '<text x="8" y="12.4" text-anchor="middle" font-size="12.5"'
@@ -533,6 +542,83 @@ function deleteZone(i) {
   closeEditor();
   spec.zony.splice(i, 1);
   selected = -1;
+  drawOverlay(); // the zone disappears now, the sheet follows after recomposing
+  scheduleRender();
+}
+
+// ---------- keyboard on the selected zone ----------
+
+// The usual keys work on the selected zone: Delete/Backspace deletes it,
+// Cmd/Ctrl+C copies it, Cmd/Ctrl+V pastes the copy, Cmd/Ctrl+D duplicates
+// and Escape deselects. A key pressed with focus in a field (the text
+// editor, the bar's inputs and selects, anything contenteditable) keeps its
+// normal meaning — typing, copy and delete included — and preventDefault
+// only ever fires on a key that was actually handled.
+let zoneClipboard = null; // the copied zone, a deep clone held in memory
+
+const vPolicku = (target) => Boolean(
+  target?.closest?.('input, textarea, select') || target?.isContentEditable,
+);
+
+document.addEventListener('keydown', (e) => {
+  if (vPolicku(e.target)) return;
+  const mod = e.metaKey || e.ctrlKey;
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+  if (key === 'Escape') {
+    if (selected < 0) return;
+    closeEditor();
+    selected = -1;
+    photoPan = false;
+    drawOverlay();
+    e.preventDefault();
+  } else if (key === 'Delete' || key === 'Backspace') {
+    if (!spec.zony[selected]) return;
+    deleteZone(selected);
+    e.preventDefault(); // Backspace would also take the page back
+  } else if (mod && key === 'c') {
+    const z = spec.zony[selected];
+    if (!z) return;
+    zoneClipboard = structuredClone(z);
+    e.preventDefault();
+  } else if (mod && key === 'v') {
+    // paste alone works with nothing selected: the copy outlives the zone
+    if (!zoneClipboard) return;
+    pasteZone(zoneClipboard);
+    e.preventDefault();
+  } else if (mod && key === 'd') {
+    if (!spec.zony[selected]) return;
+    duplicateZone();
+    e.preventDefault();
+  }
+});
+
+// Copy + paste in one step (Cmd/Ctrl+D, the Duplikovať button). The editor
+// closes first, so an untouched text zone goes back to being empty before
+// the clone is made.
+function duplicateZone() {
+  closeEditor();
+  const z = spec.zony[selected];
+  if (!z) return;
+  zoneClipboard = structuredClone(z);
+  pasteZone(zoneClipboard);
+}
+
+// A pasted zone lands one dielik right and down from its original, clamped
+// inside the format (whole dieliks); it is selected, drawn and saved exactly
+// like a zone dragged out on the canvas.
+function pasteZone(vzor) {
+  const f = spec.format, g = spec.grid;
+  const rows = Math.max(1, Math.floor((f.vyska * g.stlpce) / f.sirka + 1e-6));
+  const z = structuredClone(vzor);
+  z.w = clamp(Math.round(z.w), 1, g.stlpce);
+  z.h = clamp(Math.round(z.h), 1, rows);
+  z.x = clamp(Math.round(z.x) + 1, 0, g.stlpce - z.w);
+  z.y = clamp(Math.round(z.y) + 1, 0, rows - z.h);
+  spec.zony.push(z);
+  selected = spec.zony.length - 1;
+  photoPan = false;
+  drawOverlay(); // show the new zone now, the sheet follows after recomposing
   scheduleRender();
 }
 

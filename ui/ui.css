@@ -540,12 +540,20 @@ button, input, select { font: inherit; color: inherit; }
 #zone-bar .z-feat-row .tag { margin-left: auto; color: var(--faint); font-size: 11px; }
 
 #zone-bar .del {
+  display: inline-flex;
+  align-items: center;
   border: none;
   background: none;
   cursor: pointer;
   font-size: 13px;
   padding: 2px 5px;
 }
+
+/* the Duplikovať icon button sits next to the ✕ one: its icon follows the
+   button's colour, so it swaps to paper on ink on hover like the glyph */
+#zone-bar .del .z-ico { color: inherit; cursor: pointer; }
+
+#zone-bar .del .z-ico svg { width: 14px; height: 14px; }
 
 #zone-bar .del:hover { background: var(--ink); color: var(--paper); }
 

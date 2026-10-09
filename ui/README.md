@@ -39,8 +39,11 @@ repozitára, takže jadro (`/core/`) aj fonty
   má rozsah veľkosti (jej šírku). Riadok „Krúžky a kvapky“ už neexistuje.
 - **Fotka:** dvojklik prepne posun a zoom (ťahaj, koliesko), ďalší dvojklik
   ukončí.
-- **Bez klávesových skratiek:** všetko sa ovláda klikom. Prehliadač tvarov
-  otvára tlačidlo Tvary, zónu maže ✕ v jej lište.
+- **Klávesy len na vybranej zóne:** Delete/Backspace ju maže, Cmd/Ctrl+C
+  kopíruje, Cmd/Ctrl+V prilepí kópiu o dielik vpravo dole, Cmd/Ctrl+D
+  duplikuje, Escape ruší výber. V poliach (textový editor, čísla, ponuky)
+  klávesy fungujú normálne a všetko sa dá aj vyklikať — zónu duplikuje
+  tlačidlo v jej lište, maže ✕. Prehliadač tvarov otvára tlačidlo Tvary.
 - **Skladanie beží vo web workeri:** pri zmene ostáva na plátne stará kresba
   a v hornom paneli svieti „skladám…“, kým nová nie je hotová. Posuvníky v
   Parametroch počas ťahania menia len číslo (a spec); list sa prekreslí až

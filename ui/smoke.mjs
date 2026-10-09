@@ -158,7 +158,7 @@ try {
   if (skladaloPocasTahu) errors.push('skladanie bežalo už počas ťahania sliderom');
   await cakajNaSkladanie();
   await page.screenshot({ path: path.join(OUT_DIR, SHOTS[2]) });
-  // no keyboard shortcuts: the button closes its own popover
+  // the button closes its own popover (Escape is not a popover shortcut)
   await page.click('#btn-parametre');
 
   // (c2) one snapping rule everywhere: a zone edge lands on the grid line
