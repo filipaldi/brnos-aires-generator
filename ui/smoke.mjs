@@ -1,7 +1,8 @@
 // Smoke test for the generator UI. Starts serve.js when nothing listens on
 // the port, drives the page with Playwright (global node_modules, browser in
 // PLAYWRIGHT_BROWSERS_PATH) and saves four screenshots. Fails when the
-// browser console reports errors.
+// browser console reports errors. Also checks the grid snapping: every zone
+// edge lands on the grid line nearest to the cursor, threshold mid-cell.
 //
 //   node ui/smoke.mjs [output-dir]
 
@@ -159,6 +160,82 @@ try {
   await page.screenshot({ path: path.join(OUT_DIR, SHOTS[2]) });
   // no keyboard shortcuts: the button closes its own popover
   await page.click('#btn-parametre');
+
+  // (c2) one snapping rule everywhere: a zone edge lands on the grid line
+  // nearest to the cursor, the threshold in the middle of a cell — for
+  // creating, moving and resizing. The grid geometry is read from the page:
+  // the dielik from the overlay's CSS variable, line 0 from the bleed mark
+  // and the svg viewBox (the same arithmetic zoneRectPx uses).
+  const m = await page.evaluate(() => {
+    const overlay = document.querySelector('#overlay');
+    const ov = overlay.getBoundingClientRect();
+    const bm = document.querySelector('#bleed-mark').getBoundingClientRect();
+    const vb = document.querySelector('#sheet svg').viewBox.baseVal;
+    const s = parseFloat(getComputedStyle(overlay).getPropertyValue('--dielik-px'));
+    return { left: ov.left, top: ov.top, ox: bm.left - ov.left - vb.x * s, oy: bm.top - ov.top - vb.y * s, s };
+  });
+  const X = (d) => m.left + m.ox + d * m.s; // page px of the grid position d
+  const Y = (d) => m.top + m.oy + d * m.s;
+  const vDielikoch = (r) => ({
+    x: (r.x - m.left - m.ox) / m.s,
+    y: (r.y - m.top - m.oy) / m.s,
+    w: r.width / m.s,
+    h: r.height / m.s,
+  });
+  const porovnaj = (co, z, ocakavane) => {
+    for (const [k, v] of Object.entries(ocakavane)) {
+      if (Math.abs(z[k] - v) > 0.05) errors.push(`${co}: ${k}=${z[k].toFixed(2)}, má byť ${v}`);
+    }
+  };
+  const rectZony = async (i) => vDielikoch(await page.locator(`.zone[data-i="${i}"]`).boundingBox());
+  const tahaj = (x0, y0, x1, y1) => page.mouse.move(x0, y0)
+    .then(() => page.mouse.down())
+    .then(() => page.mouse.move(x1, y1, { steps: 6 }));
+
+  // creating: a press just past the middle of a cell snaps the corner to the
+  // next line, just before the middle to the previous one; the ghost already
+  // shows the snapped rect during the drag (what you see is what you get)
+  await tahaj(X(23.6), Y(14.6), X(27), Y(17));
+  porovnaj('duch pri vytváraní A',
+    vDielikoch(await page.locator('#zone-create-ghost').boundingBox()), { x: 24, y: 15, w: 3, h: 2 });
+  await page.mouse.up();
+  porovnaj('vytvorenie A (za stredom bunky → ďalšia čiara)', await rectZony(1), { x: 24, y: 15, w: 3, h: 2 });
+
+  await tahaj(X(23.4), Y(20.4), X(27), Y(23));
+  await page.mouse.up();
+  porovnaj('vytvorenie B (pred stredom bunky → predchádzajúca čiara)', await rectZony(2), { x: 23, y: 20, w: 4, h: 3 });
+
+  // moving: the top-left corner snaps to the line nearest to (cursor − grab);
+  // resizing right after the move — the moved zone stays selected, so its
+  // handles are the ones on screen
+  const rohTr = async () => {
+    const r = await page.locator('.zone.sel .handle.tr').boundingBox();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  };
+
+  await tahaj(X(25.6), Y(16), X(26.2), Y(16));
+  porovnaj('presun A počas ťahania', await rectZony(1), { x: 25, y: 15, w: 3, h: 2 });
+  await page.mouse.up();
+  porovnaj('presun A (za stredom bunky → ďalšia čiara)', await rectZony(1), { x: 25, y: 15, w: 3, h: 2 });
+
+  // resizing: the dragged edge snaps to the nearest line, the other stays put
+  let roh = await rohTr();
+  await tahaj(roh.x, roh.y, X(28.6), roh.y);
+  porovnaj('zmena veľkosti A počas ťahania', await rectZony(1), { x: 25, y: 15, w: 4, h: 2 });
+  await page.mouse.up();
+  porovnaj('zmena veľkosti A (za stredom bunky → ďalšia čiara)', await rectZony(1), { x: 25, y: 15, w: 4, h: 2 });
+
+  await tahaj(X(25), Y(21.5), X(25.4), Y(21.5));
+  await page.mouse.up();
+  porovnaj('presun B (pred stredom bunky → predchádzajúca čiara)', await rectZony(2), { x: 23, y: 20, w: 4, h: 3 });
+
+  roh = await rohTr();
+  await tahaj(roh.x, roh.y, X(27.4), roh.y);
+  await page.mouse.up();
+  porovnaj('zmena veľkosti B (pred stredom bunky → ostáva na čiare)', await rectZony(2), { x: 23, y: 20, w: 4, h: 3 });
+
+  // the zones from the drags must compose like any other spec
+  await cakajNaSkladanie();
 
   // (d) the shape viewer, opened by the Tvary button
   await page.click('#btn-tvary');
