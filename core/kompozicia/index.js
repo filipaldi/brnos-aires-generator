@@ -13,6 +13,7 @@ import { ValidationError } from '../errors.js';
 import { createRng } from './rng.js';
 import { placeShapes } from './rozmiestnenie.js';
 import { renderSvg, translatePathD } from './svg.js';
+import { FONTY, normalizujFeatures } from './features.js';
 import { maxVelkost } from './velkost.js';
 
 const KOMP = loadProporcie().kompozicia;
@@ -21,7 +22,7 @@ const JEDNOTKY = ['mm', 'px'];
 const ZVYSOK = ['okraje', 'natiahnutie', 'orez'];
 const ROZMIESTNENIE = ['volne', 'dlazdice'];
 const TYPY_ZONY = ['text', 'fotka', 'prazdna'];
-const PISMA = ['Brnos Aires', 'Nunito'];
+const PISMA = FONTY;
 const ZOROVNANIE = ['vlavo', 'stred', 'vpravo'];
 const REZIMY = ['ramik', 'maska', 'prekrytie'];
 
@@ -224,7 +225,7 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
   }
   polia(raw, [
     'typ', 'x', 'y', 'w', 'h', 'okraj',
-    'text', 'pismo', 'velkost', 'zarovnanie', 'riadok',
+    'text', 'pismo', 'velkost', 'zarovnanie', 'riadok', 'features',
     'zdroj', 'rezim', 'posun', 'zoom',
   ], name);
   const d = KOMP.zona[typ] || {};
@@ -251,6 +252,9 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
     cislo(zona.riadok, `${name}.riadok`, { min: 1, max: 20, cele: true });
     cislo(zona.velkost, `${name}.velkost`, { min: 10, max: 200, cele: true });
     moznosti(zona.zarovnanie, `${name}.zarovnanie`, ZOROVNANIE);
+    // OpenType features of the zone's font — a missing field means the
+    // defaults (no ss01), an unknown tag for the font is rejected
+    zona.features = normalizujFeatures(zona.features, zona.pismo, name);
   }
   if (typ === 'fotka') {
     if (zona.zdroj != null && typeof zona.zdroj !== 'string') {
@@ -300,7 +304,8 @@ export function normalizujSpec(input) {
 
 export function komponuj(input, { fontUrls, zmerajText } = {}) {
   if (zmerajText !== undefined && typeof zmerajText !== 'function') {
-    throw new ValidationError('zmerajText musí byť funkcia (text, pismo, velkost) → šírka v dielikoch.');
+    throw new ValidationError(
+      'zmerajText musí byť funkcia (text, pismo, velkost, features) → šírka v dielikoch.');
   }
   const spec = normalizujSpec(input);
   const { format, grid, kresba, kompozicia: komp } = spec;

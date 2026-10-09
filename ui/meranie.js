@@ -1,12 +1,13 @@
 // Precise text widths for the composition engine: canvas measureText with the
-// same two fonts the SVG sets text in ('Brnos Aires', 'Nunito') and the same
-// font features as the sheet text ('liga', 'ss01'). Runs on the main thread
-// and in a Web Worker: fonts load through FontFace added to self.fonts (a
-// worker has no document), the canvas is an OffscreenCanvas when the engine
-// has one, else a DOM canvas.
+// same two fonts the SVG sets text in ('Brnos Aires', 'Nunito') and the
+// font features of the measured text zone, handed in by the core (a disabled
+// liga must measure unligated). Runs on the main thread and in a Web Worker:
+// fonts load through FontFace added to self.fonts (a worker has no document),
+// the canvas is an OffscreenCanvas when the engine has one, else a DOM canvas.
+
+import { fontFeatureSettings } from '../core/kompozicia/features.js';
 
 const MERNA_VELKOST = 100; // px: measure at one fixed size, scale to velkost
-const FONT_FEATURES = "'liga', 'ss01'";
 
 function vytvorKontext() {
   if (typeof OffscreenCanvas === 'function') {
@@ -22,22 +23,23 @@ function vytvorKontext() {
 // font load serve all callers with the same URLs.
 let zdielane = null;
 
-// Returns zmerajText(text, pismo, velkost) → width in velkost units
-// (dieliks), the contract core komponuj expects in opts.zmerajText. Until the
-// fonts land the canvas measures with a fallback face; zmerajText.ready
+// Returns zmerajText(text, pismo, velkost, features) → width in velkost
+// units (dieliks), the contract core komponuj expects in opts.zmerajText.
+// Until the fonts land the canvas measures with a fallback face; zmerajText.ready
 // settles after the load and the caller should redraw then.
 export function vytvorMeranie(fontUrls) {
   const kluc = JSON.stringify(fontUrls || {});
   if (zdielane && zdielane.kluc === kluc) return zdielane.meranie;
 
   const ctx = vytvorKontext();
-  // Not every 2D context takes font features (the canvas spec added them
-  // late); without them ligatures measure in their unligated widths and the
-  // wrap can differ from the SVG by a glyph or two.
+  // Setting font features on a 2D context is best effort: Chromium parses
+  // fontFeatureSettings but ignores it for glyph selection, so the canvas
+  // measures the font's default rendering. The wrap can then differ from the
+  // SVG by a glyph or two where the zone's features change glyph widths.
   let featurey = false;
   if ('fontFeatureSettings' in ctx) {
     try {
-      ctx.fontFeatureSettings = FONT_FEATURES;
+      ctx.fontFeatureSettings = "'liga' 1";
       featurey = ctx.fontFeatureSettings !== 'normal';
     } catch {
       featurey = false;
@@ -56,9 +58,10 @@ export function vytvorMeranie(fontUrls) {
     }));
   }
 
-  function zmerajText(text, pismo, velkost) {
+  function zmerajText(text, pismo, velkost, features) {
     ctx.font = `${MERNA_VELKOST}px '${pismo}'`;
-    if (featurey) ctx.fontFeatureSettings = FONT_FEATURES;
+    // features arrive per zone; without them (legacy callers) measure plain
+    if (featurey) ctx.fontFeatureSettings = fontFeatureSettings(features);
     return (ctx.measureText(text).width / MERNA_VELKOST) * velkost;
   }
 

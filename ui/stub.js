@@ -5,6 +5,7 @@
 
 import { buildShape, computeAxes, defaultParams, TYPES, proporcie } from '../core/index.js';
 import { ValidationError } from '../core/errors.js';
+import { fontFeatureSettings, normalizujFeatures } from '../core/kompozicia/features.js';
 
 const ALL_TYPES = TYPES.map((t) => t.id);
 
@@ -86,6 +87,9 @@ function validateZone(z, index) {
     if (z.riadok !== undefined) num(z.riadok, `${kde}: riadok`, { min: 1, max: 20, integer: true });
     if (z.velkost !== undefined) num(z.velkost, `${kde}: veľkosť`, { min: 10, max: 200, integer: true });
     if (z.zarovnanie !== undefined) enumv(z.zarovnanie, `${kde}: zarovnanie`, ['vlavo', 'stred', 'vpravo']);
+    // same contract as the core: unknown tag for the font is a clear error,
+    // a missing field means the defaults (no ss01)
+    if (z.features !== undefined) normalizujFeatures(z.features, z.pismo || 'Brnos Aires', kde);
   }
   if (z.typ === 'fotka') {
     if (typeof z.zdroj !== 'string' || !z.zdroj) {
@@ -165,6 +169,7 @@ export function normalizujSpec(input) {
           ...base, text: z.text ?? '', pismo: z.pismo || 'Brnos Aires',
           riadok: z.riadok ?? 3, velkost: z.velkost ?? 80,
           zarovnanie: z.zarovnanie || 'vlavo',
+          features: normalizujFeatures(z.features, z.pismo || 'Brnos Aires', `Zóna č. ${i + 1}`),
         };
       }
       if (z.typ === 'fotka') {
@@ -322,7 +327,8 @@ function textZoneSvg(z, fill, dielikUnits) {
     `<tspan x="${fmt(x)}" y="${fmt(z.y + velkostPisma * 0.78 + i * z.riadok)}">${esc(line)}</tspan>`
   )).join('');
   return `<text font-family="${escAttr(z.pismo)}" font-size="${fmt(velkostPisma)}" `
-    + `text-anchor="${anchor}" fill="${fill}">${tspans}</text>`;
+    + `text-anchor="${anchor}" fill="${fill}" style="font-feature-settings: ${fontFeatureSettings(z.features)}">`
+    + `${tspans}</text>`;
 }
 
 function photoZoneSvg(z, i, geom, fill) {

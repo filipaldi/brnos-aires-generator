@@ -5,6 +5,7 @@
 // output byte-deterministic.
 
 import { fmt } from '../geometry.js';
+import { fontFeatureSettings } from './features.js';
 
 export function esc(s) {
   return String(s)
@@ -117,7 +118,8 @@ function photoLayer(zony, placed, cfg, uid) {
 // in Node — the core has no canvas): the average glyph width as a share of
 // the font size, per font in proporcie.json (kompozicia.svg.priemerneZnaky).
 // The UI injects a precise canvas measure through komponuj; this only keeps
-// long lines roughly inside the zone.
+// long lines roughly inside the zone. Features are ignored: without a real
+// measure the estimate cannot see ligatures anyway.
 function odhadSirky(text, pismo, velkost, cfg) {
   const podiel = (cfg.priemerneZnaky && cfg.priemerneZnaky[pismo]) ?? 0.6;
   return text.length * podiel * velkost;
@@ -125,10 +127,12 @@ function odhadSirky(text, pismo, velkost, cfg) {
 
 // Word-wraps text to `sirka` (dieliks). Explicit '\n' always breaks. A word
 // wider than `sirka` keeps its own line, unsplit. Spaces between words on one
-// line stay; spaces at a wrap point are dropped and never measured.
-export function zalamujText(text, sirka, { pismo, velkost, zmerajText = null, cfg }) {
+// line stay; spaces at a wrap point are dropped and never measured. The
+// zone's features travel to zmerajText, so ligatures measure at their real
+// width and the wrap matches what the sheet renders.
+export function zalamujText(text, sirka, { pismo, velkost, features, zmerajText = null, cfg }) {
   const sirkaTextu = zmerajText
-    ? (t) => zmerajText(t, pismo, velkost)
+    ? (t) => zmerajText(t, pismo, velkost, features)
     : (t) => odhadSirky(t, pismo, velkost, cfg);
   const riadky = [];
   for (const odstavec of String(text).split('\n')) {
@@ -168,7 +172,9 @@ function textLayer(zony, fg, cfg, zmerajText) {
     // overlap, on purpose.
     const velkostPisma = (z.riadok * z.velkost) / 100;
     const lineH = z.riadok;
-    const lines = zalamujText(z.text, r.w, { pismo: z.pismo, velkost: velkostPisma, zmerajText, cfg });
+    const lines = zalamujText(z.text, r.w, {
+      pismo: z.pismo, velkost: velkostPisma, features: z.features, zmerajText, cfg,
+    });
     // A line fits while its baseline sits inside the zone (descenders may
     // still poke below); text that overflows only warns, it is never cut.
     if (velkostPisma * cfg.riadokPrvy + (lines.length - 1) * lineH > r.h + 1e-9) {
@@ -176,9 +182,12 @@ function textLayer(zony, fg, cfg, zmerajText) {
     }
     lines.forEach((line, j) => {
       const y = r.y + velkostPisma * cfg.riadokPrvy + j * lineH;
+      // every feature explicit, on as 1 and off as 0: a disabled liga must
+      // read 'liga' 0 in the sheet, never fall back to the browser default
       parts.push(
         `<text x="${f(x)}" y="${f(y)}" font-family="${esc(z.pismo)}" font-size="${f(velkostPisma)}"`
-        + ` text-anchor="${anchor}" fill="${fg}" style="font-feature-settings: 'liga', 'ss01'">${esc(line)}</text>`);
+        + ` text-anchor="${anchor}" fill="${fg}" style="font-feature-settings: ${fontFeatureSettings(z.features)}">`
+        + `${esc(line)}</text>`);
     });
   });
   return { parts, varovania };

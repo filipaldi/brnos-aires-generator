@@ -4,6 +4,7 @@
 
 import * as engine from './engine.js';
 import { TYPES, buildShape, defaultParams, computeAxes, paramSpec, proporcie } from '../core/index.js';
+import { featuresPoZmenePisma, fontFeatureSettings, predvoleneFeatures, FONTY } from '../core/kompozicia/features.js';
 import { maxVelkost } from '../core/kompozicia/velkost.js';
 import { createViewer } from './viewer.js';
 import {
@@ -316,8 +317,14 @@ function drawZoneBar() {
 
   if (z.typ === 'text') {
     zoneBar.append(
-      makeSelect('pismo', 'Písmo', [['Brnos Aires', 'Brnos Aires'], ['Nunito', 'Nunito']], z.pismo,
-        (v) => { z.pismo = v; positionEditor(); }),
+      makeSelect('pismo', 'Písmo', FONTY.map((p) => [p, p]), z.pismo, (v) => {
+        z.pismo = v;
+        // tags both fonts share keep their state, the rest reset to the
+        // new font's defaults; the open features popover is stale, close it
+        z.features = featuresPoZmenePisma(z.features, v);
+        zavriFeaturesPopover();
+        positionEditor();
+      }),
       // whole dieliks: baselines of the text sit on the dielik grid this far apart
       makeNumber('riadok', 'Výška riadku v dielikoch', z.riadok, { min: 1, max: 20, step: 1 },
         (v) => { z.riadok = v; positionEditor(); }),
@@ -329,6 +336,7 @@ function drawZoneBar() {
         ['stred', 'na stred', 'zarovnanie-stred'],
         ['vpravo', 'vpravo', 'zarovnanie-vpravo'],
       ], () => z.zarovnanie, (v) => { z.zarovnanie = v; positionEditor(); }),
+      makeFeaturesTlacidlo(z),
       // whole dieliks of free space around the zone (negative lets the
       // pattern reach that deep into it)
       makeNumber('okraj', 'Okraj', z.okraj, { min: -20, max: 20, step: 1 }, (v) => { z.okraj = v; }),
@@ -358,6 +366,107 @@ function drawZoneBar() {
   placeZoneBar(z);
 }
 
+// ---------- typographic features popover ----------
+
+// Short Slovak labels for the popover, per font: ss01/ss03 have a concrete
+// meaning in Brnos Aires (from the author), the rest are the standard OpenType
+// functions each font carries (the lists live in proporcie.json).
+const FEATURE_POPIES = {
+  'Brnos Aires': {
+    liga: 'Ligatúry',
+    dlig: 'Voliteľné ligatúry (ft, fí, tt, ťt)',
+    ss01: 'Set 1 – bodky',
+    ss03: 'Set 3 – E',
+    case: 'Kapitálkové tvary interpunkcie',
+  },
+  Nunito: {
+    liga: 'Ligatúry',
+    calt: 'Kontextové alternáty',
+    ss01: 'Set 1',
+    ss02: 'Set 2',
+    salt: 'Alternatívne tvary',
+    case: 'Kapitálkové tvary interpunkcie',
+    onum: 'Staré číslice',
+    frac: 'Zlomky',
+    sups: 'Horný index',
+    subs: 'Dolný index',
+    ordn: 'Radové číslovky',
+  },
+};
+
+// The features of a zone as a CSS value; a zone that predates the field (or
+// is being born right now) gets the font's defaults, never a hard-coded set.
+const ffsZony = (z) => fontFeatureSettings(z.features ?? predvoleneFeatures(z.pismo));
+
+function zavriFeaturesPopover() {
+  const pop = zoneBar.querySelector('.z-pop');
+  if (!pop) return;
+  pop.remove();
+  const btn = zoneBar.querySelector('.z-feat');
+  btn?.classList.remove('open');
+  btn?.setAttribute('aria-expanded', 'false');
+}
+
+// A click outside the bar closes the popover; the button toggles it itself
+// and the rows only switch their feature. Capture phase, so a press that
+// starts a canvas drag cannot leave the popover hanging open.
+document.addEventListener('pointerdown', (e) => {
+  if (!e.target.closest || e.target.closest('#zone-bar')) return;
+  zavriFeaturesPopover();
+}, true);
+
+function makeFeaturesTlacidlo(z) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'z-feat';
+  b.title = 'Typografické funkcie';
+  b.setAttribute('aria-label', 'Typografické funkcie');
+  b.setAttribute('aria-haspopup', 'true');
+  b.setAttribute('aria-expanded', 'false');
+  b.append(ikona('features', 'Typografické funkcie'));
+  b.addEventListener('click', () => {
+    // toggle: an open popover only ever belongs to this button (a rebuilt
+    // bar takes its popover with it)
+    if (zoneBar.querySelector('.z-pop')) {
+      zavriFeaturesPopover();
+      return;
+    }
+    const pop = document.createElement('div');
+    pop.className = 'z-pop';
+    const nadpis = document.createElement('span');
+    nadpis.className = 'z-pop-cap';
+    nadpis.textContent = z.pismo;
+    pop.append(nadpis);
+    const popisy = FEATURE_POPIES[z.pismo] || {};
+    for (const [tag, zap] of Object.entries(z.features ?? predvoleneFeatures(z.pismo))) {
+      const row = document.createElement('label');
+      row.className = 'z-feat-row';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = zap;
+      const popis = document.createElement('span');
+      popis.className = 'popis';
+      popis.textContent = popisy[tag] ?? tag;
+      const tagEl = document.createElement('span');
+      tagEl.className = 'tag';
+      tagEl.textContent = tag;
+      // a click re-renders the sheet and re-places the editor with the new
+      // features at once; the editor stays open (the popover sits in the bar)
+      box.addEventListener('change', () => {
+        z.features[tag] = box.checked;
+        positionEditor();
+        scheduleRender();
+      });
+      row.append(box, popis, tagEl);
+      pop.append(row);
+    }
+    b.classList.add('open');
+    b.setAttribute('aria-expanded', 'true');
+    zoneBar.append(pop);
+  });
+  return b;
+}
+
 // ---------- zone bar icons ----------
 
 // 16 × 16 line drawings, inline SVG built here, stroke currentColor: the bar
@@ -380,6 +489,10 @@ const IKONY = {
     + '<rect x="8.1" y="2.5" width="6" height="6"/>',
   'rezim-prekrytie': '<rect x="2" y="2.5" width="9.5" height="9.5"/>'
     + '<rect x="4.5" y="4.5" width="9" height="9" fill="currentColor" stroke="none"/>',
+  // "fi" set in the interface font (its own ligature): the typographic
+  // features button; a glyph, not a line drawing, so it stays legible at 16 px
+  features: '<text x="8" y="12.4" text-anchor="middle" font-size="12.5"'
+    + ' fill="currentColor" stroke="none">fi</text>',
 };
 
 function ikona(nazov, popis) {
@@ -699,6 +812,7 @@ function zoneToText(i, firstKey) {
   z.riadok = 3;
   z.velkost = 80;
   z.zarovnanie = 'vlavo';
+  z.features = predvoleneFeatures(z.pismo);
   openEditor(i);
 }
 
@@ -735,15 +849,14 @@ function openEditor(i) {
 // top of its box, which depends on the font's own metrics. The offset is
 // measured live in a hidden mirror with the exact styles the editor gets
 // (a zero-size inline-block starts a line and sits with its bottom edge on
-// the baseline), never assumed from a formula.
-const FONT_FEATURES = "'liga', 'ss01'"; // the sheet's <text> sets the same
-
+// the baseline), never assumed from a formula. The zone's font features are
+// part of the mirrored styles — and of the cache key.
 const baselineCache = new Map();
 const warmedFonts = new Set();
 let metricBox = null;
 
-function firstBaselineOffset(family, fontPx, riadkovanie) {
-  const key = `${family}|${fontPx}|${riadkovanie}`;
+function firstBaselineOffset(family, fontPx, riadkovanie, ffs) {
+  const key = `${family}|${fontPx}|${riadkovanie}|${ffs}`;
   if (baselineCache.has(key)) return baselineCache.get(key);
   if (!metricBox) {
     const box = document.createElement('div');
@@ -757,7 +870,7 @@ function firstBaselineOffset(family, fontPx, riadkovanie) {
   box.style.fontFamily = family;
   box.style.fontSize = `${fontPx}px`;
   box.style.lineHeight = String(riadkovanie);
-  box.style.fontFeatureSettings = FONT_FEATURES;
+  box.style.fontFeatureSettings = ffs;
   const offset = mark.getBoundingClientRect().top - box.getBoundingClientRect().top;
   baselineCache.set(key, offset);
   const shorthand = `${fontPx}px ${family}`;
@@ -784,17 +897,18 @@ function positionEditor() {
   const fontPx = fontD * dielikPx();
   const riadkovanie = z.riadok / fontD; // line height as a multiple of the font size
   const family = z.pismo === 'Brnos Aires' ? "'Brnos Aires', serif" : "'Nunito', sans-serif";
+  const ffs = ffsZony(z);
   ta.style.fontFamily = family;
   ta.style.fontSize = `${fontPx}px`;
   ta.style.lineHeight = `${z.riadok * dielikPx()}px`;
   ta.style.textAlign = z.zarovnanie === 'stred' ? 'center' : (z.zarovnanie === 'vpravo' ? 'right' : 'left');
-  ta.style.fontFeatureSettings = FONT_FEATURES;
+  ta.style.fontFeatureSettings = ffs;
   // The box is shifted so the two first baselines meet (padding cannot go
   // negative); the 1 px border grows the box around the zone instead of
   // pushing the text, so the content box stays exactly on the zone rect and
   // wrapping, size and alignment match the sheet line for line.
   const baselinePx = fontD * proporcie.kompozicia.svg.riadokPrvy * dielikPx();
-  const top = r.top + baselinePx - firstBaselineOffset(family, fontPx, riadkovanie) - 1;
+  const top = r.top + baselinePx - firstBaselineOffset(family, fontPx, riadkovanie, ffs) - 1;
   ta.style.left = `${r.left - 1}px`;
   ta.style.top = `${top}px`;
   ta.style.width = `${r.width + 2}px`;
@@ -814,7 +928,7 @@ function closeEditor() {
       // Nothing was written: the zone goes back to being empty.
       z.typ = 'prazdna';
       delete z.text; delete z.pismo; delete z.velkost;
-      delete z.zarovnanie; delete z.riadok;
+      delete z.zarovnanie; delete z.riadok; delete z.features;
     }
   }
   ta.remove();

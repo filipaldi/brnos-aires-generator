@@ -132,3 +132,29 @@ test('rovnaký zmerajText dvakrát dáva bajtovo rovnaké SVG', () => {
 test('zmerajText musí byť funkcia', () => {
   assert.throws(() => komponuj(specSZonou({}), { zmerajText: 'široké' }), /zmerajText/);
 });
+
+test('zmerajText dostane features zóny a podľa nich meria', () => {
+  // dlig spojí „ft“: ligatúra meria o dva znaky užšie, takže sa zmestí
+  const zmeraj = (text, pismo, velkost, features) =>
+    text.length * velkost - (features && features.dlig && text.includes('ft') ? 2 * velkost : 0);
+  const moznosti = { pismo: 'Brnos Aires', velkost: 1, zmerajText: zmeraj, cfg: {} };
+  assert.deepEqual(
+    zalamujText('po ft von', 7, { ...moznosti, features: { dlig: true } }),
+    ['po ft von']);
+  assert.deepEqual(
+    zalamujText('po ft von', 7, { ...moznosti, features: { dlig: false } }),
+    ['po ft', 'von']);
+});
+
+test('komponuj odovzdá features zóny až do zmerajText', () => {
+  const videne = [];
+  const zmeraj = (text, pismo, velkost, features) => {
+    videne.push(features);
+    return text.length * velkost;
+  };
+  komponuj(specSZonou({ features: { liga: false, dlig: true } }), { zmerajText: zmeraj });
+  assert.ok(videne.length > 0, 'meranie sa nezavolalo');
+  for (const features of videne) {
+    assert.deepEqual(features, { liga: false, dlig: true, ss01: false, ss03: false, case: false });
+  }
+});

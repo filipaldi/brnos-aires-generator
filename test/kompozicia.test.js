@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { normalizujSpec, komponuj } from '../core/kompozicia/index.js';
+import { featuresPoZmenePisma } from '../core/kompozicia/features.js';
 import { ValidationError } from '../core/errors.js';
 
 const plagat = JSON.parse(readFileSync(new URL('../priklady/plagat-a2.json', import.meta.url), 'utf8'));
@@ -143,6 +144,64 @@ test('riadok a percentá veľkosti sa overujú na celé čísla v rozsahoch', ()
       return true;
     }, JSON.stringify(zly));
   }
+});
+
+test('features: chýbajúce pole dostane predvolené — liga (a calt v Nunito), ss01 vypnuté', () => {
+  const base = { typ: 'text', x: 1, y: 1, w: 4, h: 6 };
+  const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
+  // starý spec bez poľa features (aj prekonvertovaný) už nikdy nezapaľuje ss01
+  assert.deepEqual(zona({}).features,
+    { liga: true, dlig: false, ss01: false, ss03: false, case: false });
+  assert.deepEqual(zona({ pismo: 'Nunito' }).features, {
+    liga: true, calt: true, ss01: false, ss02: false, salt: false, case: false,
+    onum: false, frac: false, sups: false, subs: false, ordn: false,
+  });
+  // neúplný objekt doplní chýbajúce tagy predvolenými hodnotami
+  assert.deepEqual(zona({ features: { dlig: true } }).features,
+    { liga: true, dlig: true, ss01: false, ss03: false, case: false });
+});
+
+test('features: neznámy tag pre dané písmo je jasná chyba', () => {
+  const base = { typ: 'text', x: 1, y: 1, w: 4, h: 6 };
+  const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
+  const pripady = [
+    [{ features: { xyz: true } }, /xyz/],
+    // dlig pozná len Brnos Aires, nie Nunito
+    [{ pismo: 'Nunito', features: { dlig: true } }, /dlig/],
+    [{ features: { liga: 'zap' } }, /true\/false/],
+    [{ features: ['liga'] }, /musí byť objekt/],
+  ];
+  for (const [zle, rx] of pripady) {
+    assert.throws(() => zona(zle), (e) => {
+      assert.ok(e instanceof ValidationError, `nie ValidationError pre ${JSON.stringify(zle)}`);
+      assert.match(e.message, /features/);
+      assert.match(e.message, rx);
+      return true;
+    }, JSON.stringify(zle));
+  }
+});
+
+test('SVG zapíše zapnuté aj vypnuté features explicitne do font-feature-settings', () => {
+  const zona = (features) => ({
+    typ: 'text', x: 1, y: 1, w: 8, h: 4, text: 'ft', pismo: 'Brnos Aires',
+    riadok: 3, velkost: 80, ...(features !== undefined ? { features } : {}),
+  });
+  const svg = (features) => komponuj({ zony: [zona(features)] }).svg;
+  // predvolene: liga zapnutá, ss01 vypnuté — žiadne natvrdo zapnuté tagy
+  assert.match(svg(), /style="font-feature-settings: 'liga' 1, 'dlig' 0, 'ss01' 0, 'ss03' 0, 'case' 0"/);
+  // zapnuté dlig a ss03, vypnutá liga: každý tag má svoju hodnotu
+  assert.match(svg({ liga: false, dlig: true, ss03: true }),
+    /style="font-feature-settings: 'liga' 0, 'dlig' 1, 'ss01' 0, 'ss03' 1, 'case' 0"/);
+  // vypnutá liga nesmie padnúť do predvoleného prehliadača (formát bez čísel)
+  assert.doesNotMatch(svg(), /font-feature-settings: 'liga'(?! \d)/);
+});
+
+test('zmena písma zachová spoločné tagy, zvyšok dostane predvolené nového písma', () => {
+  const poZmene = featuresPoZmenePisma({ liga: false, dlig: true, ss01: true }, 'Nunito');
+  assert.deepEqual(poZmene, {
+    liga: false, calt: true, ss01: true, ss02: false, salt: false, case: false,
+    onum: false, frac: false, sups: false, subs: false, ordn: false,
+  });
 });
 
 test('všetky tvary sú vnútri orezaného formátu', () => {

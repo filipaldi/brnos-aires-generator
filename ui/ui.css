@@ -471,6 +471,71 @@ button, input, select { font: inherit; color: inherit; }
 
 #zone-bar .z-tgl.zapnute { background: var(--ink); color: var(--paper); }
 
+/* the icon inside a button follows the button's colour: the active segment
+   inverts to paper on ink (in an inverted sheet the swap comes from the
+   button's own colors, never from a hard-coded ink here) */
+#zone-bar .z-tgl .z-ico,
+#zone-bar .z-feat .z-ico { color: inherit; }
+
+/* the typographic features button: a standalone toggle, not part of a group */
+#zone-bar .z-feat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+#zone-bar .z-feat:hover { background: var(--wash); }
+
+#zone-bar .z-feat.open { background: var(--ink); color: var(--paper); }
+
+/* the features popover sits in the bar, so a click into it keeps the text
+   editor open (the editor's blur handler checks for #zone-bar) */
+#zone-bar .z-pop {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 250px;
+  padding: 7px 10px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.14);
+  white-space: normal;
+  font-size: 12px;
+}
+
+#zone-bar .z-pop-cap {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  margin: 0 0 4px;
+}
+
+#zone-bar .z-pop label { color: var(--ink); }
+
+#zone-bar .z-feat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+#zone-bar .z-feat-row input[type="checkbox"] { accent-color: var(--ink); flex: none; }
+
+#zone-bar .z-feat-row .tag { margin-left: auto; color: var(--faint); font-size: 11px; }
+
 #zone-bar .del {
   border: none;
   background: none;
@@ -494,9 +559,9 @@ button, input, select { font: inherit; color: inherit; }
   z-index: 8;
   user-select: text;
   -webkit-user-select: text;
-  /* the editor wraps natively; the same features as the sheet text keep the
-     wrap points identical to the SVG */
-  font-feature-settings: 'liga', 'ss01';
+  /* the editor wraps natively; the zone's own font features (set inline by
+     positionEditor, as the sheet's <text> sets them) keep the wrap points
+     identical to the SVG */
 }
 
 body.inverted #text-editor { background: var(--ink); color: var(--paper); }

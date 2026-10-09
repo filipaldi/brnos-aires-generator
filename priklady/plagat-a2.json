@@ -58,7 +58,14 @@
       "pismo": "Brnos Aires",
       "riadok": 3,
       "velkost": 100,
-      "zarovnanie": "vlavo"
+      "zarovnanie": "vlavo",
+      "features": {
+        "liga": true,
+        "dlig": false,
+        "ss01": false,
+        "ss03": false,
+        "case": false
+      }
     },
     {
       "typ": "text",
@@ -71,7 +78,10 @@
       "pismo": "Nunito",
       "riadok": 1,
       "velkost": 90,
-      "zarovnanie": "vlavo"
+      "zarovnanie": "vlavo",
+      "features": {
+        "liga": true
+      }
     },
     {
       "typ": "fotka",
