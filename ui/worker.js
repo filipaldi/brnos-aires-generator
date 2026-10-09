@@ -12,9 +12,9 @@ import { vytvorMeranie } from './meranie.js';
 self.onmessage = async (e) => {
   const { id, spec, fontUrls } = e.data;
   try {
-    const zmerajText = vytvorMeranie(fontUrls);
-    await zmerajText.ready;
-    self.postMessage({ id, ...komponuj(spec, { fontUrls, zmerajText }) });
+    const { zmerajText, zmerajGlyfy, ready } = vytvorMeranie(fontUrls);
+    await ready;
+    self.postMessage({ id, ...komponuj(spec, { fontUrls, zmerajText, zmerajGlyfy }) });
   } catch (err) {
     self.postMessage({ id, error: err.message || String(err) });
   }

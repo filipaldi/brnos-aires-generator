@@ -81,7 +81,7 @@ Spoločné pre každú zónu:
 |---|---|---|
 | Typ | text / fotka | Určí sa obsahom: začneš písať = text, pretiahneš fotku = fotka |
 | Poloha a veľkosť | v dielikoch | Prichytené na mriežku |
-| Okraj | celé číslo −20 až 20 (dieliky) | Kladný = okolo zóny ostane N dielikov voľna. 0 = tvary idú tesne k hrane zóny, dovnútra nie. Záporný = tvary smú zasiahnuť do zóny až \|N\| dielikov od hrany; zóna, ktorá tým zanikne, sa pre vzor ignoruje. |
+| Okraj | celé číslo −20 až 20 (dieliky) | Pri textovej zóne s textom je okraj vzdialenosť od písmen, nie od rámika (viď Obtekanie nižšie). Kladný = N dielikov voľna od písmen, 0 = tesne k písmenám, záporný = tvary smú zasiahnuť do písmen až \|N\| dielikov; písmeno, ktoré tým zanikne, sa pre vzor ignoruje. Pri zóne bez textu platí rámik: kladný = okolo zóny ostane N dielikov voľna, 0 = tvary idú tesne k hrane zóny, dovnútra nie, záporný = tvary smú zasiahnuť do zóny až \|N\| dielikov od hrany; zóna, ktorá tým zanikne, sa pre vzor ignoruje. |
 
 Textová zóna:
 
@@ -93,6 +93,15 @@ Textová zóna:
 | Veľkosť písma | celé % výšky riadku 10–200 | Veľkosť písma v dielikoch = výška riadku · % ÷ 100. 150 % = písmo 1,5× väčšie ako výška riadku; riadky sa pri tom môžu prekrývať, je to zámer. |
 | Zarovnanie | vľavo / na stred / vpravo | |
 | Funkcie | { tag: zap/vyp } per písmo | OpenType funkcie písma: ligatúry, voliteľné ligatúry, štýlové sety… Zoznam tagov každého písma je v `proporcie.json` (`kompozicia.pismaFeatures`). Predvolene svieti len `liga` (v Nunito aj `calt`), ostatné vrátane `ss01` sú vypnuté; neznámy tag pre dané písmo je chyba validácie. V SVG sa zapíšu všetky explicitne (`'liga' 1, 'dlig' 0, …`), takže vypnutá ligatúra zostane vypnutá aj v cudzom prehliadači. |
+
+**Obtekanie:** pri textovej zóne s textom vzor neobteká rámik zóny, ale samotné
+písmená — okolo každého viditeľného znaku stojí jeho tesný obdĺžnik (skutočné
+metriky písma: inkoust nad a pod linkou, nie em článok), takže vzor vchádza do
+rámika medzi slová, pod ascendery aj pod krátke riadky. Metriky meria canvas
+rovnako vo webovom rozhraní (plátno, worker) ako pri exporte, takže SVG aj
+PNG obtekajú rovnako. V CLI a testoch, kde canvas nie je, vzor obteká
+obdĺžniky celých riadkov — ich výšku určujú konštanty `riadokHore` a
+`riadokDole` v `proporcie.json`. Textová zóna bez textu ostáva rámik.
 
 Fotková zóna:
 

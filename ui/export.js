@@ -22,9 +22,9 @@ export function fontUrlsAbsolute() {
   return out;
 }
 
-// The same canvas measurement the sheet renders with, so the exported
-// wrapping matches what is on screen.
-const zmerajText = vytvorMeranie(fontUrlsAbsolute());
+// The same canvas measurement the sheet renders with — widths and glyph
+// boxes — so the exported wrapping and wrap-around match what is on screen.
+const meranie = vytvorMeranie(fontUrlsAbsolute());
 
 const dataUrlCache = new Map();
 
@@ -61,8 +61,12 @@ export function safeVariant(variant) {
 }
 
 export async function exportSvgFile(spec) {
-  await zmerajText.ready;
-  const { svg } = komponuj(spec, { fontUrls: fontUrlsAbsolute(), zmerajText });
+  await meranie.ready;
+  const { svg } = komponuj(spec, {
+    fontUrls: fontUrlsAbsolute(),
+    zmerajText: meranie.zmerajText,
+    zmerajGlyfy: meranie.zmerajGlyfy,
+  });
   download(new Blob([svg], { type: 'image/svg+xml' }), `brnos-aires-${safeVariant(spec.variant)}.svg`);
 }
 
@@ -82,9 +86,13 @@ export async function avifSupported() {
 // Rasterise: render the SVG at sirkaPx × vyskaPx through an <img> (data URLs
 // inside an SVG image are the one kind of reference Chromium keeps loading).
 async function rasterise(spec, mime) {
-  await zmerajText.ready;
+  await meranie.ready;
   const fontUrls = await fontUrlsInlined();
-  const { svg, sirkaPx, vyskaPx } = komponuj(spec, { fontUrls, zmerajText });
+  const { svg, sirkaPx, vyskaPx } = komponuj(spec, {
+    fontUrls,
+    zmerajText: meranie.zmerajText,
+    zmerajGlyfy: meranie.zmerajGlyfy,
+  });
   // The engine sizes the root in mm/px of the format; pin it to raster pixels.
   // (the callback must give back the whole tag, not only its attributes)
   const sized = svg.replace(/<svg([^>]*)>/, (m, attrs) => `<svg${attrs

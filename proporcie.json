@@ -208,8 +208,10 @@
       }
     },
     "svg": {
-      "_comment": "riadokPrvy = prvá účelová linka textu odhora (násobok veľkosti písma). okraj už nefunguje samostatne: je to len hodnota, na ktorú sa pri normalizácii prevedie staré spravanie zóny „okraj“ (dieliky).",
+      "_comment": "riadokPrvy = prvá účelová linka textu odhora (násobok veľkosti písma). okraj už nefunguje samostatne: je to len hodnota, na ktorú sa pri normalizácii prevedie staré spravanie zóny „okraj“ (dieliky). riadokHore/riadokDole = záložná výška textu nad/pod účelovou linkou (násobok veľkosti písma), keď nikto nevložil presné meranie glyfov (CLI, testy v Node): vzor vtedy obteká obdĺžniky celých riadkov, nie jednotlivé písmená.",
       "riadokPrvy": 0.8,
+      "riadokHore": 0.75,
+      "riadokDole": 0.2,
       "priemerneZnaky": {
         "_comment": "Záložný odhad šírky textu, keď nikto nevložil presné meranie (CLI, testy v Node): priemerná šírka znaku ako podiel veľkosti písma, nameraná na bežnom texte vrátane medzier. Rozhranie vložuje presné canvas meranie (ui/meranie.js), tieto konštanty len približne držia dlhé riadky v zóne.",
         "Brnos Aires": 0.62,
