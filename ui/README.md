@@ -25,7 +25,7 @@ repozitára, takže jadro (`/core/`) aj fonty
 | `stub.js` | náhradný engine (rovnaké API, náhodné rozmiestnenie so seedom) |
 | `viewer.js` | prehliadač tvarov (tlačidlo Tvary) |
 | `meranie.js` | meranie šírky textu cez canvas (fonty ako v SVG) pre zalomenie do zóny; funguje aj vo workeri |
-| `export.js` | SVG priamo, PNG/AVIF cez canvas s vloženými fontmi |
+| `export.js` | SVG priamo, PNG/AVIF cez canvas s vloženými fontmi; v claude.ai artefakte ukladá cez hostiteľa (downloads, bez AVIF) |
 | `smoke.mjs` | smoke test cez Playwright so štyrmi screenshotmi |
 
 ## Práca s rozhraním

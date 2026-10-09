@@ -1356,13 +1356,17 @@ attachPopover($('#btn-format'), (pop) => {
   pop.append(actions);
 });
 
-function savePredvolba() {
+async function savePredvolba() {
   // A preset is the spec without the variant and without the zones.
   const { variant, zony, ...rest } = spec;
-  download(
-    new Blob([JSON.stringify(rest, null, 2)], { type: 'application/json' }),
-    'predvolba-generator.json',
-  );
+  try {
+    await download(
+      new Blob([JSON.stringify(rest, null, 2)], { type: 'application/json' }),
+      'predvolba-generator.json',
+    );
+  } catch (err) {
+    toast(`Predvoľbu sa nepodarilo uložiť: ${err.message}`);
+  }
   closePopovers();
 }
 
