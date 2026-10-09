@@ -20,7 +20,8 @@ repozitára, takže jadro (`/core/`) aj fonty
 | `serve.js` | malý statický server (port 41235) |
 | `index.html`, `ui.css` | kostra stránky a štýl (čierno-biely) |
 | `ui.js` | lišta, popovery, plátno, zóny, ukladanie stavu |
-| `engine.js` | adapter: natiahne `core/kompozicia`, kým neexistuje, použije `stub.js` |
+| `engine.js` | adapter: natiahne `core/kompozicia`, kým neexistuje, použije `stub.js`; skladanie posiela do workera, pri zlyhaní kreslí na hlavnom vlákne |
+| `worker.js` | web worker so skladaním (`komponuj` jadra mimo hlavné vlákno) |
 | `stub.js` | náhradný engine (rovnaké API, náhodné rozmiestnenie so seedom) |
 | `viewer.js` | prehliadač tvarov (tlačidlo Tvary) |
 | `export.js` | SVG priamo, PNG/AVIF cez canvas s vloženými fontmi |
@@ -39,6 +40,10 @@ repozitára, takže jadro (`/core/`) aj fonty
   ukončí.
 - **Bez klávesových skratiek:** všetko sa ovláda klikom. Prehliadač tvarov
   otvára tlačidlo Tvary, zónu maže ✕ v jej lište.
+- **Skladanie beží vo web workeri:** pri zmene ostáva na plátne stará kresba
+  a v hornom paneli svieti „skladám…“, kým nová nie je hotová. Posuvníky v
+  Parametroch počas ťahania menia len číslo (a spec); list sa prekreslí až
+  po pustení alebo kliknutí.
 - **Čísla** v ponukách sú celé, desatinné sa zaokrúhlia.
 - **Predvoľba** (v ponuke formátu): uloží/načíta parametre bez variantu a
   bez zón ako JSON.

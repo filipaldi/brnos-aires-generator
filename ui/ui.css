@@ -103,6 +103,14 @@ button, input, select { font: inherit; color: inherit; }
   margin-right: 12px;
 }
 
+/* plain text, no blinking: the sheet keeps the previous drawing while the
+   newest one is being composed in the worker */
+#compose-note {
+  font-size: 12px;
+  color: var(--dim);
+  margin-right: 12px;
+}
+
 #zoom-group select {
   border: 1px solid var(--ink);
   background: var(--paper);

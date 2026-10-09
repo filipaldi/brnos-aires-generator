@@ -34,7 +34,6 @@ const SPRAVANIE = [
 // ---------- state ----------
 
 let spec = loadSpec();
-let result = null; // last good komponuj() output
 let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, cols: 8, rowsD: 0 };
 let zoomPct = 75;
 let selected = -1;
@@ -86,6 +85,9 @@ function saveLocal() {
 
 let renderTimer = 0;
 let posledneVarovanie = '';
+let poziadavka = 0; // id of the newest render request
+const composeNote = $('#compose-note');
+
 function scheduleRender() {
   clearTimeout(renderTimer);
   renderTimer = setTimeout(render, 50);
@@ -104,19 +106,25 @@ function vmestiZony() {
   }
 }
 
-function render() {
+// Composing runs in a worker (engine.js) and takes seconds: the sheet keeps
+// the previous drawing until the newest spec comes back — an answer to an
+// older request (id < poziadavka) is dropped.
+async function render() {
   vmestiZony();
-  try {
-    result = engine.komponuj(spec, { fontUrls: fontUrlsAbsolute() });
-  } catch (err) {
-    toast(err.message || String(err));
+  const id = ++poziadavka;
+  composeNote.hidden = false;
+  const data = await engine.komponujAsync(id, spec, { fontUrls: fontUrlsAbsolute() });
+  if (data.id !== poziadavka) return; // superseded by a newer spec
+  composeNote.hidden = true;
+  if (data.error) {
+    toast(data.error);
     return; // keep the last good sheet on screen
   }
-  mountSvg(result.svg);
+  mountSvg(data.svg);
   relayout();
   syncBar();
   // a warning shows once, not again on every slider step that keeps it
-  const varovanie = result.varovania.join(' ');
+  const varovanie = data.varovania.join(' ');
   if (varovanie && varovanie !== posledneVarovanie) toast(varovanie, 5000);
   posledneVarovanie = varovanie;
   saveLocal();
@@ -857,11 +865,13 @@ function sliderRow(label, value, onInput) {
   const num = document.createElement('span');
   num.className = 'num';
   num.textContent = String(value);
+  // a drag moves only the number and the spec; the sheet is recomposed when
+  // the slider is released (change fires on release and on a track click)
   range.addEventListener('input', () => {
     num.textContent = range.value;
     onInput(Number(range.value));
-    scheduleRender();
   });
+  range.addEventListener('change', scheduleRender);
   const l = document.createElement('label');
   l.textContent = label;
   div.append(l, wrap);
@@ -898,8 +908,9 @@ function rangeSlider(value, { min, max }, onChange) {
   const changed = () => {
     sync();
     if (onChange) onChange();
-    scheduleRender();
   };
+  // a drag moves only the number and the value; the sheet is recomposed when
+  // a thumb is released or the track is clicked
   lo.addEventListener('input', () => {
     value[0] = Math.min(Number(lo.value), value[1]);
     changed();
@@ -908,6 +919,8 @@ function rangeSlider(value, { min, max }, onChange) {
     value[1] = Math.max(Number(hi.value), value[0]);
     changed();
   });
+  lo.addEventListener('change', scheduleRender);
+  hi.addEventListener('change', scheduleRender);
   // the grabbed thumb moves above the other so it can be pulled apart again
   const raise = (top, other) => { top.style.zIndex = '2'; other.style.zIndex = '1'; };
   lo.addEventListener('pointerdown', () => raise(lo, hi));
@@ -1080,11 +1093,12 @@ attachPopover($('#btn-parametre'), (pop) => {
     const num = document.createElement('span');
     num.className = 'num';
     posuvniky.push({ id: t.id, range, num, l });
+    // the shares move live during the drag; the sheet is recomposed on release
     range.addEventListener('input', () => {
       rozdelPomery(c.pomery, t.id, Number(range.value));
       obnov();
-      scheduleRender();
     });
+    range.addEventListener('change', scheduleRender);
     const nahlad = document.createElement('span');
     nahlad.className = 'nahlad';
     nahlad.setAttribute('aria-label', t.name);
