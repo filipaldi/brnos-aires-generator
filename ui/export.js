@@ -4,26 +4,33 @@
 // in Brnos Aires / Nunito.
 
 import { komponuj } from './engine.js';
+import { vytvorMeranie } from './meranie.js';
 
+// Relative to this module, so the fonts resolve wherever the app is served
+// (repo server or a page hosted under a sub-path).
 const FONT_FILES = {
-  'Brnos Aires': '/fonts/brnos-aires.woff2',
-  'Nunito': '/fonts/nunito-variable.ttf',
+  'Brnos Aires': '../fonts/brnos-aires.woff2',
+  'Nunito': '../fonts/nunito-variable.ttf',
 };
 
 // Absolute URLs: the downloaded SVG stays valid when opened from the server.
 export function fontUrlsAbsolute() {
   const out = {};
   for (const [name, path] of Object.entries(FONT_FILES)) {
-    out[name] = new URL(path, location.origin).href;
+    out[name] = new URL(path, import.meta.url).href;
   }
   return out;
 }
+
+// The same canvas measurement the sheet renders with, so the exported
+// wrapping matches what is on screen.
+const zmerajText = vytvorMeranie(fontUrlsAbsolute());
 
 const dataUrlCache = new Map();
 
 async function fontUrlsInlined() {
   const out = {};
-  for (const [name, path] of Object.entries(FONT_FILES)) {
+  for (const [name, path] of Object.entries(fontUrlsAbsolute())) {
     if (!dataUrlCache.has(path)) {
       const blob = await (await fetch(path)).blob();
       dataUrlCache.set(path, await new Promise((resolve, reject) => {
@@ -54,7 +61,8 @@ export function safeVariant(variant) {
 }
 
 export async function exportSvgFile(spec) {
-  const { svg } = komponuj(spec, { fontUrls: fontUrlsAbsolute() });
+  await zmerajText.ready;
+  const { svg } = komponuj(spec, { fontUrls: fontUrlsAbsolute(), zmerajText });
   download(new Blob([svg], { type: 'image/svg+xml' }), `brnos-aires-${safeVariant(spec.variant)}.svg`);
 }
 
@@ -74,12 +82,14 @@ export async function avifSupported() {
 // Rasterise: render the SVG at sirkaPx × vyskaPx through an <img> (data URLs
 // inside an SVG image are the one kind of reference Chromium keeps loading).
 async function rasterise(spec, mime) {
+  await zmerajText.ready;
   const fontUrls = await fontUrlsInlined();
-  const { svg, sirkaPx, vyskaPx } = komponuj(spec, { fontUrls });
+  const { svg, sirkaPx, vyskaPx } = komponuj(spec, { fontUrls, zmerajText });
   // The engine sizes the root in mm/px of the format; pin it to raster pixels.
-  const sized = svg.replace(/<svg([^>]*)>/, (m, attrs) => attrs
+  // (the callback must give back the whole tag, not only its attributes)
+  const sized = svg.replace(/<svg([^>]*)>/, (m, attrs) => `<svg${attrs
     .replace(/\swidth="[^"]*"/, ` width="${sirkaPx}"`)
-    .replace(/\sheight="[^"]*"/, ` height="${vyskaPx}"`));
+    .replace(/\sheight="[^"]*"/, ` height="${vyskaPx}"`)}>`);
   const url = URL.createObjectURL(new Blob([sized], { type: 'image/svg+xml' }));
   try {
     const img = new Image();

@@ -53,12 +53,19 @@
       "y": 3,
       "w": 18,
       "h": 12,
-      "spravanie": "prazdna",
+      "okraj": 0,
       "text": "MILONGA\nDE OTOÑO",
       "pismo": "Brnos Aires",
-      "velkost": 3.0,
+      "riadok": 3,
+      "velkost": 100,
       "zarovnanie": "vlavo",
-      "riadkovanie": 1.1
+      "features": {
+        "liga": true,
+        "dlig": false,
+        "ss01": false,
+        "ss03": false,
+        "case": false
+      }
     },
     {
       "typ": "text",
@@ -66,12 +73,15 @@
       "y": 15,
       "w": 15,
       "h": 3,
-      "spravanie": "prazdna",
+      "okraj": 0,
       "text": "sobota 25. októbra 2026, 20:00",
       "pismo": "Nunito",
-      "velkost": 0.9,
+      "riadok": 1,
+      "velkost": 90,
       "zarovnanie": "vlavo",
-      "riadkovanie": 1.2
+      "features": {
+        "liga": true
+      }
     },
     {
       "typ": "fotka",
@@ -79,7 +89,7 @@
       "y": 21,
       "w": 12,
       "h": 12,
-      "spravanie": "okraj",
+      "okraj": 1,
       "rezim": "ramik"
     }
   ]

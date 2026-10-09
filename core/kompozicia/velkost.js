@@ -40,3 +40,18 @@ export function paramsFor(type, s, defaults, cfg) {
   }
   return p;
 }
+
+// Largest size s (whole dieliky, at most `strop`) whose parameters stay
+// within the type's parameter limits: a kruh's priemer is s · priemerPomer
+// and may not exceed the priemer maximum, so its size range ends earlier.
+export function maxVelkost(type, spec, cfg, strop = 40) {
+  const c = cfg[type] || {};
+  let max = strop;
+  const lim = (key, pomer) => {
+    if (spec[key] && Number.isFinite(spec[key].max)) max = Math.min(max, Math.floor(spec[key].max / pomer + 1e-9));
+  };
+  for (const key of c.zVelkosti || []) lim(key, 1);
+  if (c.polomerPomer) lim('polomer', c.polomerPomer);
+  if (c.priemerPomer) lim('priemer', c.priemerPomer);
+  return Math.max(1, max);
+}

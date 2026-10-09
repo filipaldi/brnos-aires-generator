@@ -8,20 +8,21 @@
 // Everything is deterministic: the `variant` string seeds the PRNG and the
 // same spec always produces byte-identical SVG.
 
-import { buildShape, computeAxes, defaultParams, loadProporcie, TYPES } from '../index.js';
+import { buildShape, computeAxes, defaultParams, loadProporcie, paramSpec, TYPES } from '../index.js';
 import { ValidationError } from '../errors.js';
 import { createRng } from './rng.js';
 import { placeShapes } from './rozmiestnenie.js';
 import { renderSvg, translatePathD } from './svg.js';
+import { FONTY, normalizujFeatures } from './features.js';
+import { maxVelkost } from './velkost.js';
 
 const KOMP = loadProporcie().kompozicia;
 
 const JEDNOTKY = ['mm', 'px'];
 const ZVYSOK = ['okraje', 'natiahnutie', 'orez'];
 const ROZMIESTNENIE = ['volne', 'dlazdice'];
-const SPRAVANIE = ['prazdna', 'okraj', 'presah'];
 const TYPY_ZONY = ['text', 'fotka', 'prazdna'];
-const PISMA = ['Brnos Aires', 'Nunito'];
+const PISMA = FONTY;
 const ZOROVNANIE = ['vlavo', 'stred', 'vpravo'];
 const REZIMY = ['ramik', 'maska', 'prekrytie'];
 
@@ -35,7 +36,8 @@ function cislo(value, name, { min = -Infinity, max = Infinity, cele = false } = 
     throw new ValidationError(`${name} musí byť celé číslo (dostal som ${value}).`);
   }
   if (value < min || value > max) {
-    throw new ValidationError(`${name} musí byť v rozsahu ${min}–${max} (dostal som ${value}).`);
+    const rozsah = max === Infinity ? `aspoň ${min}` : `v rozsahu ${min}–${max}`;
+    throw new ValidationError(`${name} musí byť ${rozsah} (dostal som ${value}).`);
   }
   return value;
 }
@@ -173,8 +175,9 @@ function normalizujKompozicia(raw) {
     if (!Array.isArray(v) || v.length !== 2) {
       throw new ValidationError(`${kde} musí byť pole [min, max] v dielikoch, napr. [1, 6].`);
     }
-    cislo(v[0], `${kde}[0]`, { min: 1, max: 40, cele: true });
-    cislo(v[1], `${kde}[1]`, { min: 1, max: 40, cele: true });
+    const max = maxVelkost(typ, paramSpec(typ), KOMP.velkostTvaru);
+    cislo(v[0], `${kde}[0]`, { min: 1, max, cele: true });
+    cislo(v[1], `${kde}[1]`, { min: 1, max, cele: true });
     if (v[0] > v[1]) throw new ValidationError(`${kde}[0] musí byť menšia alebo rovná ${kde}[1].`);
   }
   komp.velkosti = Object.fromEntries(vsetky.map((t) => [t, komp.velkosti[t] ?? d.velkosti[t] ?? [1, 6]]));
@@ -182,18 +185,56 @@ function normalizujKompozicia(raw) {
   return komp;
 }
 
+// Legacy `spravanie` → numeric `okraj`: prazdna = 0, okraj = svg.okraj from
+// proporcie.json (the constant's only remaining role), presah = −1.
+function okrajZoSpravania(spravanie, name) {
+  if (spravanie === 'prazdna') return 0;
+  if (spravanie === 'okraj') return KOMP.svg.okraj;
+  if (spravanie === 'presah') return -1;
+  throw new ValidationError(`${name}.spravanie prijíma iba prazdna | okraj | presah (dostal som „${spravanie}“).`);
+}
+
 function normalizujZonu(raw, index, stlpce, vyskaD) {
   const name = `zóna ${index + 1}`;
+  const typ = moznosti(raw.typ ?? 'text', `${name}.typ`, TYPY_ZONY);
+  // dropped setting: the zone `spravanie` became the numeric `okraj`; when a
+  // spec carries both, its `okraj` wins
+  if (raw && 'spravanie' in raw) {
+    const { spravanie, ...zvysok } = raw;
+    if (!('okraj' in zvysok)) zvysok.okraj = okrajZoSpravania(spravanie, name);
+    raw = zvysok;
+  }
+  // dropped setting: text line spacing `riadkovanie` (a multiple of the font
+  // size) became the dielik grid — `riadok` is the row height in whole
+  // dieliks, `velkost` the font size as its whole percentage. A size without
+  // `riadok` is read in the old units and converted (the defaults are the
+  // ones proporcie.json had before); when a spec carries both models, its
+  // `riadok` wins.
+  if (typ === 'text') {
+    const { riadkovanie, ...zvysok } = raw;
+    if (!('riadok' in raw) && (riadkovanie !== undefined || 'velkost' in raw)) {
+      const staraVelkost = raw.velkost ?? 1.2;
+      const riadok = Math.max(1, Math.round(staraVelkost * (riadkovanie ?? 1.1)));
+      raw = {
+        ...zvysok,
+        riadok,
+        velkost: Math.min(200, Math.max(10, Math.round((staraVelkost / riadok) * 100))),
+      };
+    } else {
+      raw = zvysok; // riadkovanie is gone either way
+    }
+  }
   polia(raw, [
-    'typ', 'x', 'y', 'w', 'h', 'spravanie',
-    'text', 'pismo', 'velkost', 'zarovnanie', 'riadkovanie',
+    'typ', 'x', 'y', 'w', 'h', 'okraj',
+    'text', 'pismo', 'velkost', 'zarovnanie', 'riadok', 'features',
     'zdroj', 'rezim', 'posun', 'zoom',
   ], name);
-  const typ = moznosti(raw.typ ?? 'text', `${name}.typ`, TYPY_ZONY);
   const d = KOMP.zona[typ] || {};
-  const zona = { typ, ...d, ...raw };
-  cislo(zona.x, `${name}.x`, { min: 0, max: 64, cele: true });
-  cislo(zona.y, `${name}.y`, { min: 0, max: 64, cele: true });
+  const zona = { typ, okraj: 0, ...d, ...raw };
+  // a zone may start anywhere on the format; 64 capped grids wider or
+  // taller than 64 dielikov (grid goes up to 100 columns)
+  cislo(zona.x, `${name}.x`, { min: 0, max: stlpce, cele: true });
+  cislo(zona.y, `${name}.y`, { min: 0, max: Math.max(0, Math.floor(vyskaD + 1e-6)), cele: true });
   cislo(zona.w, `${name}.w`, { min: 0.5, max: 1000 });
   cislo(zona.h, `${name}.h`, { min: 0.5, max: 1000 });
   if (zona.x + zona.w > stlpce + 1e-6) {
@@ -202,16 +243,20 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
   if (zona.y + zona.h > vyskaD + 1e-6) {
     throw new ValidationError(`${name} presahuje výšku formátu (${zona.y} + ${zona.h} > ${Math.round(vyskaD * 100) / 100} dielika).`);
   }
-  moznosti(zona.spravanie, `${name}.spravanie`, SPRAVANIE);
+  cislo(zona.okraj, `${name}.okraj`, { min: -20, max: 20, cele: true });
 
   if (typ === 'text') {
     if (zona.text != null && typeof zona.text !== 'string') {
       throw new ValidationError(`${name}.text musí byť reťazec.`);
     }
     moznosti(zona.pismo, `${name}.pismo`, PISMA);
-    cislo(zona.velkost, `${name}.velkost`, { min: 0.1, max: 20 });
+    // no upper bound: a row taller than its zone only warns that the text does not fit
+    cislo(zona.riadok, `${name}.riadok`, { min: 1, cele: true });
+    cislo(zona.velkost, `${name}.velkost`, { min: 10, max: 200, cele: true });
     moznosti(zona.zarovnanie, `${name}.zarovnanie`, ZOROVNANIE);
-    cislo(zona.riadkovanie, `${name}.riadkovanie`, { min: 0.5, max: 3 });
+    // OpenType features of the zone's font — a missing field means the
+    // defaults (no ss01), an unknown tag for the font is rejected
+    zona.features = normalizujFeatures(zona.features, zona.pismo, name);
   }
   if (typ === 'fotka') {
     if (zona.zdroj != null && typeof zona.zdroj !== 'string') {
@@ -259,7 +304,11 @@ export function normalizujSpec(input) {
   return spec;
 }
 
-export function komponuj(input, { fontUrls } = {}) {
+export function komponuj(input, { fontUrls, zmerajText } = {}) {
+  if (zmerajText !== undefined && typeof zmerajText !== 'function') {
+    throw new ValidationError(
+      'zmerajText musí byť funkcia (text, pismo, velkost, features) → šírka v dielikoch.');
+  }
   const spec = normalizujSpec(input);
   const { format, grid, kresba, kompozicia: komp } = spec;
 
@@ -290,6 +339,16 @@ export function komponuj(input, { fontUrls } = {}) {
     ...z,
     rect: { x: z.x, y: z.y, w: z.w, h: z.h },
   }));
+  // Zones as the pattern sees them: a negative okraj lets shapes into the
+  // zone by |okraj| from each edge, so the zone shrinks accordingly; one
+  // shrunk out of existence (w or h ≤ 0) is ignored entirely.
+  const zonyVzor = zony.flatMap((z) => {
+    if (z.okraj >= 0) return [{ rect: z.rect, okraj: z.okraj }];
+    const n = -z.okraj;
+    const w = z.rect.w - 2 * n;
+    const h = z.rect.h - 2 * n;
+    return w > 0 && h > 0 ? [{ rect: { x: z.rect.x + n, y: z.rect.y + n, w, h }, okraj: 0 }] : [];
+  });
   const { placed, varovania: varovaniaUmiestnenia } = placeShapes(rng, {
     build: buildShape,
     axes,
@@ -302,7 +361,7 @@ export function komponuj(input, { fontUrls } = {}) {
     stlpce: grid.stlpce,
     bandY,
     bandH,
-    zony: zony.map((z) => ({ rect: z.rect, spravanie: z.spravanie, okraj: KOMP.svg.okraj })),
+    zony: zonyVzor,
     medzera: KOMP.rozmiestnenie.medzera,
     hustota: KOMP.rozmiestnenie.hustota,
     maxPokusov: KOMP.rozmiestnenie.maxPokusov,
@@ -333,7 +392,7 @@ export function komponuj(input, { fontUrls } = {}) {
     };
   });
 
-  const svg = renderSvg({
+  const { svg, varovania: varovaniaTextu } = renderSvg({
     stlpce: grid.stlpce,
     vyskaD,
     bleedD,
@@ -345,8 +404,10 @@ export function komponuj(input, { fontUrls } = {}) {
     zony,
     inverzia: spec.inverzia,
     fontUrls,
+    zmerajText,
     cfg: KOMP.svg,
   });
+  varovania.push(...varovaniaTextu);
 
   const naPx = format.jednotka === 'mm' ? 25.4 / format.dpi : 1;
   return {

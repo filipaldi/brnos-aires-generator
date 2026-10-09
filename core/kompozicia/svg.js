@@ -5,6 +5,7 @@
 // output byte-deterministic.
 
 import { fmt } from '../geometry.js';
+import { fontFeatureSettings } from './features.js';
 
 export function esc(s) {
   return String(s)
@@ -111,30 +112,92 @@ function photoLayer(zony, placed, cfg, uid) {
   return { parts, defs };
 }
 
-function textLayer(zony, fg, cfg) {
+// --- text -------------------------------------------------------------------
+
+// Fallback width estimate when no measuring function is injected (CLI, tests
+// in Node — the core has no canvas): the average glyph width as a share of
+// the font size, per font in proporcie.json (kompozicia.svg.priemerneZnaky).
+// The UI injects a precise canvas measure through komponuj; this only keeps
+// long lines roughly inside the zone. Features are ignored: without a real
+// measure the estimate cannot see ligatures anyway.
+function odhadSirky(text, pismo, velkost, cfg) {
+  const podiel = (cfg.priemerneZnaky && cfg.priemerneZnaky[pismo]) ?? 0.6;
+  return text.length * podiel * velkost;
+}
+
+// Word-wraps text to `sirka` (dieliks). Explicit '\n' always breaks. A word
+// wider than `sirka` keeps its own line, unsplit. Spaces between words on one
+// line stay; spaces at a wrap point are dropped and never measured. The
+// zone's features travel to zmerajText, so ligatures measure at their real
+// width and the wrap matches what the sheet renders.
+export function zalamujText(text, sirka, { pismo, velkost, features, zmerajText = null, cfg }) {
+  const sirkaTextu = zmerajText
+    ? (t) => zmerajText(t, pismo, velkost, features)
+    : (t) => odhadSirky(t, pismo, velkost, cfg);
+  const riadky = [];
+  for (const odstavec of String(text).split('\n')) {
+    // split with the separator runs kept: [word, sep, word, sep, …]
+    const kusy = odstavec.split(/( +)/);
+    let riadok = null; // null = nothing placed on this line yet
+    for (let i = 0; i < kusy.length; i += 2) {
+      const slovo = kusy[i] ?? '';
+      if (!slovo) continue; // separators alone (start or end of a paragraph)
+      if (riadok === null) {
+        riadok = slovo; // a separator at a line start is dropped, not measured
+        continue;
+      }
+      const kandidat = riadok + (kusy[i - 1] ?? '') + slovo;
+      if (sirkaTextu(kandidat) <= sirka) {
+        riadok = kandidat;
+      } else {
+        riadky.push(riadok);
+        riadok = slovo;
+      }
+    }
+    riadky.push(riadok ?? '');
+  }
+  return riadky;
+}
+
+function textLayer(zony, fg, cfg, zmerajText) {
   const parts = [];
-  for (const z of zony) {
-    if (z.typ !== 'text' || !z.text) continue;
+  const varovania = [];
+  zony.forEach((z, i) => {
+    if (z.typ !== 'text' || !z.text) return;
     const r = z.rect;
     const anchor = z.zarovnanie === 'stred' ? 'middle' : z.zarovnanie === 'vpravo' ? 'end' : 'start';
     const x = z.zarovnanie === 'stred' ? r.x + r.w / 2 : z.zarovnanie === 'vpravo' ? r.x + r.w : r.x;
-    const lineH = z.velkost * z.riadkovanie;
-    const lines = String(z.text).split('\n');
-    lines.forEach((line, i) => {
-      const y = r.y + z.velkost * cfg.riadokPrvy + i * lineH;
-      parts.push(
-        `<text x="${f(x)}" y="${f(y)}" font-family="${esc(z.pismo)}" font-size="${f(z.velkost)}"`
-        + ` text-anchor="${anchor}" fill="${fg}" style="font-feature-settings: 'liga', 'ss01'">${esc(line)}</text>`);
+    // The row is the unit: baselines sit `riadok` dieliks apart, on the dielik
+    // grid, and the glyphs fill `velkost` % of the row — over 100 % the lines
+    // overlap, on purpose.
+    const velkostPisma = (z.riadok * z.velkost) / 100;
+    const lineH = z.riadok;
+    const lines = zalamujText(z.text, r.w, {
+      pismo: z.pismo, velkost: velkostPisma, features: z.features, zmerajText, cfg,
     });
-  }
-  return parts;
+    // A line fits while its baseline sits inside the zone (descenders may
+    // still poke below); text that overflows only warns, it is never cut.
+    if (velkostPisma * cfg.riadokPrvy + (lines.length - 1) * lineH > r.h + 1e-9) {
+      varovania.push(`Text v zóne ${i + 1} sa nezmestí, zmenši veľkosť.`);
+    }
+    lines.forEach((line, j) => {
+      const y = r.y + velkostPisma * cfg.riadokPrvy + j * lineH;
+      // every feature explicit, on as 1 and off as 0: a disabled liga must
+      // read 'liga' 0 in the sheet, never fall back to the browser default
+      parts.push(
+        `<text x="${f(x)}" y="${f(y)}" font-family="${esc(z.pismo)}" font-size="${f(velkostPisma)}"`
+        + ` text-anchor="${anchor}" fill="${fg}" style="font-feature-settings: ${fontFeatureSettings(z.features)}">`
+        + `${esc(line)}</text>`);
+    });
+  });
+  return { parts, varovania };
 }
 
 // --- document ---------------------------------------------------------------
 
 export function renderSvg({
   stlpce, vyskaD, bleedD, jednotka, sirka, vyska, spadavka,
-  placed, zony, inverzia, fontUrls, cfg,
+  placed, zony, inverzia, fontUrls, zmerajText, cfg,
 }) {
   const fg = inverzia ? '#fff' : '#000';
   const bg = inverzia ? '#000' : '#fff';
@@ -145,7 +208,7 @@ export function renderSvg({
 
   const patternD = placed.map((p) => p.d).join(' ');
   const { parts: fotoParts, defs: fotoDefs } = photoLayer(zony, placed, cfg, uid);
-  const textParts = textLayer(zony, fg, cfg);
+  const { parts: textParts, varovania: varovaniaTextu } = textLayer(zony, fg, cfg, zmerajText);
   const style = styleForFonts(fontUrls);
 
   const vb = `${f(-bleedD)} ${f(-bleedD)} ${f(stlpce + 2 * bleedD)} ${f(vyskaD + 2 * bleedD)}`;
@@ -163,5 +226,5 @@ export function renderSvg({
       : ''}</g>`,
     '</svg>',
   ];
-  return `${out.filter(Boolean).join('\n')}\n`;
+  return { svg: `${out.filter(Boolean).join('\n')}\n`, varovania: varovaniaTextu };
 }

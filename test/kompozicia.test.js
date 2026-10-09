@@ -1,11 +1,12 @@
-// Composition: determinism, zone behaviour (prazdna / okraj), shapes inside
-// the format, validation errors, no NaN in the SVG.
+// Composition: determinism, zone edge (okraj), shapes inside the format,
+// validation errors, no NaN in the SVG.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { normalizujSpec, komponuj } from '../core/kompozicia/index.js';
+import { featuresPoZmenePisma } from '../core/kompozicia/features.js';
 import { ValidationError } from '../core/errors.js';
 
 const plagat = JSON.parse(readFileSync(new URL('../priklady/plagat-a2.json', import.meta.url), 'utf8'));
@@ -45,9 +46,9 @@ test('nahlad v px bez zón beží a má vrstvy', () => {
   }
 });
 
-test('žiadny tvar sa nedotýka zóny so správaním prazdna', () => {
+test('žiadny tvar sa nedotýka zóny s okrajom 0', () => {
   const { tvary } = komponuj(plagat);
-  const zony = plagat.zony.filter((z) => z.spravanie === 'prazdna')
+  const zony = plagat.zony.filter((z) => z.okraj === 0)
     .map((z) => ({ x: z.x, y: z.y, w: z.w, h: z.h }));
   assert.ok(zony.length > 0);
   for (const t of tvary) {
@@ -57,18 +58,152 @@ test('žiadny tvar sa nedotýka zóny so správaním prazdna', () => {
   }
 });
 
-test('okraj drží jeden dielik bieleho okolo zóny', () => {
+test('okraj drží svoj počet dielikov bieleho okolo zóny', () => {
   const { tvary } = komponuj(plagat);
-  const zony = plagat.zony.filter((z) => z.spravanie === 'okraj')
-    .map((z) => ({ x: z.x, y: z.y, w: z.w, h: z.h }));
+  const zony = plagat.zony.filter((z) => z.okraj > 0)
+    .map((z) => ({ x: z.x, y: z.y, w: z.w, h: z.h, okraj: z.okraj }));
   assert.ok(zony.length > 0);
   for (const t of tvary) {
     for (const z of zony) {
       assert.ok(!prekryv(t.bbox, z), `tvar ${t.typ} prekrýva zónu s okrajom`);
-      assert.ok(vzdialenost(t.bbox, z) >= 1 - EPS,
-        `tvar ${t.typ} je bližšie ako 1 dielik: ${vzdialenost(t.bbox, z)}`);
+      assert.ok(vzdialenost(t.bbox, z) >= z.okraj - EPS,
+        `tvar ${t.typ} je bližšie ako ${z.okraj} dielik: ${vzdialenost(t.bbox, z)}`);
     }
   }
+});
+
+test('záporný okraj: tvar smie zasahovať do zóny, ale nie hlbšie ako |okraj|', () => {
+  const zona = plagat.zony[2]; // fotková zóna 12 × 12
+  const spec = { ...plagat, zony: plagat.zony.map((z) => (z === zona ? { ...z, okraj: -3 } : z)) };
+  const { tvary } = komponuj(spec);
+  const n = 3;
+  const zmensena = { x: zona.x + n, y: zona.y + n, w: zona.w - 2 * n, h: zona.h - 2 * n };
+  assert.ok(tvary.some((t) => prekryv(t.bbox, zona)), 'žiadny tvar nezasahuje do zóny s negatívnym okrajom');
+  for (const t of tvary) {
+    assert.ok(!prekryv(t.bbox, zmensena), `tvar ${t.typ} ${JSON.stringify(t.bbox)} zasahuje hlbšie ako ${n} dieliky`);
+  }
+});
+
+test('zóna zmenšená zánikom sa pre vzor ignoruje', () => {
+  // 6 − 2·4 ≤ 0: zmenšená zóna neexistuje, vzor ju celú vynechá
+  const zanikla = { typ: 'prazdna', x: 4, y: 4, w: 6, h: 6, okraj: -4 };
+  const { svg: soZaniklou } = komponuj({ ...plagat, zony: [...plagat.zony, zanikla] });
+  const { svg: beznej } = komponuj(plagat);
+  assert.equal(soZaniklou, beznej);
+});
+
+test('staré spravanie sa prevádza na okraj a pole mizne', () => {
+  const base = { typ: 'text', x: 1, y: 1, w: 4, h: 2 };
+  const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
+  assert.equal(zona({ spravanie: 'prazdna' }).okraj, 0);
+  assert.equal(zona({ spravanie: 'okraj' }).okraj, 1); // svg.okraj z proporcie.json
+  assert.equal(zona({ spravanie: 'presah' }).okraj, -1);
+  for (const s of ['prazdna', 'okraj', 'presah']) {
+    assert.ok(!('spravanie' in zona({ spravanie: s })), `pole spravanie (${s}) zostalo v specu`);
+  }
+  // obe polia zadané: platí okraj
+  assert.equal(zona({ spravanie: 'presah', okraj: 5 }).okraj, 5);
+  assert.throws(() => zona({ spravanie: 'hore' }), /spravanie/);
+});
+
+test('starý textový model (riadkovanie) sa prevádza na riadok a percentá', () => {
+  const base = { typ: 'text', x: 1, y: 1, w: 4, h: 6 };
+  const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
+  // velkost 3 · riadkovanie 1,1 → riadok 3, 3 / 3 = 100 %
+  const z = zona({ velkost: 3, riadkovanie: 1.1 });
+  assert.equal(z.riadok, 3);
+  assert.equal(z.velkost, 100);
+  assert.ok(!('riadkovanie' in z), 'pole riadkovanie zostalo v specu');
+  // velkost bez riadku je tiež starý spec: 0,9 · 1,1 → riadok 1, 90 %
+  const z2 = zona({ velkost: 0.9 });
+  assert.equal(z2.riadok, 1);
+  assert.equal(z2.velkost, 90);
+  // nový model sa nemení
+  const z3 = zona({ riadok: 5, velkost: 150 });
+  assert.equal(z3.riadok, 5);
+  assert.equal(z3.velkost, 150);
+  // celkom nová zóna dostáva dnešné predvolené hodnoty
+  const z4 = zona({});
+  assert.equal(z4.riadok, 3);
+  assert.equal(z4.velkost, 80);
+});
+
+test('riadok a percentá veľkosti sa overujú na celé čísla v rozsahoch', () => {
+  const base = { typ: 'text', x: 1, y: 1, w: 4, h: 6 };
+  const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
+  assert.equal(zona({ riadok: 1, velkost: 10 }).riadok, 1);
+  assert.equal(zona({ riadok: 20, velkost: 200 }).velkost, 200);
+  // no upper bound on the row: a row taller than the zone only warns
+  assert.equal(zona({ riadok: 500, velkost: 80 }).riadok, 500);
+  const zle = [
+    { riadok: 0 }, { riadok: 1.5 },
+    { riadok: 3, velkost: 9 }, { riadok: 3, velkost: 201 }, { riadok: 3, velkost: 80.5 },
+  ];
+  for (const zly of zle) {
+    assert.throws(() => zona(zly), (e) => {
+      assert.ok(e instanceof ValidationError);
+      assert.match(e.message, /riadok|velkost/);
+      return true;
+    }, JSON.stringify(zly));
+  }
+});
+
+test('features: chýbajúce pole dostane predvolené — liga (a calt v Nunito), ss01 vypnuté', () => {
+  const base = { typ: 'text', x: 1, y: 1, w: 4, h: 6 };
+  const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
+  // starý spec bez poľa features (aj prekonvertovaný) už nikdy nezapaľuje ss01
+  assert.deepEqual(zona({}).features,
+    { liga: true, dlig: false, ss01: false, ss03: false, case: false });
+  assert.deepEqual(zona({ pismo: 'Nunito' }).features, {
+    liga: true, calt: true, ss01: false, ss02: false, salt: false, case: false,
+    onum: false, frac: false, sups: false, subs: false, ordn: false,
+  });
+  // neúplný objekt doplní chýbajúce tagy predvolenými hodnotami
+  assert.deepEqual(zona({ features: { dlig: true } }).features,
+    { liga: true, dlig: true, ss01: false, ss03: false, case: false });
+});
+
+test('features: neznámy tag pre dané písmo je jasná chyba', () => {
+  const base = { typ: 'text', x: 1, y: 1, w: 4, h: 6 };
+  const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
+  const pripady = [
+    [{ features: { xyz: true } }, /xyz/],
+    // dlig pozná len Brnos Aires, nie Nunito
+    [{ pismo: 'Nunito', features: { dlig: true } }, /dlig/],
+    [{ features: { liga: 'zap' } }, /true\/false/],
+    [{ features: ['liga'] }, /musí byť objekt/],
+  ];
+  for (const [zle, rx] of pripady) {
+    assert.throws(() => zona(zle), (e) => {
+      assert.ok(e instanceof ValidationError, `nie ValidationError pre ${JSON.stringify(zle)}`);
+      assert.match(e.message, /features/);
+      assert.match(e.message, rx);
+      return true;
+    }, JSON.stringify(zle));
+  }
+});
+
+test('SVG zapíše zapnuté aj vypnuté features explicitne do font-feature-settings', () => {
+  const zona = (features) => ({
+    typ: 'text', x: 1, y: 1, w: 8, h: 4, text: 'ft', pismo: 'Brnos Aires',
+    riadok: 3, velkost: 80, ...(features !== undefined ? { features } : {}),
+  });
+  const svg = (features) => komponuj({ zony: [zona(features)] }).svg;
+  // predvolene: liga zapnutá, ss01 vypnuté — žiadne natvrdo zapnuté tagy
+  assert.match(svg(), /style="font-feature-settings: 'liga' 1, 'dlig' 0, 'ss01' 0, 'ss03' 0, 'case' 0"/);
+  // zapnuté dlig a ss03, vypnutá liga: každý tag má svoju hodnotu
+  assert.match(svg({ liga: false, dlig: true, ss03: true }),
+    /style="font-feature-settings: 'liga' 0, 'dlig' 1, 'ss01' 0, 'ss03' 1, 'case' 0"/);
+  // vypnutá liga nesmie padnúť do predvoleného prehliadača (formát bez čísel)
+  assert.doesNotMatch(svg(), /font-feature-settings: 'liga'(?! \d)/);
+});
+
+test('zmena písma zachová spoločné tagy, zvyšok dostane predvolené nového písma', () => {
+  const poZmene = featuresPoZmenePisma({ liga: false, dlig: true, ss01: true }, 'Nunito');
+  assert.deepEqual(poZmene, {
+    liga: false, calt: true, ss01: true, ss02: false, salt: false, case: false,
+    onum: false, frac: false, sups: false, subs: false, ordn: false,
+  });
 });
 
 test('všetky tvary sú vnútri orezaného formátu', () => {
@@ -125,6 +260,9 @@ test('neplatný spec skončí na ValidationError so slovenskou správou', () => 
     [{ inverzia: 'nie' }, /inverzia/],
     [{ zony: [{ typ: 'text', x: 1, y: 1, w: 99, h: 2 }] }, /presahuje šírku/],
     [{ zony: [{ typ: 'fotka', x: 1, y: 40, w: 2, h: 4 }] }, /presahuje výšku/],
+    [{ zony: [{ typ: 'text', x: 1, y: 1, w: 2, h: 2, okraj: 21 }] }, /okraj/],
+    [{ zony: [{ typ: 'text', x: 1, y: 1, w: 2, h: 2, okraj: -21 }] }, /okraj/],
+    [{ zony: [{ typ: 'text', x: 1, y: 1, w: 2, h: 2, okraj: 1.5 }] }, /okraj/],
     [{ zony: [{ typ: 'text', x: 0, y: 0, w: 2, h: 1, pismo: 'Comic Sans' }] }, /pismo/],
     [{ zony: [{ typ: 'fotka', x: 0, y: 0, w: 2, h: 1, rezim: 'vyrez' }] }, /rezim/],
     [{ neviem: 1 }, /Neznáme pole/],

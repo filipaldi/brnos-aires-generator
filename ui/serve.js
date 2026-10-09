@@ -1,13 +1,13 @@
 // Tiny zero-dependency static server for the generator UI. Serves the
 // repository root so /ui/, /core/ and /fonts/ all resolve.
-// Usage: node ui/serve.js  (port 41235)
+// Usage: node ui/serve.js  (port 41235, or any port via PORT env)
 
 import http from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const PORT = 41235;
+const PORT = Number(process.env.PORT) || 41235;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const MIME = {

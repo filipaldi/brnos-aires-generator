@@ -103,15 +103,15 @@
     },
     "zona": {
       "text": {
-        "spravanie": "prazdna",
+        "okraj": 0,
         "text": "",
         "pismo": "Brnos Aires",
-        "velkost": 1.2,
-        "zarovnanie": "vlavo",
-        "riadkovanie": 1.1
+        "riadok": 3,
+        "velkost": 80,
+        "zarovnanie": "vlavo"
       },
       "fotka": {
-        "spravanie": "okraj",
+        "okraj": 0,
         "zdroj": null,
         "rezim": "ramik",
         "posun": [
@@ -178,9 +178,43 @@
         "spojkaPomer": 15
       }
     },
+    "pismaFeatures": {
+      "_comment": "OpenType funkcie (tagy z GSUB), ktoré dané písmo podporuje. Textová zóna ich zapína/vypína v poli features a smie použiť len tieto tagy. Čo ktorý tag robí: liga = štandardné ligatúry; dlig = voliteľné ligatúry (ft, fí, tt, ťt); ss01 = alternatívne bodky (i, j, ä, bodky nad písmenami, . , : ; … ! ? ÷); ss03 = alternatívne E; case = kapitálkové tvary interpunkcie; calt = kontextové alternáty; ss02 = druhý štýlový set Nunito; salt = alternatívne tvary; onum = staré číslice; frac = zlomky; sups = horný index; subs = dolný index; ordn = radové číslovky. zapnute = tagy predvolene zapnuté (aj pre staré specy bez poľa features), ostatné sú predvolene vypnuté — ss01 teda nikdy nesvieti samo od seba.",
+      "zapnute": [
+        "liga",
+        "calt"
+      ],
+      "pisma": {
+        "Brnos Aires": [
+          "liga",
+          "dlig",
+          "ss01",
+          "ss03",
+          "case"
+        ],
+        "Nunito": [
+          "liga",
+          "calt",
+          "ss01",
+          "ss02",
+          "salt",
+          "case",
+          "onum",
+          "frac",
+          "sups",
+          "subs",
+          "ordn"
+        ]
+      }
+    },
     "svg": {
-      "_comment": "riadokPrvy = prvá účelová linka textu odhora (násobok veľkosti písma), okraj bieleho okolo zóny so správaním okraj = 1 dielik.",
+      "_comment": "riadokPrvy = prvá účelová linka textu odhora (násobok veľkosti písma). okraj už nefunguje samostatne: je to len hodnota, na ktorú sa pri normalizácii prevedie staré spravanie zóny „okraj“ (dieliky).",
       "riadokPrvy": 0.8,
+      "priemerneZnaky": {
+        "_comment": "Záložný odhad šírky textu, keď nikto nevložil presné meranie (CLI, testy v Node): priemerná šírka znaku ako podiel veľkosti písma, nameraná na bežnom texte vrátane medzier. Rozhranie vložuje presné canvas meranie (ui/meranie.js), tieto konštanty len približne držia dlhé riadky v zóne.",
+        "Brnos Aires": 0.62,
+        "Nunito": 0.5
+      },
       "okraj": 1,
       "spadavkaFarba": "#c8c8c8",
       "spadavkaHrubka": 0.03,

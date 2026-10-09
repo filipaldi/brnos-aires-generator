@@ -81,17 +81,18 @@ Spoločné pre každú zónu:
 |---|---|---|
 | Typ | text / fotka | Určí sa obsahom: začneš písať = text, pretiahneš fotku = fotka |
 | Poloha a veľkosť | v dielikoch | Prichytené na mriežku |
-| Správanie | prázdna / presah vlasovou linkou / okraj | Ako sa k zóne správa pattern |
+| Okraj | celé číslo −20 až 20 (dieliky) | Kladný = okolo zóny ostane N dielikov voľna. 0 = tvary idú tesne k hrane zóny, dovnútra nie. Záporný = tvary smú zasiahnuť do zóny až \|N\| dielikov od hrany; zóna, ktorá tým zanikne, sa pre vzor ignoruje. |
 
 Textová zóna:
 
 | Parameter | Hodnoty | Poznámka |
 |---|---|---|
 | Text | reťazec | Skutočný text, vysádzaný v náhľade |
-| Písmo | Brnos Aires / Nunito | Ligatúry a `ss01` fungujú |
-| Veľkosť písma | v dielikoch | |
+| Písmo | Brnos Aires / Nunito | Každé podporuje iné OpenType funkcie (viď Funkcie) |
+| Výška riadku | celé dieliky od 1, bez hornej hranice | Riadky textu ležia na mriežke dielikov: každý ďalší riadok je o N dielikov nižšie |
+| Veľkosť písma | celé % výšky riadku 10–200 | Veľkosť písma v dielikoch = výška riadku · % ÷ 100. 150 % = písmo 1,5× väčšie ako výška riadku; riadky sa pri tom môžu prekrývať, je to zámer. |
 | Zarovnanie | vľavo / na stred / vpravo | |
-| Riadkovanie | násobok veľkosti | |
+| Funkcie | { tag: zap/vyp } per písmo | OpenType funkcie písma: ligatúry, voliteľné ligatúry, štýlové sety… Zoznam tagov každého písma je v `proporcie.json` (`kompozicia.pismaFeatures`). Predvolene svieti len `liga` (v Nunito aj `calt`), ostatné vrátane `ss01` sú vypnuté; neznámy tag pre dané písmo je chyba validácie. V SVG sa zapíšu všetky explicitne (`'liga' 1, 'dlig' 0, …`), takže vypnutá ligatúra zostane vypnutá aj v cudzom prehliadači. |
 
 Fotková zóna:
 
@@ -227,7 +228,8 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
   - Pretiahneš fotku na prázdne miesto → fotková zóna vznikne tam, na veľkosť dielikov pod kurzorom.
 - **Presun a zmena veľkosti:** ťahaním zóny a jej rohov.
 - **Fotka:** dvojklik prepne na posun a zoom fotky.
-- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, veľkosť, zarovnanie a správanie (prázdna / presah / okraj), pri fotke režim (rámik / maska / prekrytie). ✕ zónu zmaže.
+- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, výšku riadku v dielikoch, veľkosť v % riadku, zarovnanie, typografické funkcie a okraj (celé číslo v dielikoch), pri fotke režim (rámik / maska / prekrytie) a okraj. Polia a prepínače lišty majú ikonky, význam vysvetlí tooltip. ✕ zónu zmaže.
+- **Typografické funkcie** (tlačidlo s ligatúrou fi) otvoria popover so zaškrtávacími prepínačmi funkcií aktuálneho písma; klik prepína a list aj editor sa prekreslia hneď. Zmena písma zachová spoločné tagy a zvyšok nastaví na predvolené hodnoty nového písma.
 - **Čiary gridu** sa ukážu samy, keď ťaháš zónu. Inak sú skryté, prepínač netreba.
 - **Spadávka** je vždy jemne vyznačená.
 

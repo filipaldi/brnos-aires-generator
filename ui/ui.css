@@ -52,8 +52,10 @@ button, input, select { font: inherit; color: inherit; }
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 46px;
+  min-height: 46px;
   padding: 0 12px;
+  /* a narrow window wraps the bar instead of pushing Export off-screen */
+  flex-wrap: wrap;
   background: var(--paper);
   border-bottom: 1px solid var(--ink);
   flex: none;
@@ -101,6 +103,14 @@ button, input, select { font: inherit; color: inherit; }
   margin-right: 12px;
 }
 
+/* plain text, no blinking: the sheet keeps the previous drawing while the
+   newest one is being composed in the worker */
+#compose-note {
+  font-size: 12px;
+  color: var(--dim);
+  margin-right: 12px;
+}
+
 #zoom-group select {
   border: 1px solid var(--ink);
   background: var(--paper);
@@ -112,19 +122,22 @@ button, input, select { font: inherit; color: inherit; }
 /* ---------- popovers ---------- */
 
 .popover {
-  position: absolute;
+  /* top and max-height follow the (possibly wrapped) top bar, set in ui.js;
+     a popover taller than the window scrolls */
+  position: fixed;
   top: 46px;
+  overflow-y: auto;
   background: var(--paper);
   border: 1px solid var(--ink);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14);
   padding: 16px 18px;
-  min-width: 300px;
-  max-width: 380px;
+  min-width: min(300px, calc(100vw - 16px));
+  max-width: min(380px, calc(100vw - 16px));
   z-index: 50;
 }
 
 /* the parametre popover needs room for the per-type slider pairs */
-.popover.wide { max-width: 500px; }
+.popover.wide { max-width: min(500px, calc(100vw - 16px)); }
 
 .popover h3 {
   font-size: 12px;
@@ -209,6 +222,9 @@ button, input, select { font: inherit; color: inherit; }
 .range2-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 
 .range2-row .num { width: 6ch; }
+
+/* in a popover row the pair gets the same track length as single sliders */
+.popover .row .range2 { min-width: 150px; }
 
 .range2 {
   --thumb: 14px;
@@ -301,6 +317,10 @@ button, input, select { font: inherit; color: inherit; }
   inset: 0;
   cursor: crosshair;
   touch-action: none;
+  /* dragging on the canvas must not select text: pressing on a selection
+     starts a native drag, which cancels the pointer mid-move/resize */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #bleed-mark {
@@ -316,13 +336,17 @@ button, input, select { font: inherit; color: inherit; }
   background-image:
     repeating-linear-gradient(to right, rgba(0, 0, 0, 0.13) 0 1px, transparent 1px var(--dielik-px, 52px)),
     repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.13) 0 1px, transparent 1px var(--dielik-px, 52px));
+  /* the dielik grid starts at the trimmed format, one bleed inside the sheet */
+  background-position: var(--grid-ox, 0px) var(--grid-oy, 0px);
 }
 
 #grid-lines::after {
   /* top edge of the first row reads better with a full line */
   content: "";
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: var(--grid-oy, 0px);
   border-top: 1px solid rgba(0, 0, 0, 0.13);
 }
 
@@ -367,7 +391,9 @@ button, input, select { font: inherit; color: inherit; }
   height: 9px;
   background: var(--paper);
   border: 1px solid var(--ink);
-  z-index: 5;
+  /* above the open text editor (8): the editor box can grow past the zone
+     top, the corners must stay grabbable to resize while editing */
+  z-index: 9;
 }
 
 .handle.tl { left: -5px; top: -5px; cursor: nwse-resize; }
@@ -402,6 +428,114 @@ button, input, select { font: inherit; color: inherit; }
 
 #zone-bar select { width: auto; }
 
+/* whole-number fields of the bar stay narrow (okraj −20, percentá 10–200);
+   the spinner arrows would not leave room for three digits, values are typed */
+#zone-bar input[type="number"] { width: 5ch; }
+#zone-bar input[type="number"]::-webkit-inner-spin-button,
+#zone-bar input[type="number"]::-webkit-outer-spin-button { display: none; }
+
+#zone-bar .z-field { display: flex; align-items: center; gap: 3px; }
+
+/* one row height for inputs, selects and toggle groups (seg = 22 + border) */
+#zone-bar .z-field input, #zone-bar .z-field select { color: var(--ink); height: 24px; }
+
+#zone-bar .z-ico { display: flex; color: var(--ink); cursor: help; }
+
+#zone-bar .z-ico svg { display: block; width: 17px; height: 17px; }
+
+/* icon toggle group (zarovnanie, režim): one border around the buttons,
+   the pressed one fills with ink */
+#zone-bar .z-seg {
+  display: flex;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#zone-bar .z-tgl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+#zone-bar .z-tgl + .z-tgl { border-left: 1px solid var(--hairline); }
+
+#zone-bar .z-tgl:hover { background: var(--wash); }
+
+#zone-bar .z-tgl.zapnute { background: var(--ink); color: var(--paper); }
+
+/* the icon inside a button follows the button's colour: the active segment
+   inverts to paper on ink (in an inverted sheet the swap comes from the
+   button's own colors, never from a hard-coded ink here) */
+#zone-bar .z-tgl .z-ico,
+#zone-bar .z-feat .z-ico { color: inherit; }
+
+/* the typographic features button: a standalone toggle, not part of a group */
+#zone-bar .z-feat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+#zone-bar .z-feat:hover { background: var(--wash); }
+
+#zone-bar .z-feat.open { background: var(--ink); color: var(--paper); }
+
+/* the features popover sits in the bar, so a click into it keeps the text
+   editor open (the editor's blur handler checks for #zone-bar) */
+#zone-bar .z-pop {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 250px;
+  padding: 7px 10px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.14);
+  white-space: normal;
+  font-size: 12px;
+}
+
+#zone-bar .z-pop-cap {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  margin: 0 0 4px;
+}
+
+#zone-bar .z-pop label { color: var(--ink); }
+
+#zone-bar .z-feat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+#zone-bar .z-feat-row input[type="checkbox"] { accent-color: var(--ink); flex: none; }
+
+#zone-bar .z-feat-row .tag { margin-left: auto; color: var(--faint); font-size: 11px; }
+
 #zone-bar .del {
   border: none;
   background: none;
@@ -419,11 +553,32 @@ button, input, select { font: inherit; color: inherit; }
   outline: none;
   resize: none;
   overflow: hidden;
+  /* no padding: the box is placed so the text lands on the sheet's glyphs,
+     the border grows it around the zone instead (ui.js positionEditor) */
   padding: 0;
   z-index: 8;
+  user-select: text;
+  -webkit-user-select: text;
+  /* the editor wraps natively; the zone's own font features (set inline by
+     positionEditor, as the sheet's <text> sets them) keep the wrap points
+     identical to the SVG */
 }
 
 body.inverted #text-editor { background: var(--ink); color: var(--paper); }
+
+/* hidden mirror that measures where a font's first baseline sits under the
+   top of its line box (ui.js firstBaselineOffset); the zero-size
+   inline-block span rides on the baseline of the line it starts */
+#text-metrics {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: pre;
+}
+
+#text-metrics span { display: inline-block; width: 0; height: 0; }
 
 /* ---------- toast ---------- */
 
