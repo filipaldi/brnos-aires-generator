@@ -89,9 +89,9 @@ Textová zóna:
 |---|---|---|
 | Text | reťazec | Skutočný text, vysádzaný v náhľade |
 | Písmo | Brnos Aires / Nunito | Ligatúry a `ss01` fungujú |
-| Veľkosť písma | v dielikoch | |
+| Výška riadku | celé dieliky 1–20 | Riadky textu ležia na mriežke dielikov: každý ďalší riadok je o N dielikov nižšie |
+| Veľkosť písma | celé % výšky riadku 10–200 | Veľkosť písma v dielikoch = výška riadku · % ÷ 100. 150 % = písmo 1,5× väčšie ako výška riadku; riadky sa pri tom môžu prekrývať, je to zámer. |
 | Zarovnanie | vľavo / na stred / vpravo | |
-| Riadkovanie | násobok veľkosti | |
 
 Fotková zóna:
 
@@ -227,7 +227,7 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
   - Pretiahneš fotku na prázdne miesto → fotková zóna vznikne tam, na veľkosť dielikov pod kurzorom.
 - **Presun a zmena veľkosti:** ťahaním zóny a jej rohov.
 - **Fotka:** dvojklik prepne na posun a zoom fotky.
-- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, veľkosť, zarovnanie a okraj (celé číslo v dielikoch), pri fotke režim (rámik / maska / prekrytie) a okraj. ✕ zónu zmaže.
+- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, výšku riadku v dielikoch, veľkosť v % riadku, zarovnanie a okraj (celé číslo v dielikoch), pri fotke režim (rámik / maska / prekrytie) a okraj. Polia a prepínače lišty majú ikonky, význam vysvetlí tooltip. ✕ zónu zmaže.
 - **Čiary gridu** sa ukážu samy, keď ťaháš zónu. Inak sú skryté, prepínač netreba.
 - **Spadávka** je vždy jemne vyznačená.
 

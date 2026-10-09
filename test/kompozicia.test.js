@@ -105,6 +105,46 @@ test('staré spravanie sa prevádza na okraj a pole mizne', () => {
   assert.throws(() => zona({ spravanie: 'hore' }), /spravanie/);
 });
 
+test('starý textový model (riadkovanie) sa prevádza na riadok a percentá', () => {
+  const base = { typ: 'text', x: 1, y: 1, w: 4, h: 6 };
+  const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
+  // velkost 3 · riadkovanie 1,1 → riadok 3, 3 / 3 = 100 %
+  const z = zona({ velkost: 3, riadkovanie: 1.1 });
+  assert.equal(z.riadok, 3);
+  assert.equal(z.velkost, 100);
+  assert.ok(!('riadkovanie' in z), 'pole riadkovanie zostalo v specu');
+  // velkost bez riadku je tiež starý spec: 0,9 · 1,1 → riadok 1, 90 %
+  const z2 = zona({ velkost: 0.9 });
+  assert.equal(z2.riadok, 1);
+  assert.equal(z2.velkost, 90);
+  // nový model sa nemení
+  const z3 = zona({ riadok: 5, velkost: 150 });
+  assert.equal(z3.riadok, 5);
+  assert.equal(z3.velkost, 150);
+  // celkom nová zóna dostáva dnešné predvolené hodnoty
+  const z4 = zona({});
+  assert.equal(z4.riadok, 3);
+  assert.equal(z4.velkost, 80);
+});
+
+test('riadok a percentá veľkosti sa overujú na celé čísla v rozsahoch', () => {
+  const base = { typ: 'text', x: 1, y: 1, w: 4, h: 6 };
+  const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
+  assert.equal(zona({ riadok: 1, velkost: 10 }).riadok, 1);
+  assert.equal(zona({ riadok: 20, velkost: 200 }).velkost, 200);
+  const zle = [
+    { riadok: 0 }, { riadok: 21 }, { riadok: 1.5 },
+    { riadok: 3, velkost: 9 }, { riadok: 3, velkost: 201 }, { riadok: 3, velkost: 80.5 },
+  ];
+  for (const zly of zle) {
+    assert.throws(() => zona(zly), (e) => {
+      assert.ok(e instanceof ValidationError);
+      assert.match(e.message, /riadok|velkost/);
+      return true;
+    }, JSON.stringify(zly));
+  }
+});
+
 test('všetky tvary sú vnútri orezaného formátu', () => {
   const { tvary } = komponuj(plagat);
   const W = plagat.grid.stlpce;

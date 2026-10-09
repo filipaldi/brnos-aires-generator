@@ -240,9 +240,16 @@ function drawZoneBar() {
   zoneBar.dataset.key = key;
   zoneBar.replaceChildren();
 
-  const makeSelect = (label, options, value, onInput) => {
+  // icon + control pairs; the icon names the field, the control holds the value
+  const makeField = (ico, label, control) => {
     const wrap = document.createElement('label');
-    wrap.append(label + ' ');
+    wrap.className = 'z-field';
+    control.setAttribute('aria-label', label);
+    wrap.append(ikona(ico, label), control);
+    return wrap;
+  };
+
+  const makeSelect = (ico, label, options, value, onInput) => {
     const select = document.createElement('select');
     for (const [val, name] of options) {
       const option = document.createElement('option');
@@ -252,34 +259,70 @@ function drawZoneBar() {
     }
     select.value = value;
     select.addEventListener('input', () => { onInput(select.value); scheduleRender(); });
-    wrap.append(select);
-    return wrap;
+    return makeField(ico, label, select);
   };
 
-  const makeNumber = (label, value, attrs, onInput) => {
-    const wrap = document.createElement('label');
-    wrap.append(label + ' ', numberInput(value, attrs, onInput));
-    return wrap;
+  const makeNumber = (ico, label, value, attrs, onInput) =>
+    makeField(ico, label, numberInput(value, attrs, onInput));
+
+  // Icon toggle group (alignment, photo mode). The buttons keep their own
+  // active look — the bar is not rebuilt while one of its fields has focus.
+  const makeToggle = (label, options, aktualna, onInput) => {
+    const group = document.createElement('span');
+    group.className = 'z-seg';
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', label);
+    const tlacidla = options.map(([val, nazov, ico]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'z-tgl';
+      const popis = `${label}: ${nazov}`;
+      b.title = popis;
+      b.setAttribute('aria-label', popis);
+      b.append(ikona(ico, popis));
+      b.addEventListener('click', () => { onInput(val); obnov(); scheduleRender(); });
+      group.append(b);
+      return [val, b];
+    });
+    const obnov = () => {
+      const v = aktualna();
+      for (const [val, b] of tlacidla) {
+        const zapnute = val === v;
+        b.classList.toggle('zapnute', zapnute);
+        b.setAttribute('aria-pressed', String(zapnute));
+      }
+    };
+    obnov();
+    return group;
   };
 
   if (z.typ === 'text') {
     zoneBar.append(
-      makeSelect('Písmo', [['Brnos Aires', 'Brnos Aires'], ['Nunito', 'Nunito']], z.pismo,
+      makeSelect('pismo', 'Písmo', [['Brnos Aires', 'Brnos Aires'], ['Nunito', 'Nunito']], z.pismo,
         (v) => { z.pismo = v; positionEditor(); }),
-      // whole percent of a dielik (the core takes 0.1–20 dielika)
-      makeNumber('Veľkosť %', Math.round(z.velkost * 100), { min: 10, max: 2000, step: 1 },
-        (v) => { z.velkost = v / 100; positionEditor(); }),
-      makeSelect('Zarovnanie', [['vlavo', 'vľavo'], ['stred', 'na stred'], ['vpravo', 'vpravo']],
-        z.zarovnanie, (v) => { z.zarovnanie = v; }),
+      // whole dieliks: baselines of the text sit on the dielik grid this far apart
+      makeNumber('riadok', 'Výška riadku v dielikoch', z.riadok, { min: 1, max: 20, step: 1 },
+        (v) => { z.riadok = v; positionEditor(); }),
+      // whole percent of the row: 150 % = glyphs half a row taller than the row
+      makeNumber('velkost', 'Veľkosť % riadku', z.velkost, { min: 10, max: 200, step: 1 },
+        (v) => { z.velkost = v; positionEditor(); }),
+      makeToggle('Zarovnanie', [
+        ['vlavo', 'vľavo', 'zarovnanie-vlavo'],
+        ['stred', 'na stred', 'zarovnanie-stred'],
+        ['vpravo', 'vpravo', 'zarovnanie-vpravo'],
+      ], () => z.zarovnanie, (v) => { z.zarovnanie = v; positionEditor(); }),
       // whole dieliks of free space around the zone (negative lets the
       // pattern reach that deep into it)
-      makeNumber('Okraj', z.okraj, { min: -20, max: 20, step: 1 }, (v) => { z.okraj = v; }),
+      makeNumber('okraj', 'Okraj', z.okraj, { min: -20, max: 20, step: 1 }, (v) => { z.okraj = v; }),
     );
   } else if (z.typ === 'fotka') {
     zoneBar.append(
-      makeSelect('Režim', [['ramik', 'rámik'], ['maska', 'maska'], ['prekrytie', 'prekrytie']],
-        z.rezim, (v) => { z.rezim = v; }),
-      makeNumber('Okraj', z.okraj, { min: -20, max: 20, step: 1 }, (v) => { z.okraj = v; }),
+      makeToggle('Režim', [
+        ['ramik', 'rámik', 'rezim-ramik'],
+        ['maska', 'maska', 'rezim-maska'],
+        ['prekrytie', 'prekrytie', 'rezim-prekrytie'],
+      ], () => z.rezim, (v) => { z.rezim = v; }),
+      makeNumber('okraj', 'Okraj', z.okraj, { min: -20, max: 20, step: 1 }, (v) => { z.okraj = v; }),
     );
     if (photoPan) {
       const note = document.createElement('span');
@@ -295,6 +338,41 @@ function drawZoneBar() {
   del.addEventListener('click', () => deleteZone(selected));
   zoneBar.append(del);
   placeZoneBar(z);
+}
+
+// ---------- zone bar icons ----------
+
+// 16 × 16 line drawings, inline SVG built here, stroke currentColor: the bar
+// stays black-and-white at any scale and in the inverted sheet. Each carries
+// its Slovak name as the tooltip (title) and for screen readers (aria-label).
+const IKONY = {
+  pismo: '<path d="M1.8 13 5 3.6 8.2 13"/><path d="M3 9.4h4"/>'
+    + '<circle cx="11.8" cy="10.8" r="2.2"/><path d="M14 13V8.6"/>',
+  // small + large T
+  velkost: '<path d="M1.5 3.5h7M5 3.5V13"/><path d="M9.5 8.5h5M12 8.5V13"/>',
+  // lines with an up-down arrow
+  riadok: '<path d="M8.5 3.5H15M8.5 8H15M8.5 12.5H15"/>'
+    + '<path d="M4.5 2.2v11.6M2.5 4.2l2-2 2 2M2.5 11.8l2 2 2-2"/>',
+  okraj: '<rect x="1.5" y="3" width="13" height="10"/><rect x="4.7" y="6.2" width="6.6" height="3.6"/>',
+  'zarovnanie-vlavo': '<path d="M2 4h12M2 8h9M2 12h11"/>',
+  'zarovnanie-stred': '<path d="M3 4h10M1.5 8h13M4 12h8"/>',
+  'zarovnanie-vpravo': '<path d="M2 4h12M5 8h9M3 12h11"/>',
+  'rezim-ramik': '<rect x="2" y="3" width="12" height="10"/><path d="M2 10.5 5.8 7l3 3 2-2L14 11"/>',
+  'rezim-maska': '<circle cx="5.4" cy="10.6" r="3.9" fill="currentColor" stroke="none"/>'
+    + '<rect x="8.1" y="2.5" width="6" height="6"/>',
+  'rezim-prekrytie': '<rect x="2" y="2.5" width="9.5" height="9.5"/>'
+    + '<rect x="4.5" y="4.5" width="9" height="9" fill="currentColor" stroke="none"/>',
+};
+
+function ikona(nazov, popis) {
+  const span = document.createElement('span');
+  span.className = 'z-ico';
+  span.title = popis;
+  span.setAttribute('aria-label', popis);
+  span.setAttribute('role', 'img');
+  span.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"`
+    + ` stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${IKONY[nazov]}</svg>`;
+  return span;
 }
 
 // Place under the zone, above when there is no room.
@@ -597,9 +675,10 @@ function zoneToText(i, firstKey) {
   z.typ = 'text';
   z.text = firstKey === 'Enter' ? '' : firstKey;
   z.pismo = 'Brnos Aires';
-  z.velkost = Math.min(1.2, Math.max(0.4, z.h - 0.3));
+  // author's default: rows of 3 dieliks, glyphs filling 80 % of the row
+  z.riadok = 3;
+  z.velkost = 80;
   z.zarovnanie = 'vlavo';
-  z.riadkovanie = 1.1;
   openEditor(i);
 }
 
@@ -639,8 +718,11 @@ function positionEditor() {
   const r = zoneRectPx(z);
   Object.assign(ta.style, styleRect(r));
   ta.style.fontFamily = z.pismo === 'Brnos Aires' ? "'Brnos Aires', serif" : "'Nunito', sans-serif";
-  ta.style.fontSize = `${z.velkost * dielikPx()}px`;
-  ta.style.lineHeight = String(z.riadkovanie);
+  // the same numbers as the sheet: glyphs fill velkost % of the row, rows sit
+  // riadok dieliks apart
+  const px = dielikPx();
+  ta.style.fontSize = `${(z.riadok * z.velkost) / 100 * px}px`;
+  ta.style.lineHeight = `${z.riadok * px}px`;
   ta.style.textAlign = z.zarovnanie === 'stred' ? 'center' : (z.zarovnanie === 'vpravo' ? 'right' : 'left');
 }
 
@@ -656,7 +738,7 @@ function closeEditor() {
       // Nothing was written: the zone goes back to being empty.
       z.typ = 'prazdna';
       delete z.text; delete z.pismo; delete z.velkost;
-      delete z.zarovnanie; delete z.riadkovanie;
+      delete z.zarovnanie; delete z.riadok;
     }
   }
   ta.remove();

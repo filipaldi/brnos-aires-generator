@@ -106,9 +106,9 @@
         "okraj": 0,
         "text": "",
         "pismo": "Brnos Aires",
-        "velkost": 1.2,
-        "zarovnanie": "vlavo",
-        "riadkovanie": 1.1
+        "riadok": 3,
+        "velkost": 80,
+        "zarovnanie": "vlavo"
       },
       "fotka": {
         "okraj": 0,
