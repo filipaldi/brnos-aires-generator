@@ -173,8 +173,21 @@ function zoneRectPx(z) {
   };
 }
 
+// The one snapping rule of the canvas: every zone edge lies on a grid line,
+// the one nearest to the cursor (the threshold sits in the middle of a cell).
+// `max` is the last line — the column count, or the floor of the sheet height.
+function naCiaru(v, max) {
+  return clamp(Math.round(v), 0, max);
+}
+
+// The height need not divide into whole rows; the last whole line counts.
+function maxRiadok() {
+  return Math.floor(view.rowsD);
+}
+
+// The bottom-most top edge of a zone h dieliks tall.
 function maxCellY(h) {
-  return Math.max(0, Math.floor(view.rowsD - h));
+  return Math.max(0, maxRiadok() - h);
 }
 
 
@@ -384,11 +397,7 @@ overlay.addEventListener('pointerdown', (e) => {
   lastPress = null;
   closeEditor();
   selected = -1;
-  const cell = {
-    x: clamp(Math.floor(pos.x), 0, view.cols),
-    y: clamp(Math.floor(pos.y), 0, Math.floor(view.rowsD)),
-  };
-  dragging = { kind: 'create', start: cell };
+  dragging = { kind: 'create', press: pos };
   gridLines.hidden = false;
   overlay.setPointerCapture(e.pointerId);
   drawOverlay();
@@ -397,18 +406,9 @@ overlay.addEventListener('pointerdown', (e) => {
 overlay.addEventListener('pointermove', (e) => {
   if (!dragging) return;
   const pos = cursorDieliks(e);
-  const posCell = {
-    x: clamp(Math.floor(pos.x), 0, view.cols),
-    y: clamp(Math.floor(pos.y), 0, Math.floor(view.rowsD)),
-  };
-  // a resized edge snaps to the nearest grid line, not to the cell's start
-  const posLine = {
-    x: clamp(Math.round(pos.x), 0, view.cols),
-    y: clamp(Math.round(pos.y), 0, Math.floor(view.rowsD)),
-  };
 
   if (dragging.kind === 'create') {
-    const rect = rectFromCells(dragging.start, posCell);
+    const rect = rectZTvorania(dragging.press, pos);
     let ghost = $('#zone-create-ghost');
     if (!ghost) {
       ghost = document.createElement('div');
@@ -429,16 +429,18 @@ overlay.addEventListener('pointermove', (e) => {
 
   if (dragging.kind === 'move') {
     dragging.moved = true;
-    z.x = clamp(Math.round(pos.x - dragging.grabX), 0, view.cols - z.w);
-    z.y = clamp(Math.round(pos.y - dragging.grabY), 0, maxCellY(z.h));
+    // the top-left corner snaps to the line nearest to (cursor − grab)
+    z.x = naCiaru(pos.x - dragging.grabX, view.cols - z.w);
+    z.y = naCiaru(pos.y - dragging.grabY, maxCellY(z.h));
   } else if (dragging.kind === 'resize') {
+    // the dragged edge snaps to the nearest line, the opposite one stays put
     const l = { x: z.x, y: z.y };
     const r = { x: z.x + z.w, y: z.y + z.h };
     const c = dragging.corner;
-    if (c.includes('l')) l.x = clamp(posLine.x, 0, r.x - 1);
-    if (c.includes('r')) r.x = clamp(posLine.x, l.x + 1, view.cols);
-    if (c.includes('t')) l.y = clamp(posLine.y, 0, r.y - 1);
-    if (c.includes('b')) r.y = clamp(posLine.y, l.y + 1, Math.floor(view.rowsD));
+    if (c.includes('l')) l.x = naCiaru(pos.x, r.x - 1);
+    if (c.includes('r')) r.x = Math.max(l.x + 1, naCiaru(pos.x, view.cols));
+    if (c.includes('t')) l.y = naCiaru(pos.y, r.y - 1);
+    if (c.includes('b')) r.y = Math.max(l.y + 1, naCiaru(pos.y, maxRiadok()));
     z.x = l.x; z.y = l.y; z.w = r.x - l.x; z.h = r.y - l.y;
     if (editorOpen) positionEditor();
   } else if (dragging.kind === 'photo-pan') {
@@ -453,11 +455,29 @@ overlay.addEventListener('pointermove', (e) => {
   drawZoneBar();
 });
 
-function rectFromCells(a, b) {
-  return {
+// A zone dragged out between two points: each corner snaps to the grid line
+// nearest to its point (the press, the cursor), so the drag works in every
+// direction. An axis whose corners share a line grows by one dielik towards
+// the drag; with no movement at all the rect stays empty and a plain click
+// keeps only deselecting, as before. Everything is clamped into the format.
+function rectZTvorania(press, pos) {
+  const a = { x: naCiaru(press.x, view.cols), y: naCiaru(press.y, maxRiadok()) };
+  const b = { x: naCiaru(pos.x, view.cols), y: naCiaru(pos.y, maxRiadok()) };
+  const rect = {
     x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
     w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y),
   };
+  if (!rect.w && pos.x !== press.x) {
+    rect.x = pos.x < press.x ? Math.max(0, a.x - 1) : a.x;
+    rect.w = 1;
+  }
+  if (!rect.h && pos.y !== press.y) {
+    rect.y = pos.y < press.y ? Math.max(0, a.y - 1) : a.y;
+    rect.h = 1;
+  }
+  rect.w = Math.min(rect.w, view.cols - rect.x);
+  rect.h = Math.min(rect.h, maxRiadok() - rect.y);
+  return rect;
 }
 
 overlay.addEventListener('pointerup', (e) => {
@@ -469,13 +489,9 @@ overlay.addEventListener('pointerup', (e) => {
 
   if (d.kind === 'create') {
     const pos = cursorDieliks(e);
-    const rect = rectFromCells(d.start, {
-      x: clamp(Math.floor(pos.x), 0, view.cols),
-      y: clamp(Math.floor(pos.y), 0, Math.floor(view.rowsD)),
-    });
+    // the zone the ghost was showing all along — what you saw is what you get
+    const rect = rectZTvorania(d.press, pos);
     if (rect.w >= 1 && rect.h >= 1) {
-      rect.w = Math.min(rect.w, view.cols - rect.x);
-      rect.h = Math.min(rect.h, Math.floor(view.rowsD) - rect.y);
       spec.zony.push({ typ: 'prazdna', okraj: 0, ...rect });
       selected = spec.zony.length - 1;
       drawOverlay(); // show the new zone now, the sheet follows after recomposing
@@ -566,10 +582,6 @@ overlay.addEventListener('drop', async (e) => {
     return;
   }
   const pos = cursorDieliks(e);
-  const cell = {
-    x: clamp(Math.floor(pos.x), 0, view.cols - 1),
-    y: clamp(Math.floor(pos.y), 0, maxCellY(1)),
-  };
   const hit = zoneAt(pos);
 
   try {
@@ -579,12 +591,15 @@ overlay.addEventListener('drop', async (e) => {
       Object.assign(z, { typ: 'fotka', zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1 });
       selected = hit;
     } else {
-      // a 4 × 3 frame, moved inwards when dropped near the edge
-      const rows = Math.max(1, Math.floor(view.rowsD));
+      // a 4 × 3 frame centred on the cursor, edges on the nearest lines
+      const rows = Math.max(1, maxRiadok());
       const w = Math.min(4, view.cols);
       const h = Math.min(3, rows);
       spec.zony.push({
-        typ: 'fotka', x: clamp(cell.x, 0, view.cols - w), y: clamp(cell.y, 0, rows - h), w, h, okraj: 0,
+        typ: 'fotka',
+        x: naCiaru(pos.x - w / 2, view.cols - w),
+        y: naCiaru(pos.y - h / 2, rows - h),
+        w, h, okraj: 0,
         zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1,
       });
       selected = spec.zony.length - 1;
