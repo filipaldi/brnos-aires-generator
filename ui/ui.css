@@ -18,6 +18,9 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  /* one black-and-white look whatever the viewer's theme: native controls
+     (textarea, number fields, selects) stay light too */
+  color-scheme: light;
   --ink: #000;
   --paper: #fff;
   --dim: #666;
@@ -549,6 +552,10 @@ button, input, select { font: inherit; color: inherit; }
 #text-editor {
   position: absolute;
   background: var(--paper);
+  /* a textarea does not inherit the page colour: without this a dark
+     colour scheme gives it white text on the paper background */
+  color: var(--ink);
+  caret-color: var(--ink);
   border: 1px solid var(--ink);
   outline: none;
   resize: none;
