@@ -72,6 +72,13 @@ test('zlá hodnota osi skončí s kódom 1', async () => {
   );
 });
 
+test('desatinný parameter skončí s kódom 1', async () => {
+  await assert.rejects(
+    exec(NODE, [CLI, 'tvar', '--typ', 'noha', '--param', 'dlzka=2.5', '--out', '/tmp/x.svg']),
+    (e) => e.code === 1 && /celé číslo/.test(e.stderr),
+  );
+});
+
 test('bez príkazu vypíše nápovedu a skončí kódom 1', async () => {
   await assert.rejects(
     exec(NODE, [CLI]),

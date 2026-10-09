@@ -13,7 +13,7 @@ const DEFAULTS = {
   grid: { stlpce: 8, zvysok: 'okraje' },
   kresba: { weight: 60, contrast: 70, zaoblenie: 30 },
   kompozicia: {
-    velkost: [1, 6], rozlozenie: 'rovnomerne',
+    velkost: [1, 6],
     typy: [...ALL_TYPES], rozmiestnenie: 'volne',
   },
   variant: '42',
@@ -101,7 +101,6 @@ export function normalizujSpec(input) {
   if (c.velkost[0] > c.velkost[1]) {
     throw new ValidationError('Veľkosť min musí byť menšia alebo rovná max.');
   }
-  enumv(c.rozlozenie, 'Rozloženie', ['rovnomerne', 'malePlusVelke', 'krajne']);
   if (!Array.isArray(c.typy) || c.typy.length === 0) {
     throw new ValidationError('Typy: vyber aspoň jeden typ tvaru.');
   }
@@ -187,16 +186,9 @@ function escAttr(s) {
 
 // ---------- placement ----------
 
+// One size drawn uniformly from the whole range (rozlozenie is gone).
 function pickSize(rng, c) {
   const [mn, mx] = c.velkost;
-  if (c.rozlozenie === 'krajne') return rng() < 0.5 ? mn : mx;
-  if (c.rozlozenie === 'malePlusVelke') {
-    const small = rng() < 0.72;
-    const mid = (mn + mx) / 2;
-    const base = small ? mn : mx;
-    return mid + (base - mid) * (0.35 + 0.65 * rng());
-  }
-  // uniform over the whole range
   return mn + rng() * (mx - mn);
 }
 

@@ -55,7 +55,17 @@ function parseAxisNumber(value, name) {
   if (!Number.isFinite(n) || n < 0 || n > 100) {
     die(`${name} musí byť číslo v rozsahu 0–100 (dostal som „${value}“).`);
   }
+  if (!Number.isInteger(n)) {
+    die(`${name} musí byť celé číslo v rozsahu 0–100 (dostal som „${value}“).`);
+  }
   return n;
+}
+
+// Every numeric input is an integer (the core keeps its fractional bounds
+// internally); a fractional bound is shown and checked as the nearest usable
+// integer, e.g. min 0.1 becomes 1.
+function intBounds(s) {
+  return [Math.ceil(s.min), Math.floor(s.max)];
 }
 
 function parseAxisList(raw, name) {
@@ -93,11 +103,12 @@ function parseParams(typ, rawList) {
     }
     const n = Number(value);
     if (!Number.isFinite(n)) die(`Parameter „${key}“ musí byť číslo (dostal som „${value}“).`);
-    if (s.type === 'integer' && !Number.isInteger(n)) {
+    if (!Number.isInteger(n)) {
       die(`Parameter „${key}“ musí byť celé číslo (dostal som „${value}“).`);
     }
-    if (n < s.min || n > s.max) {
-      die(`Parameter „${key}“ musí byť v rozsahu ${fmtSk(s.min)}–${fmtSk(s.max)} (dostal som ${fmtSk(n)}).`);
+    const [min, max] = intBounds(s);
+    if (n < min || n > max) {
+      die(`Parameter „${key}“ musí byť v rozsahu ${min}–${max} (dostal som ${fmtSk(n)}).`);
     }
     out[key] = n;
   }
@@ -128,8 +139,10 @@ function cmdTypy() {
     for (const [key, s] of Object.entries(spec)) {
       let type;
       if (s.type === 'enum') type = s.values.join(' | ');
-      else if (s.type === 'integer') type = `celé číslo ${fmtSk(s.min)}–${fmtSk(s.max)}`;
-      else type = `číslo ${fmtSk(s.min)}–${fmtSk(s.max)}`;
+      else {
+        const [min, max] = intBounds(s);
+        type = `celé číslo ${fmtSk(min)}–${fmtSk(max)}`;
+      }
       const def = values[key] === null ? 'auto' : String(values[key]).replace('.', ',');
       console.log(`  ${key.padEnd(12)} ${s.label.padEnd(26)} ${type}, predvolené ${def}`);
     }
