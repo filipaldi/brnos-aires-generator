@@ -10,6 +10,7 @@ import {
   exportSvgFile, exportPngFile, exportAvifFile, avifSupported,
   rasterDimensions, download, fontUrlsAbsolute,
 } from './export.js';
+import { vytvorMeranie } from './meranie.js';
 
 const $ = (sel) => document.querySelector(sel);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -41,6 +42,11 @@ let selected = -1;
 let editorOpen = false;
 let photoPan = false;
 let dragging = null;
+
+// Text wraps to the zone width through the real fonts; until they load the
+// first paint measures with a fallback face and redraws here.
+const zmerajText = vytvorMeranie(fontUrlsAbsolute());
+zmerajText.ready.then(() => scheduleRender());
 
 const overlay = $('#overlay');
 const svgHost = $('#svg-host');
@@ -107,7 +113,7 @@ function vmestiZony() {
 function render() {
   vmestiZony();
   try {
-    result = engine.komponuj(spec, { fontUrls: fontUrlsAbsolute() });
+    result = engine.komponuj(spec, { fontUrls: fontUrlsAbsolute(), zmerajText });
   } catch (err) {
     toast(err.message || String(err));
     return; // keep the last good sheet on screen

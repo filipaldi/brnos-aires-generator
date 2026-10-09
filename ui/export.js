@@ -4,6 +4,7 @@
 // in Brnos Aires / Nunito.
 
 import { komponuj } from './engine.js';
+import { vytvorMeranie } from './meranie.js';
 
 const FONT_FILES = {
   'Brnos Aires': '/fonts/brnos-aires.woff2',
@@ -18,6 +19,10 @@ export function fontUrlsAbsolute() {
   }
   return out;
 }
+
+// The same canvas measurement the sheet renders with, so the exported
+// wrapping matches what is on screen.
+const zmerajText = vytvorMeranie(fontUrlsAbsolute());
 
 const dataUrlCache = new Map();
 
@@ -54,7 +59,8 @@ export function safeVariant(variant) {
 }
 
 export async function exportSvgFile(spec) {
-  const { svg } = komponuj(spec, { fontUrls: fontUrlsAbsolute() });
+  await zmerajText.ready;
+  const { svg } = komponuj(spec, { fontUrls: fontUrlsAbsolute(), zmerajText });
   download(new Blob([svg], { type: 'image/svg+xml' }), `brnos-aires-${safeVariant(spec.variant)}.svg`);
 }
 
@@ -74,8 +80,9 @@ export async function avifSupported() {
 // Rasterise: render the SVG at sirkaPx × vyskaPx through an <img> (data URLs
 // inside an SVG image are the one kind of reference Chromium keeps loading).
 async function rasterise(spec, mime) {
+  await zmerajText.ready;
   const fontUrls = await fontUrlsInlined();
-  const { svg, sirkaPx, vyskaPx } = komponuj(spec, { fontUrls });
+  const { svg, sirkaPx, vyskaPx } = komponuj(spec, { fontUrls, zmerajText });
   // The engine sizes the root in mm/px of the format; pin it to raster pixels.
   // (the callback must give back the whole tag, not only its attributes)
   const sized = svg.replace(/<svg([^>]*)>/, (m, attrs) => `<svg${attrs

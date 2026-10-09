@@ -435,6 +435,9 @@ button, input, select { font: inherit; color: inherit; }
   z-index: 8;
   user-select: text;
   -webkit-user-select: text;
+  /* the editor wraps natively; the same features as the sheet text keep the
+     wrap points identical to the SVG */
+  font-feature-settings: 'liga', 'ss01';
 }
 
 body.inverted #text-editor { background: var(--ink); color: var(--paper); }

@@ -181,6 +181,11 @@
     "svg": {
       "_comment": "riadokPrvy = prvá účelová linka textu odhora (násobok veľkosti písma), okraj bieleho okolo zóny so správaním okraj = 1 dielik.",
       "riadokPrvy": 0.8,
+      "priemerneZnaky": {
+        "_comment": "Záložný odhad šírky textu, keď nikto nevložil presné meranie (CLI, testy v Node): priemerná šírka znaku ako podiel veľkosti písma, nameraná na bežnom texte vrátane medzier. Rozhranie vložuje presné canvas meranie (ui/meranie.js), tieto konštanty len približne držia dlhé riadky v zóne.",
+        "Brnos Aires": 0.62,
+        "Nunito": 0.5
+      },
       "okraj": 1,
       "spadavkaFarba": "#c8c8c8",
       "spadavkaHrubka": 0.03,
