@@ -5,6 +5,10 @@
 // edge lands on the grid line nearest to the cursor, threshold mid-cell.
 //
 //   node ui/smoke.mjs [output-dir]
+//
+// BASE_URL=http://host:port tests a site that is already being served at
+// <base>/ui/ (e.g. the _site assembled by scripts/zostav-web.sh under
+// python3 -m http.server) — no server of our own is started then.
 
 import { createRequire } from 'node:module';
 import { execSync, spawn } from 'node:child_process';
@@ -35,8 +39,10 @@ function loadPlaywright() {
 
 // ---------- server ----------
 
-// Always our own server on a free port: a server already sitting on 41235
-// may belong to another checkout and serve different files.
+// Without BASE_URL we always start our own server on a free port: a server
+// already sitting on 41235 may belong to another checkout and serve
+// different files. With BASE_URL the site under test is already running;
+// the page is always <base>/ui/ (a trailing /ui is tolerated).
 function volnyPort() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
@@ -48,8 +54,9 @@ function volnyPort() {
   });
 }
 
-const PORT = await volnyPort();
-const URL = `http://localhost:${PORT}/ui/`;
+const ZAKLAD = (process.env.BASE_URL ?? '').replace(/\/+$/, '').replace(/\/ui$/, '');
+const PORT = ZAKLAD ? 0 : await volnyPort();
+const URL = ZAKLAD || `http://localhost:${PORT}/ui/`;
 
 async function portOpen() {
   try {
@@ -60,17 +67,17 @@ async function portOpen() {
   }
 }
 
-const server = spawn(process.execPath, [path.join(ROOT, 'ui/serve.js')], {
+const server = ZAKLAD ? null : spawn(process.execPath, [path.join(ROOT, 'ui/serve.js')], {
   stdio: ['ignore', 'pipe', 'pipe'],
   env: { ...process.env, PORT: String(PORT) },
 });
-server.stderr.on('data', (d) => process.stderr.write(`[serve] ${d}`));
+if (server) server.stderr.on('data', (d) => process.stderr.write(`[serve] ${d}`));
 for (let i = 0; i < 50 && !(await portOpen()); i++) {
   await new Promise((r) => setTimeout(r, 100));
 }
 if (!(await portOpen())) {
-  console.error('Server sa nespustil na porte', PORT);
-  server.kill();
+  console.error('Server nie je dostupný na', URL);
+  if (server) server.kill();
   process.exit(1);
 }
 
@@ -96,6 +103,11 @@ try {
   });
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
   page.on('worker', () => { workerSpusteny = true; });
+  // failed requests (DNS, aborted, network error) carry no HTTP response —
+  // report them separately from the status listener below
+  page.on('requestfailed', (r) => {
+    errors.push(`request ${r.url()} — ${r.failure()?.errorText ?? 'zlyhal'}`);
+  });
   page.on('response', (r) => {
     // The engine adapter probes core/kompozicia and falls back to the stub;
     // that probe is allowed to 404 while phase 2 is not merged.
@@ -118,6 +130,26 @@ try {
   // the first svg lands only after the first (async) compose finishes
   await page.waitForSelector('#sheet svg', { timeout: 15000 });
   await page.screenshot({ path: path.join(OUT_DIR, SHOTS[0]) });
+  // the real engine must be up: a core/ file missing from the site would
+  // silently fall back to the stub
+  if (await page.locator('#stub-note:not([hidden])').count()) {
+    errors.push('beží náhradný engine — jadro sa nenačítalo celé');
+  }
+  // both fonts must have really loaded (a 404 would leave a fallback face)
+  const fonty = await page.evaluate(async () => {
+    const out = {};
+    for (const pismo of ['Brnos Aires', 'Nunito']) {
+      try {
+        out[pismo] = (await document.fonts.load(`100px '${pismo}'`)).length > 0;
+      } catch {
+        out[pismo] = false;
+      }
+    }
+    return out;
+  });
+  for (const [pismo, ok] of Object.entries(fonty)) {
+    if (!ok) errors.push(`písmo ${pismo} sa nenačítalo`);
+  }
 
   // (b) drag a zone on the empty canvas, double-click it, type into it
   const box = await page.locator('#overlay').boundingBox();

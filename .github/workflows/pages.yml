@@ -1,0 +1,57 @@
+name: Pages
+
+# Publikuje generátor na https://generator.brnosaires.com pri každom pushi
+# do main (alebo ručne). Testy musia prejsť — červený test zastaví deploy —
+# potom scripts/zostav-web.sh poskladá _site/ a GitHub Pages ho nasadí.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# nasadenia sa radia do fronty, nepredejú sa
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Testy
+        run: npm test
+
+      - name: Zostav _site/
+        run: scripts/zostav-web.sh _site
+
+      - name: Nakonfiguruj Pages
+        uses: actions/configure-pages@v6
+
+      - name: Nahraj artefakt
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Nasadiť
+        id: deployment
+        uses: actions/deploy-pages@v5
