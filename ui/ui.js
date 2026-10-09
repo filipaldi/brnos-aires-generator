@@ -152,17 +152,19 @@ function layoutSheet(svgEl) {
 function dielikPx() { return view.s; }
 
 // Cursor position in dieliks, relative to the trimmed format origin.
+// The viewBox starts one bleed left of the format (vbX = -bleedD), so a
+// client point maps to dieliks by adding vbX, never by adding the bleed.
 function cursorDieliks(e) {
   const r = overlay.getBoundingClientRect();
   return {
-    x: (e.clientX - r.left) / view.s - (view.bleedD - view.vbX),
-    y: (e.clientY - r.top) / view.s - (view.bleedD - view.vbY),
+    x: (e.clientX - r.left) / view.s + view.vbX,
+    y: (e.clientY - r.top) / view.s + view.vbY,
   };
 }
 
 function zoneRectPx(z) {
-  const off = view.bleedD - view.vbX;
-  const offY = view.bleedD - view.vbY;
+  const off = -view.vbX;
+  const offY = -view.vbY;
   return {
     left: (z.x + off) * view.s,
     top: (z.y + offY) * view.s,
@@ -180,6 +182,9 @@ function maxCellY(h) {
 
 function drawOverlay() {
   overlay.style.setProperty('--dielik-px', `${view.s}px`);
+  // the dielik grid starts one bleed inside the sheet (at the trimmed format)
+  overlay.style.setProperty('--grid-ox', `${-view.vbX * view.s}px`);
+  overlay.style.setProperty('--grid-oy', `${-view.vbY * view.s}px`);
 
   // Bleed: always faintly marked, inset from the sheet edge.
   const bi = view.bleedD * view.s;
@@ -411,8 +416,8 @@ overlay.addEventListener('pointermove', (e) => {
       overlay.append(ghost);
     }
     Object.assign(ghost.style, styleRect({
-      left: (rect.x + view.bleedD - view.vbX) * view.s,
-      top: (rect.y + view.bleedD - view.vbY) * view.s,
+      left: (rect.x - view.vbX) * view.s,
+      top: (rect.y - view.vbY) * view.s,
       width: rect.w * view.s,
       height: rect.h * view.s,
     }));
@@ -631,25 +636,80 @@ function openEditor(i) {
   drawOverlay();
 }
 
+// The sheet's text layer puts the first baseline riadokPrvy · font-size under
+// the zone top; a textarea puts its first line half-leading + ascent under the
+// top of its box, which depends on the font's own metrics. The offset is
+// measured live in a hidden mirror with the exact styles the editor gets
+// (a zero-size inline-block starts a line and sits with its bottom edge on
+// the baseline), never assumed from a formula.
+const FONT_FEATURES = "'liga', 'ss01'"; // the sheet's <text> sets the same
+
+const baselineCache = new Map();
+const warmedFonts = new Set();
+let metricBox = null;
+
+function firstBaselineOffset(family, fontPx, riadkovanie) {
+  const key = `${family}|${fontPx}|${riadkovanie}`;
+  if (baselineCache.has(key)) return baselineCache.get(key);
+  if (!metricBox) {
+    const box = document.createElement('div');
+    box.id = 'text-metrics';
+    const mark = document.createElement('span');
+    box.append(mark, 'Hx');
+    document.body.append(box);
+    metricBox = { box, mark };
+  }
+  const { box, mark } = metricBox;
+  box.style.fontFamily = family;
+  box.style.fontSize = `${fontPx}px`;
+  box.style.lineHeight = String(riadkovanie);
+  box.style.fontFeatureSettings = FONT_FEATURES;
+  const offset = mark.getBoundingClientRect().top - box.getBoundingClientRect().top;
+  baselineCache.set(key, offset);
+  const shorthand = `${fontPx}px ${family}`;
+  if (!warmedFonts.has(shorthand)) {
+    // until the webfont loads the mirror reports the fallback's metrics;
+    // re-measure and re-place once it is ready
+    warmedFonts.add(shorthand);
+    document.fonts.load(shorthand, 'Hx')
+      .then(() => { baselineCache.clear(); positionEditor(); })
+      .catch(() => {});
+  }
+  return offset;
+}
+
 function positionEditor() {
   const ta = document.getElementById('text-editor');
   if (!ta || selected < 0) return;
   const z = spec.zony[selected];
   if (!z || z.typ !== 'text') return;
   const r = zoneRectPx(z);
-  Object.assign(ta.style, styleRect(r));
-  ta.style.fontFamily = z.pismo === 'Brnos Aires' ? "'Brnos Aires', serif" : "'Nunito', sans-serif";
-  ta.style.fontSize = `${z.velkost * dielikPx()}px`;
+  const fontPx = z.velkost * dielikPx();
+  const family = z.pismo === 'Brnos Aires' ? "'Brnos Aires', serif" : "'Nunito', sans-serif";
+  ta.style.fontFamily = family;
+  ta.style.fontSize = `${fontPx}px`;
   ta.style.lineHeight = String(z.riadkovanie);
   ta.style.textAlign = z.zarovnanie === 'stred' ? 'center' : (z.zarovnanie === 'vpravo' ? 'right' : 'left');
+  ta.style.fontFeatureSettings = FONT_FEATURES;
+  // The box is shifted so the two first baselines meet (padding cannot go
+  // negative); the 1 px border grows the box around the zone instead of
+  // pushing the text, so the content box stays exactly on the zone rect and
+  // wrapping, size and alignment match the sheet line for line.
+  const baselinePx = z.velkost * proporcie.kompozicia.svg.riadokPrvy * dielikPx();
+  const top = r.top + baselinePx - firstBaselineOffset(family, fontPx, z.riadkovanie) - 1;
+  ta.style.left = `${r.left - 1}px`;
+  ta.style.top = `${top}px`;
+  ta.style.width = `${r.width + 2}px`;
+  ta.style.height = `${Math.max(2, r.top + r.height + 1 - top)}px`;
 }
 
 function closeEditor() {
+  // removing a focused textarea fires blur, which would re-enter here and
+  // tear the node down a second time; the flag says it is already closing
+  if (!editorOpen) return;
+  editorOpen = false;
   const ta = document.getElementById('text-editor');
-  if (!ta) {
-    editorOpen = false;
-    return;
-  }
+  if (!ta) return;
   if (selected >= 0 && spec.zony[selected]) {
     const z = spec.zony[selected];
     if (z.typ === 'text' && !z.text) {
@@ -660,7 +720,6 @@ function closeEditor() {
     }
   }
   ta.remove();
-  editorOpen = false;
   scheduleRender();
 }
 
