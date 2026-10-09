@@ -2,12 +2,14 @@
 // tesné obdĺžniky glyfov (vložené zmerajGlyfy), bez neho obdĺžniky riadkov
 // (záloha CLI/testov). Okraj je vzdialenosť od písmen, nie od rámika;
 // záporný okraj púšťa vzor do písmen. Zóna bez textu ostáva rámik.
+// Pole obtekanie prepína medzi 'text' (predvolené) a 'ram' — rámik celej
+// zóny, správanie ako pri zóne bez textu; okraj platí v oboch režimoch.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { komponuj } from '../core/kompozicia/index.js';
+import { komponuj, normalizujSpec } from '../core/kompozicia/index.js';
 
 const SVG_CFG = JSON.parse(readFileSync(new URL('../proporcie.json', import.meta.url), 'utf8'))
   .kompozicia.svg;
@@ -147,6 +149,41 @@ test('textová zóna bez textu ostáva rámik', () => {
       assert.ok(!prekryv(t.bbox, ZONA), `text „${text}“: tvar ${t.typ} prekrýva rámik zóny`);
     }
   }
+});
+
+test('obtekanie „ram“: žiadny tvar vnútri rámika, ani pri krátkom texte', () => {
+  const { tvary } = komponuj(spec({ obtekanie: 'ram' }), { zmerajText: znak, zmerajGlyfy: glyfyZnaku });
+  assert.ok(tvary.length > 0, 'žiadny tvar nebol umiestnený');
+  for (const t of tvary) {
+    assert.ok(!prekryv(t.bbox, ZONA), `tvar ${t.typ} ${JSON.stringify(t.bbox)} vchádza do rámika zóny`);
+  }
+});
+
+test('obtekanie „ram“: okraj platí od rámika zóny', () => {
+  const { tvary } = komponuj(spec({ obtekanie: 'ram', okraj: 2 }), { zmerajText: znak, zmerajGlyfy: glyfyZnaku });
+  for (const t of tvary) {
+    assert.ok(vzdialenost(t.bbox, ZONA) >= 2 - 1e-6,
+      `tvar ${t.typ} je bližšie ako 2 dieliky k rámiku zóny`);
+  }
+});
+
+test('obtekanie „text“: vzor vchádza do rámika pod krátkym riadkom', () => {
+  const { tvary } = komponuj(spec({ obtekanie: 'text' }), { zmerajText: znak, zmerajGlyfy: glyfyZnaku });
+  const podRiadkom = tvary.filter((t) => vnutri(t.bbox, ZONA) && t.bbox.y >= 7 - E);
+  assert.ok(podRiadkom.length > 0, 'žiadny tvar nie je pod krátkym riadkom vnútri zóny');
+});
+
+test('chýbajúce obtekanie (starý spec) znamená „text“', () => {
+  assert.equal(normalizujSpec(spec({})).zony[0].obtekanie, 'text');
+  assert.equal(normalizujSpec(spec({ obtekanie: 'ram' })).zony[0].obtekanie, 'ram');
+  // aj správanie: bez poľa vzor vchádza do rámika medzi písmená
+  const { tvary } = komponuj(spec({}), { zmerajText: znak, zmerajGlyfy: glyfyZnaku });
+  assert.ok(tvary.some((t) => vnutri(t.bbox, ZONA) || prekryv(t.bbox, ZONA)),
+    'žiadny tvar nie je vnútri rámika zóny');
+});
+
+test('neznáma hodnota obtekania je chyba', () => {
+  assert.throws(() => komponuj(spec({ obtekanie: 'kruh' })), /obtekanie/);
 });
 
 test('zmerajGlyfy dostane features a velkost písma zóny', () => {

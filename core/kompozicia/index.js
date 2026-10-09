@@ -24,6 +24,7 @@ const ROZMIESTNENIE = ['volne', 'dlazdice'];
 const TYPY_ZONY = ['text', 'fotka', 'prazdna'];
 const PISMA = FONTY;
 const ZOROVNANIE = ['vlavo', 'stred', 'vpravo'];
+const OBTEKANIE = ['ram', 'text'];
 const REZIMY = ['ramik', 'maska', 'prekrytie'];
 
 // --- validation helpers -----------------------------------------------------
@@ -226,7 +227,7 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
   }
   polia(raw, [
     'typ', 'x', 'y', 'w', 'h', 'okraj',
-    'text', 'pismo', 'velkost', 'zarovnanie', 'riadok', 'features',
+    'text', 'pismo', 'velkost', 'zarovnanie', 'riadok', 'features', 'obtekanie',
     'zdroj', 'rezim', 'posun', 'zoom',
   ], name);
   const d = KOMP.zona[typ] || {};
@@ -254,6 +255,10 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
     cislo(zona.riadok, `${name}.riadok`, { min: 1, cele: true });
     cislo(zona.velkost, `${name}.velkost`, { min: 10, max: 200, cele: true });
     moznosti(zona.zarovnanie, `${name}.zarovnanie`, ZOROVNANIE);
+    // what the pattern wraps: the zone's frame or the letters; a missing
+    // field (old specs, new zones) defaults to the letters — 'text' comes
+    // from KOMP.zona.text in proporcie.json. Foto and empty zones ignore it.
+    moznosti(zona.obtekanie, `${name}.obtekanie`, OBTEKANIE);
     // OpenType features of the zone's font — a missing field means the
     // defaults (no ss01), an unknown tag for the font is rejected
     zona.features = normalizujFeatures(zona.features, zona.pismo, name);
@@ -343,17 +348,18 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
     ...z,
     rect: { x: z.x, y: z.y, w: z.w, h: z.h },
   }));
-  // Zones as the pattern sees them. A text zone with text is wrapped around,
-  // not cut out: its obstacles are the tight boxes of the glyphs (measured,
-  // or one box per line without a measure) and okraj is the pattern's
-  // distance from the letters; a negative okraj shrinks every glyph box by
-  // |okraj| per side and a box shrunk out of existence is ignored. Every
-  // other zone — and a text zone whose text has no ink — stays a frame: a
-  // negative okraj lets shapes into the zone by |okraj| from each edge, so
-  // the zone shrinks accordingly; one shrunk out of existence (w or h ≤ 0)
-  // is ignored entirely.
+  // Zones as the pattern sees them. A text zone with text and
+  // obtekanie 'text' is wrapped around, not cut out: its obstacles are the
+  // tight boxes of the glyphs (measured, or one box per line without a
+  // measure) and okraj is the pattern's distance from the letters; a
+  // negative okraj shrinks every glyph box by |okraj| per side and a box
+  // shrunk out of existence is ignored. Every other zone — a text zone set
+  // to obtekanie 'ram', a text zone whose text has no ink, foto and empty
+  // zones — stays a frame: a negative okraj lets shapes into the zone by
+  // |okraj| from each edge, so the zone shrinks accordingly; one shrunk out
+  // of existence (w or h ≤ 0) is ignored entirely.
   const zonyVzor = zony.flatMap((z) => {
-    const boxes = z.typ === 'text' && z.text
+    const boxes = z.typ === 'text' && z.text && z.obtekanie === 'text'
       ? prekazkyTextu(z, { zmerajText, zmerajGlyfy, cfg: KOMP.svg })
       : [];
     if (boxes.length) {

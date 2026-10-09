@@ -88,6 +88,9 @@ function validateZone(z, index) {
     if (z.riadok !== undefined) num(z.riadok, `${kde}: riadok`, { min: 1, integer: true });
     if (z.velkost !== undefined) num(z.velkost, `${kde}: veľkosť`, { min: 10, max: 200, integer: true });
     if (z.zarovnanie !== undefined) enumv(z.zarovnanie, `${kde}: zarovnanie`, ['vlavo', 'stred', 'vpravo']);
+    // same contract as the core: what the pattern wraps, defaulting to the
+    // letters; foto and empty zones carry no such field
+    if (z.obtekanie !== undefined) enumv(z.obtekanie, `${kde}: obtekanie`, ['ram', 'text']);
     // same contract as the core: unknown tag for the font is a clear error,
     // a missing field means the defaults (no ss01)
     if (z.features !== undefined) normalizujFeatures(z.features, z.pismo || 'Brnos Aires', kde);
@@ -170,6 +173,7 @@ export function normalizujSpec(input) {
           ...base, text: z.text ?? '', pismo: z.pismo || 'Brnos Aires',
           riadok: z.riadok ?? 3, velkost: z.velkost ?? 80,
           zarovnanie: z.zarovnanie || 'vlavo',
+          obtekanie: z.obtekanie || 'text',
           features: normalizujFeatures(z.features, z.pismo || 'Brnos Aires', `Zóna č. ${i + 1}`),
         };
       }
