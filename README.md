@@ -76,3 +76,24 @@ Typy sú noha, polkruh (Polooblúk), stvrtkruh (Štvrťoblúk), kvapka a kruh. �
 stvrtoblouk (Štvrťoblúk s pätkou), sa nevolí: zapne sa sám, keď má kresba kontrast,
 ako prechod z tenkého do hrubého. Zaoblenie majú len nohy, oblúky nikdy. Webové
 rozhranie volá to isté jadro, viď [`ui/README.md`](ui/README.md).
+
+## Web
+
+Generátor beží na **https://generator.brnosaires.com** — hosting GitHub Pages,
+nasadenie pri každom pushi do `main` (workflow
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml)): testy musia
+prejsť (červený test deploy zastaví) a potom
+[`scripts/zostav-web.sh`](scripts/zostav-web.sh) poskladá `_site/` len s tým,
+čo prehliadač načítava — `ui/` bez `serve.js` a `smoke.mjs`, `core/`, `fonts/`,
+`proporcie.json`, `assets.json`, `CNAME`, `.nojekyll` a presmerovanie z koreňa
+na `ui/`. Ten istý skript poslúži aj lokálne, web si overíš smoke testom:
+
+```sh
+scripts/zostav-web.sh /tmp/web
+python3 -m http.server 8000 -d /tmp/web
+BASE_URL=http://localhost:8000 node ui/smoke.mjs /tmp/web-screenshoty
+```
+
+Jednorazové nastavenie (vlastník repa): Settings → Pages → Source
+„GitHub Actions“, vlastná doména `generator.brnosaires.com`, DNS záznam
+CNAME `generator` → `filipaldi.github.io`, potom zaškrtnúť Enforce HTTPS.
