@@ -32,7 +32,8 @@ function num(value, name, { min = -Infinity, max = Infinity, integer = false } =
     throw new ValidationError(`${name} musí byť celé číslo (dostal som ${value}).`);
   }
   if (value < min || value > max) {
-    throw new ValidationError(`${name} musí byť v rozsahu ${min}–${max} (dostal som ${value}).`);
+    const rozsah = max === Infinity ? `aspoň ${min}` : `v rozsahu ${min}–${max}`;
+    throw new ValidationError(`${name} musí byť ${rozsah} (dostal som ${value}).`);
   }
   return value;
 }
@@ -84,7 +85,7 @@ function validateZone(z, index) {
   if (z.typ === 'text') {
     if (typeof z.text !== 'string') throw new ValidationError(`${kde}: text musí byť reťazec.`);
     if (z.pismo !== undefined) enumv(z.pismo, `${kde}: písmo`, ['Brnos Aires', 'Nunito']);
-    if (z.riadok !== undefined) num(z.riadok, `${kde}: riadok`, { min: 1, max: 20, integer: true });
+    if (z.riadok !== undefined) num(z.riadok, `${kde}: riadok`, { min: 1, integer: true });
     if (z.velkost !== undefined) num(z.velkost, `${kde}: veľkosť`, { min: 10, max: 200, integer: true });
     if (z.zarovnanie !== undefined) enumv(z.zarovnanie, `${kde}: zarovnanie`, ['vlavo', 'stred', 'vpravo']);
     // same contract as the core: unknown tag for the font is a clear error,

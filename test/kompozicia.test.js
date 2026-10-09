@@ -133,8 +133,10 @@ test('riadok a percentá veľkosti sa overujú na celé čísla v rozsahoch', ()
   const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
   assert.equal(zona({ riadok: 1, velkost: 10 }).riadok, 1);
   assert.equal(zona({ riadok: 20, velkost: 200 }).velkost, 200);
+  // no upper bound on the row: a row taller than the zone only warns
+  assert.equal(zona({ riadok: 500, velkost: 80 }).riadok, 500);
   const zle = [
-    { riadok: 0 }, { riadok: 21 }, { riadok: 1.5 },
+    { riadok: 0 }, { riadok: 1.5 },
     { riadok: 3, velkost: 9 }, { riadok: 3, velkost: 201 }, { riadok: 3, velkost: 80.5 },
   ];
   for (const zly of zle) {

@@ -89,7 +89,7 @@ Textová zóna:
 |---|---|---|
 | Text | reťazec | Skutočný text, vysádzaný v náhľade |
 | Písmo | Brnos Aires / Nunito | Každé podporuje iné OpenType funkcie (viď Funkcie) |
-| Výška riadku | celé dieliky 1–20 | Riadky textu ležia na mriežke dielikov: každý ďalší riadok je o N dielikov nižšie |
+| Výška riadku | celé dieliky od 1, bez hornej hranice | Riadky textu ležia na mriežke dielikov: každý ďalší riadok je o N dielikov nižšie |
 | Veľkosť písma | celé % výšky riadku 10–200 | Veľkosť písma v dielikoch = výška riadku · % ÷ 100. 150 % = písmo 1,5× väčšie ako výška riadku; riadky sa pri tom môžu prekrývať, je to zámer. |
 | Zarovnanie | vľavo / na stred / vpravo | |
 | Funkcie | { tag: zap/vyp } per písmo | OpenType funkcie písma: ligatúry, voliteľné ligatúry, štýlové sety… Zoznam tagov každého písma je v `proporcie.json` (`kompozicia.pismaFeatures`). Predvolene svieti len `liga` (v Nunito aj `calt`), ostatné vrátane `ss01` sú vypnuté; neznámy tag pre dané písmo je chyba validácie. V SVG sa zapíšu všetky explicitne (`'liga' 1, 'dlig' 0, …`), takže vypnutá ligatúra zostane vypnutá aj v cudzom prehliadači. |

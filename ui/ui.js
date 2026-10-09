@@ -326,7 +326,7 @@ function drawZoneBar() {
         positionEditor();
       }),
       // whole dieliks: baselines of the text sit on the dielik grid this far apart
-      makeNumber('riadok', 'Výška riadku v dielikoch', z.riadok, { min: 1, max: 20, step: 1 },
+      makeNumber('riadok', 'Výška riadku v dielikoch', z.riadok, { min: 1, step: 1 },
         (v) => { z.riadok = v; positionEditor(); }),
       // whole percent of the row: 150 % = glyphs half a row taller than the row
       makeNumber('velkost', 'Veľkosť % riadku', z.velkost, { min: 10, max: 200, step: 1 },

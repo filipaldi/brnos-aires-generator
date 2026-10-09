@@ -36,7 +36,8 @@ function cislo(value, name, { min = -Infinity, max = Infinity, cele = false } = 
     throw new ValidationError(`${name} musí byť celé číslo (dostal som ${value}).`);
   }
   if (value < min || value > max) {
-    throw new ValidationError(`${name} musí byť v rozsahu ${min}–${max} (dostal som ${value}).`);
+    const rozsah = max === Infinity ? `aspoň ${min}` : `v rozsahu ${min}–${max}`;
+    throw new ValidationError(`${name} musí byť ${rozsah} (dostal som ${value}).`);
   }
   return value;
 }
@@ -249,7 +250,8 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
       throw new ValidationError(`${name}.text musí byť reťazec.`);
     }
     moznosti(zona.pismo, `${name}.pismo`, PISMA);
-    cislo(zona.riadok, `${name}.riadok`, { min: 1, max: 20, cele: true });
+    // no upper bound: a row taller than its zone only warns that the text does not fit
+    cislo(zona.riadok, `${name}.riadok`, { min: 1, cele: true });
     cislo(zona.velkost, `${name}.velkost`, { min: 10, max: 200, cele: true });
     moznosti(zona.zarovnanie, `${name}.zarovnanie`, ZOROVNANIE);
     // OpenType features of the zone's font — a missing field means the
