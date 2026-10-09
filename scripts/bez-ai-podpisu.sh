@@ -3,6 +3,8 @@
 # commits: no agent in the message, no agent as author or committer.
 #   --msg <file>         check a commit message file + pending identities
 #                        (called from .githooks/commit-msg)
+#   --text <file>        check a plain text file (PR title + description)
+#                        for AI signatures only, no identity checks
 #   --range <rev-range>  check every commit in the range; a lone rev means
 #                        just that commit (called from CI)
 # Exit 0 = clean, 1 = violation found, 2 = usage or git error.
@@ -51,6 +53,11 @@ case $1 in
         check_ident 'autor nového commitu' "$a"
         check_ident 'committer nového commitu' "$c"
         ;;
+    --text)
+        [ $# -eq 2 ] && [ -f "$2" ] || {
+            echo "bez-ai-podpisu: --text potrebuje súbor s textom" >&2; exit 2; }
+        check_msg 'pull request' "$2"
+        ;;
     --range)
         [ $# -eq 2 ] || { echo "bez-ai-podpisu: --range potrebuje rozsah" >&2; exit 2; }
         case $2 in
@@ -68,6 +75,6 @@ case $1 in
         done
         ;;
     *)
-        echo "usage: $0 --msg <file> | --range <rev-range>" >&2; exit 2 ;;
+        echo "usage: $0 --msg <file> | --text <file> | --range <rev-range>" >&2; exit 2 ;;
 esac
 exit $bad
