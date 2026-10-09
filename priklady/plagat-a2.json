@@ -53,7 +53,7 @@
       "y": 3,
       "w": 18,
       "h": 12,
-      "spravanie": "prazdna",
+      "okraj": 0,
       "text": "MILONGA\nDE OTOÑO",
       "pismo": "Brnos Aires",
       "velkost": 3.0,
@@ -66,7 +66,7 @@
       "y": 15,
       "w": 15,
       "h": 3,
-      "spravanie": "prazdna",
+      "okraj": 0,
       "text": "sobota 25. októbra 2026, 20:00",
       "pismo": "Nunito",
       "velkost": 0.9,
@@ -79,7 +79,7 @@
       "y": 21,
       "w": 12,
       "h": 12,
-      "spravanie": "okraj",
+      "okraj": 1,
       "rezim": "ramik"
     }
   ]

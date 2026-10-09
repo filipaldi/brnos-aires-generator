@@ -1,5 +1,5 @@
-// Composition: determinism, zone behaviour (prazdna / okraj), shapes inside
-// the format, validation errors, no NaN in the SVG.
+// Composition: determinism, zone edge (okraj), shapes inside the format,
+// validation errors, no NaN in the SVG.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -45,9 +45,9 @@ test('nahlad v px bez zón beží a má vrstvy', () => {
   }
 });
 
-test('žiadny tvar sa nedotýka zóny so správaním prazdna', () => {
+test('žiadny tvar sa nedotýka zóny s okrajom 0', () => {
   const { tvary } = komponuj(plagat);
-  const zony = plagat.zony.filter((z) => z.spravanie === 'prazdna')
+  const zony = plagat.zony.filter((z) => z.okraj === 0)
     .map((z) => ({ x: z.x, y: z.y, w: z.w, h: z.h }));
   assert.ok(zony.length > 0);
   for (const t of tvary) {
@@ -57,18 +57,52 @@ test('žiadny tvar sa nedotýka zóny so správaním prazdna', () => {
   }
 });
 
-test('okraj drží jeden dielik bieleho okolo zóny', () => {
+test('okraj drží svoj počet dielikov bieleho okolo zóny', () => {
   const { tvary } = komponuj(plagat);
-  const zony = plagat.zony.filter((z) => z.spravanie === 'okraj')
-    .map((z) => ({ x: z.x, y: z.y, w: z.w, h: z.h }));
+  const zony = plagat.zony.filter((z) => z.okraj > 0)
+    .map((z) => ({ x: z.x, y: z.y, w: z.w, h: z.h, okraj: z.okraj }));
   assert.ok(zony.length > 0);
   for (const t of tvary) {
     for (const z of zony) {
       assert.ok(!prekryv(t.bbox, z), `tvar ${t.typ} prekrýva zónu s okrajom`);
-      assert.ok(vzdialenost(t.bbox, z) >= 1 - EPS,
-        `tvar ${t.typ} je bližšie ako 1 dielik: ${vzdialenost(t.bbox, z)}`);
+      assert.ok(vzdialenost(t.bbox, z) >= z.okraj - EPS,
+        `tvar ${t.typ} je bližšie ako ${z.okraj} dielik: ${vzdialenost(t.bbox, z)}`);
     }
   }
+});
+
+test('záporný okraj: tvar smie zasahovať do zóny, ale nie hlbšie ako |okraj|', () => {
+  const zona = plagat.zony[2]; // fotková zóna 12 × 12
+  const spec = { ...plagat, zony: plagat.zony.map((z) => (z === zona ? { ...z, okraj: -3 } : z)) };
+  const { tvary } = komponuj(spec);
+  const n = 3;
+  const zmensena = { x: zona.x + n, y: zona.y + n, w: zona.w - 2 * n, h: zona.h - 2 * n };
+  assert.ok(tvary.some((t) => prekryv(t.bbox, zona)), 'žiadny tvar nezasahuje do zóny s negatívnym okrajom');
+  for (const t of tvary) {
+    assert.ok(!prekryv(t.bbox, zmensena), `tvar ${t.typ} ${JSON.stringify(t.bbox)} zasahuje hlbšie ako ${n} dieliky`);
+  }
+});
+
+test('zóna zmenšená zánikom sa pre vzor ignoruje', () => {
+  // 6 − 2·4 ≤ 0: zmenšená zóna neexistuje, vzor ju celú vynechá
+  const zanikla = { typ: 'prazdna', x: 4, y: 4, w: 6, h: 6, okraj: -4 };
+  const { svg: soZaniklou } = komponuj({ ...plagat, zony: [...plagat.zony, zanikla] });
+  const { svg: beznej } = komponuj(plagat);
+  assert.equal(soZaniklou, beznej);
+});
+
+test('staré spravanie sa prevádza na okraj a pole mizne', () => {
+  const base = { typ: 'text', x: 1, y: 1, w: 4, h: 2 };
+  const zona = (extra) => normalizujSpec({ zony: [{ ...base, ...extra }] }).zony[0];
+  assert.equal(zona({ spravanie: 'prazdna' }).okraj, 0);
+  assert.equal(zona({ spravanie: 'okraj' }).okraj, 1); // svg.okraj z proporcie.json
+  assert.equal(zona({ spravanie: 'presah' }).okraj, -1);
+  for (const s of ['prazdna', 'okraj', 'presah']) {
+    assert.ok(!('spravanie' in zona({ spravanie: s })), `pole spravanie (${s}) zostalo v specu`);
+  }
+  // obe polia zadané: platí okraj
+  assert.equal(zona({ spravanie: 'presah', okraj: 5 }).okraj, 5);
+  assert.throws(() => zona({ spravanie: 'hore' }), /spravanie/);
 });
 
 test('všetky tvary sú vnútri orezaného formátu', () => {
@@ -125,6 +159,9 @@ test('neplatný spec skončí na ValidationError so slovenskou správou', () => 
     [{ inverzia: 'nie' }, /inverzia/],
     [{ zony: [{ typ: 'text', x: 1, y: 1, w: 99, h: 2 }] }, /presahuje šírku/],
     [{ zony: [{ typ: 'fotka', x: 1, y: 40, w: 2, h: 4 }] }, /presahuje výšku/],
+    [{ zony: [{ typ: 'text', x: 1, y: 1, w: 2, h: 2, okraj: 21 }] }, /okraj/],
+    [{ zony: [{ typ: 'text', x: 1, y: 1, w: 2, h: 2, okraj: -21 }] }, /okraj/],
+    [{ zony: [{ typ: 'text', x: 1, y: 1, w: 2, h: 2, okraj: 1.5 }] }, /okraj/],
     [{ zony: [{ typ: 'text', x: 0, y: 0, w: 2, h: 1, pismo: 'Comic Sans' }] }, /pismo/],
     [{ zony: [{ typ: 'fotka', x: 0, y: 0, w: 2, h: 1, rezim: 'vyrez' }] }, /rezim/],
     [{ neviem: 1 }, /Neznáme pole/],

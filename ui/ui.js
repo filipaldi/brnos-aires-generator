@@ -25,12 +25,6 @@ const FORMAT_PRESETS = {
   web: { sirka: 1200, vyska: 630, jednotka: 'px', dpi: 72, spadavka: 0 },
 };
 
-const SPRAVANIE = [
-  ['prazdna', 'prázdna'],
-  ['presah', 'presah'],
-  ['okraj', 'okraj'],
-];
-
 // ---------- state ----------
 
 let spec = loadSpec();
@@ -277,13 +271,15 @@ function drawZoneBar() {
         (v) => { z.velkost = v / 100; positionEditor(); }),
       makeSelect('Zarovnanie', [['vlavo', 'vľavo'], ['stred', 'na stred'], ['vpravo', 'vpravo']],
         z.zarovnanie, (v) => { z.zarovnanie = v; }),
-      makeSelect('Správanie', SPRAVANIE, z.spravanie, (v) => { z.spravanie = v; }),
+      // whole dieliks of free space around the zone (negative lets the
+      // pattern reach that deep into it)
+      makeNumber('Okraj', z.okraj, { min: -20, max: 20, step: 1 }, (v) => { z.okraj = v; }),
     );
   } else if (z.typ === 'fotka') {
     zoneBar.append(
       makeSelect('Režim', [['ramik', 'rámik'], ['maska', 'maska'], ['prekrytie', 'prekrytie']],
         z.rezim, (v) => { z.rezim = v; }),
-      makeSelect('Správanie', SPRAVANIE, z.spravanie, (v) => { z.spravanie = v; }),
+      makeNumber('Okraj', z.okraj, { min: -20, max: 20, step: 1 }, (v) => { z.okraj = v; }),
     );
     if (photoPan) {
       const note = document.createElement('span');
@@ -475,7 +471,7 @@ overlay.addEventListener('pointerup', (e) => {
     if (rect.w >= 1 && rect.h >= 1) {
       rect.w = Math.min(rect.w, view.cols - rect.x);
       rect.h = Math.min(rect.h, Math.floor(view.rowsD) - rect.y);
-      spec.zony.push({ typ: 'prazdna', spravanie: 'prazdna', ...rect });
+      spec.zony.push({ typ: 'prazdna', okraj: 0, ...rect });
       selected = spec.zony.length - 1;
       drawOverlay(); // show the new zone now, the sheet follows after recomposing
       scheduleRender();
@@ -583,7 +579,7 @@ overlay.addEventListener('drop', async (e) => {
       const w = Math.min(4, view.cols);
       const h = Math.min(3, rows);
       spec.zony.push({
-        typ: 'fotka', x: clamp(cell.x, 0, view.cols - w), y: clamp(cell.y, 0, rows - h), w, h, spravanie: 'prazdna',
+        typ: 'fotka', x: clamp(cell.x, 0, view.cols - w), y: clamp(cell.y, 0, rows - h), w, h, okraj: 0,
         zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1,
       });
       selected = spec.zony.length - 1;

@@ -43,6 +43,15 @@ function enumv(value, name, values) {
   return value;
 }
 
+// Legacy `spravanie` → numeric `okraj` (prazdna 0, okraj svg.okraj, presah −1),
+// same conversion as the core's normalizujSpec.
+function okrajZoSpravania(spravanie) {
+  if (spravanie === undefined || spravanie === 'prazdna') return 0;
+  if (spravanie === 'okraj') return proporcie.kompozicia.svg.okraj;
+  if (spravanie === 'presah') return -1;
+  throw new ValidationError(`Zóna: správanie prijíma iba prazdna | presah | okraj (dostal som „${spravanie}“).`);
+}
+
 function validateZone(z, index) {
   const kde = `Zóna č. ${index + 1}`;
   if (!z || typeof z !== 'object') throw new ValidationError(`${kde} nie je objekt.`);
@@ -51,6 +60,7 @@ function validateZone(z, index) {
   num(z.y, `${kde}: y`, { integer: true });
   num(z.w, `${kde}: šírka`, { min: 1, integer: true });
   num(z.h, `${kde}: výška`, { min: 1, integer: true });
+  if (z.okraj !== undefined) num(z.okraj, `${kde}: okraj`, { min: -20, max: 20, integer: true });
   if (z.spravanie !== undefined) enumv(z.spravanie, `${kde}: správanie`, ['prazdna', 'presah', 'okraj']);
   if (z.typ === 'text') {
     if (typeof z.text !== 'string') throw new ValidationError(`${kde}: text musí byť reťazec.`);
@@ -128,7 +138,8 @@ export function normalizujSpec(input) {
     out.zony = spec.zony.map((z) => {
       validateZone(z, spec.zony.indexOf(z));
       const base = {
-        typ: z.typ, x: z.x, y: z.y, w: z.w, h: z.h, spravanie: z.spravanie || 'prazdna',
+        typ: z.typ, x: z.x, y: z.y, w: z.w, h: z.h,
+        okraj: z.okraj !== undefined ? z.okraj : okrajZoSpravania(z.spravanie),
       };
       if (z.typ === 'text') {
         return {
@@ -198,32 +209,22 @@ function rectsIntersect(a, b, pad = 0) {
 }
 
 function zoneBlockers(zony) {
-  // Rects a placed shape must avoid entirely, and rects where a shape's
-  // bbox centre is forbidden (presah).
+  // Rects a placed shape's bbox must stay out of: okraj ≥ 0 grows the zone
+  // by okraj on every side, a negative okraj shrinks it by |okraj| — a zone
+  // shrunk out of existence (w or h ≤ 0) blocks nothing.
   const blockers = [];
-  const centres = [];
   for (const z of zony) {
-    if (z.typ === 'prazdna' || z.spravanie === 'prazdna') {
-      blockers.push({ x: z.x, y: z.y, w: z.w, h: z.h });
-    } else if (z.spravanie === 'okraj') {
-      blockers.push({ x: z.x - 1, y: z.y - 1, w: z.w + 2, h: z.h + 2 });
-    } else if (z.spravanie === 'presah') {
-      centres.push({ x: z.x, y: z.y, w: z.w, h: z.h });
-    }
+    const okraj = z.okraj ?? 0;
+    if (okraj < 0 && (z.w + 2 * okraj <= 0 || z.h + 2 * okraj <= 0)) continue;
+    blockers.push({ x: z.x - okraj, y: z.y - okraj, w: z.w + 2 * okraj, h: z.h + 2 * okraj });
   }
-  return { blockers, centres };
-}
-
-function centreIn(rect, zone) {
-  const cx = rect.x + rect.w / 2;
-  const cy = rect.y + rect.h / 2;
-  return cx > zone.x && cx < zone.x + zone.w && cy > zone.y && cy < zone.y + zone.h;
+  return blockers;
 }
 
 function placeShapes(spec, geom, rng, axes) {
   const c = spec.kompozicia;
   const { W, H } = geom;
-  const { blockers, centres } = zoneBlockers(spec.zony);
+  const blockers = zoneBlockers(spec.zony);
   const placed = [];
   const avg = (c.velkost[0] + c.velkost[1]) / 2;
   const target = Math.max(3, Math.round((W * H * 1.9) / (avg * avg)));
@@ -248,7 +249,6 @@ function placeShapes(spec, geom, rng, axes) {
       const y = rng() * (H - h);
       const candidate = { x, y, w, h };
       if (blockers.some((b) => rectsIntersect(candidate, b, 0.05))) continue;
-      if (centres.some((z) => centreIn(candidate, z))) continue;
       if (placed.some((p) => rectsIntersect(candidate, p.rect, 0.12))) continue;
       rect = candidate;
       break;
