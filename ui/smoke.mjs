@@ -164,15 +164,14 @@ try {
   // (c2) one snapping rule everywhere: a zone edge lands on the grid line
   // nearest to the cursor, the threshold in the middle of a cell — for
   // creating, moving and resizing. The grid geometry is read from the page:
-  // the dielik from the overlay's CSS variable, line 0 from the bleed mark
-  // and the svg viewBox (the same arithmetic zoneRectPx uses).
+  // the dielik from the overlay's CSS variable, line 0 at the bleed mark
+  // (the trimmed format's corner, where zoneRectPx puts dielik 0).
   const m = await page.evaluate(() => {
     const overlay = document.querySelector('#overlay');
     const ov = overlay.getBoundingClientRect();
     const bm = document.querySelector('#bleed-mark').getBoundingClientRect();
-    const vb = document.querySelector('#sheet svg').viewBox.baseVal;
     const s = parseFloat(getComputedStyle(overlay).getPropertyValue('--dielik-px'));
-    return { left: ov.left, top: ov.top, ox: bm.left - ov.left - vb.x * s, oy: bm.top - ov.top - vb.y * s, s };
+    return { left: ov.left, top: ov.top, ox: bm.left - ov.left, oy: bm.top - ov.top, s };
   });
   const X = (d) => m.left + m.ox + d * m.s; // page px of the grid position d
   const Y = (d) => m.top + m.oy + d * m.s;
