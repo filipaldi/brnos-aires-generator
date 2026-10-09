@@ -103,7 +103,7 @@
     },
     "zona": {
       "text": {
-        "spravanie": "prazdna",
+        "okraj": 0,
         "text": "",
         "pismo": "Brnos Aires",
         "velkost": 1.2,
@@ -111,7 +111,7 @@
         "riadkovanie": 1.1
       },
       "fotka": {
-        "spravanie": "okraj",
+        "okraj": 0,
         "zdroj": null,
         "rezim": "ramik",
         "posun": [
@@ -179,7 +179,7 @@
       }
     },
     "svg": {
-      "_comment": "riadokPrvy = prvá účelová linka textu odhora (násobok veľkosti písma), okraj bieleho okolo zóny so správaním okraj = 1 dielik.",
+      "_comment": "riadokPrvy = prvá účelová linka textu odhora (násobok veľkosti písma). okraj už nefunguje samostatne: je to len hodnota, na ktorú sa pri normalizácii prevedie staré spravanie zóny „okraj“ (dieliky).",
       "riadokPrvy": 0.8,
       "okraj": 1,
       "spadavkaFarba": "#c8c8c8",

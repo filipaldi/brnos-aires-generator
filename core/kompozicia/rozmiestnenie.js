@@ -31,17 +31,11 @@ function prekryv(a, b, inset) {
 }
 
 function vZone(box, zone) {
-  if (zone.spravanie === 'okraj') {
-    // blizsieAko(gap) demands `gap` of separation between the two rects
-    return blizsieAko(box, zone.rect, zone.okraj);
-  }
-  if (zone.spravanie === 'presah') {
-    const cx = box.x + box.w / 2;
-    const cy = box.y + box.h / 2;
-    const r = zone.rect;
-    return cx > r.x && cx < r.x + r.w && cy > r.y && cy < r.y + r.h;
-  }
-  return blizsieAko(box, zone.rect, 0); // prazdna — no shape touches
+  // blizsieAko(gap) demands `gap` of separation between the two rects:
+  // okraj ≥ 0 keeps shapes that many dieliks from the zone (0 = they may
+  // touch its edge), a negative okraj shrinks the zone by |okraj| per side
+  // instead — shapes may reach that deep into it, but no further
+  return blizsieAko(box, zone.rect, zone.okraj);
 }
 
 function voFormate(box, { stlpce, bandY, bandH }) {
@@ -241,7 +235,9 @@ function prirast(rng, chain, ctx, pokusy, minDlzka = 1, { koniec = null, typy = 
   return null;
 }
 
-// zones: [{ rect: {x, y, w, h}, spravanie, okraj }]
+// zones: [{ rect: {x, y, w, h}, okraj }] — okraj ≥ 0 is the separation the
+// pattern keeps from the rect; komponuj hands negative zone okraje over
+// already shrunk to the rect the shapes must stay out of
 export function placeShapes(rng, {
   build, axes, defaultsOf, typy, velkostTvaru, vahyTvaru,
   velkosti,

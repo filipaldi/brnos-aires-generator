@@ -81,7 +81,7 @@ Spoločné pre každú zónu:
 |---|---|---|
 | Typ | text / fotka | Určí sa obsahom: začneš písať = text, pretiahneš fotku = fotka |
 | Poloha a veľkosť | v dielikoch | Prichytené na mriežku |
-| Správanie | prázdna / presah vlasovou linkou / okraj | Ako sa k zóne správa pattern |
+| Okraj | celé číslo −20 až 20 (dieliky) | Kladný = okolo zóny ostane N dielikov voľna. 0 = tvary idú tesne k hrane zóny, dovnútra nie. Záporný = tvary smú zasiahnuť do zóny až \|N\| dielikov od hrany; zóna, ktorá tým zanikne, sa pre vzor ignoruje. |
 
 Textová zóna:
 
@@ -227,7 +227,7 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
   - Pretiahneš fotku na prázdne miesto → fotková zóna vznikne tam, na veľkosť dielikov pod kurzorom.
 - **Presun a zmena veľkosti:** ťahaním zóny a jej rohov.
 - **Fotka:** dvojklik prepne na posun a zoom fotky.
-- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, veľkosť, zarovnanie a správanie (prázdna / presah / okraj), pri fotke režim (rámik / maska / prekrytie). ✕ zónu zmaže.
+- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, veľkosť, zarovnanie a okraj (celé číslo v dielikoch), pri fotke režim (rámik / maska / prekrytie) a okraj. ✕ zónu zmaže.
 - **Čiary gridu** sa ukážu samy, keď ťaháš zónu. Inak sú skryté, prepínač netreba.
 - **Spadávka** je vždy jemne vyznačená.
 

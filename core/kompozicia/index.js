@@ -20,7 +20,6 @@ const KOMP = loadProporcie().kompozicia;
 const JEDNOTKY = ['mm', 'px'];
 const ZVYSOK = ['okraje', 'natiahnutie', 'orez'];
 const ROZMIESTNENIE = ['volne', 'dlazdice'];
-const SPRAVANIE = ['prazdna', 'okraj', 'presah'];
 const TYPY_ZONY = ['text', 'fotka', 'prazdna'];
 const PISMA = ['Brnos Aires', 'Nunito'];
 const ZOROVNANIE = ['vlavo', 'stred', 'vpravo'];
@@ -184,16 +183,32 @@ function normalizujKompozicia(raw) {
   return komp;
 }
 
+// Legacy `spravanie` → numeric `okraj`: prazdna = 0, okraj = svg.okraj from
+// proporcie.json (the constant's only remaining role), presah = −1.
+function okrajZoSpravania(spravanie, name) {
+  if (spravanie === 'prazdna') return 0;
+  if (spravanie === 'okraj') return KOMP.svg.okraj;
+  if (spravanie === 'presah') return -1;
+  throw new ValidationError(`${name}.spravanie prijíma iba prazdna | okraj | presah (dostal som „${spravanie}“).`);
+}
+
 function normalizujZonu(raw, index, stlpce, vyskaD) {
   const name = `zóna ${index + 1}`;
+  // dropped setting: the zone `spravanie` became the numeric `okraj`; when a
+  // spec carries both, its `okraj` wins
+  if (raw && 'spravanie' in raw) {
+    const { spravanie, ...zvysok } = raw;
+    if (!('okraj' in zvysok)) zvysok.okraj = okrajZoSpravania(spravanie, name);
+    raw = zvysok;
+  }
   polia(raw, [
-    'typ', 'x', 'y', 'w', 'h', 'spravanie',
+    'typ', 'x', 'y', 'w', 'h', 'okraj',
     'text', 'pismo', 'velkost', 'zarovnanie', 'riadkovanie',
     'zdroj', 'rezim', 'posun', 'zoom',
   ], name);
   const typ = moznosti(raw.typ ?? 'text', `${name}.typ`, TYPY_ZONY);
   const d = KOMP.zona[typ] || {};
-  const zona = { typ, ...d, ...raw };
+  const zona = { typ, okraj: 0, ...d, ...raw };
   // a zone may start anywhere on the format; 64 capped grids wider or
   // taller than 64 dielikov (grid goes up to 100 columns)
   cislo(zona.x, `${name}.x`, { min: 0, max: stlpce, cele: true });
@@ -206,7 +221,7 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
   if (zona.y + zona.h > vyskaD + 1e-6) {
     throw new ValidationError(`${name} presahuje výšku formátu (${zona.y} + ${zona.h} > ${Math.round(vyskaD * 100) / 100} dielika).`);
   }
-  moznosti(zona.spravanie, `${name}.spravanie`, SPRAVANIE);
+  cislo(zona.okraj, `${name}.okraj`, { min: -20, max: 20, cele: true });
 
   if (typ === 'text') {
     if (zona.text != null && typeof zona.text !== 'string') {
@@ -294,6 +309,16 @@ export function komponuj(input, { fontUrls } = {}) {
     ...z,
     rect: { x: z.x, y: z.y, w: z.w, h: z.h },
   }));
+  // Zones as the pattern sees them: a negative okraj lets shapes into the
+  // zone by |okraj| from each edge, so the zone shrinks accordingly; one
+  // shrunk out of existence (w or h ≤ 0) is ignored entirely.
+  const zonyVzor = zony.flatMap((z) => {
+    if (z.okraj >= 0) return [{ rect: z.rect, okraj: z.okraj }];
+    const n = -z.okraj;
+    const w = z.rect.w - 2 * n;
+    const h = z.rect.h - 2 * n;
+    return w > 0 && h > 0 ? [{ rect: { x: z.rect.x + n, y: z.rect.y + n, w, h }, okraj: 0 }] : [];
+  });
   const { placed, varovania: varovaniaUmiestnenia } = placeShapes(rng, {
     build: buildShape,
     axes,
@@ -306,7 +331,7 @@ export function komponuj(input, { fontUrls } = {}) {
     stlpce: grid.stlpce,
     bandY,
     bandH,
-    zony: zony.map((z) => ({ rect: z.rect, spravanie: z.spravanie, okraj: KOMP.svg.okraj })),
+    zony: zonyVzor,
     medzera: KOMP.rozmiestnenie.medzera,
     hustota: KOMP.rozmiestnenie.hustota,
     maxPokusov: KOMP.rozmiestnenie.maxPokusov,
