@@ -57,9 +57,12 @@ let workerMrtvy = false; // the worker proved unusable: compose on the main thre
 let voVlakne = null;     // request the worker is composing right now
 let voFronte = null;     // the newest request waiting for the worker
 
-function vyriesNaMieste({ id, spec, fontUrls, resolve }) {
+async function vyriesNaMieste({ id, spec, fontUrls, resolve }) {
   try {
-    resolve({ id, ...impl.komponuj(spec, { fontUrls }) });
+    const { vytvorMeranie } = await import('./meranie.js');
+    const zmerajText = vytvorMeranie(fontUrls);
+    await zmerajText.ready;
+    resolve({ id, ...impl.komponuj(spec, { fontUrls, zmerajText }) });
   } catch (err) {
     resolve({ id, error: err.message || String(err) });
   }

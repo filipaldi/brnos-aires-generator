@@ -278,7 +278,10 @@ export function normalizujSpec(input) {
   return spec;
 }
 
-export function komponuj(input, { fontUrls } = {}) {
+export function komponuj(input, { fontUrls, zmerajText } = {}) {
+  if (zmerajText !== undefined && typeof zmerajText !== 'function') {
+    throw new ValidationError('zmerajText musí byť funkcia (text, pismo, velkost) → šírka v dielikoch.');
+  }
   const spec = normalizujSpec(input);
   const { format, grid, kresba, kompozicia: komp } = spec;
 
@@ -362,7 +365,7 @@ export function komponuj(input, { fontUrls } = {}) {
     };
   });
 
-  const svg = renderSvg({
+  const { svg, varovania: varovaniaTextu } = renderSvg({
     stlpce: grid.stlpce,
     vyskaD,
     bleedD,
@@ -374,8 +377,10 @@ export function komponuj(input, { fontUrls } = {}) {
     zony,
     inverzia: spec.inverzia,
     fontUrls,
+    zmerajText,
     cfg: KOMP.svg,
   });
+  varovania.push(...varovaniaTextu);
 
   const naPx = format.jednotka === 'mm' ? 25.4 / format.dpi : 1;
   return {

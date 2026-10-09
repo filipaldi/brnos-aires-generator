@@ -24,6 +24,7 @@ repozitára, takže jadro (`/core/`) aj fonty
 | `worker.js` | web worker so skladaním (`komponuj` jadra mimo hlavné vlákno) |
 | `stub.js` | náhradný engine (rovnaké API, náhodné rozmiestnenie so seedom) |
 | `viewer.js` | prehliadač tvarov (tlačidlo Tvary) |
+| `meranie.js` | meranie šírky textu cez canvas (fonty ako v SVG) pre zalomenie do zóny; funguje aj vo workeri |
 | `export.js` | SVG priamo, PNG/AVIF cez canvas s vloženými fontmi |
 | `smoke.mjs` | smoke test cez Playwright so štyrmi screenshotmi |
 

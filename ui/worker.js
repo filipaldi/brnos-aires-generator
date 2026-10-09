@@ -3,12 +3,18 @@
 // or {id, error}: a rejected spec is a message for the user, not a worker
 // failure, so it travels as data like every other result.
 
-import { komponuj } from '../core/kompozicia/index.js';
+// Text wraps through canvas measurement of the real fonts (meranie.js is
+// worker-safe); the first request waits until they have loaded.
 
-self.onmessage = (e) => {
+import { komponuj } from '../core/kompozicia/index.js';
+import { vytvorMeranie } from './meranie.js';
+
+self.onmessage = async (e) => {
   const { id, spec, fontUrls } = e.data;
   try {
-    self.postMessage({ id, ...komponuj(spec, { fontUrls }) });
+    const zmerajText = vytvorMeranie(fontUrls);
+    await zmerajText.ready;
+    self.postMessage({ id, ...komponuj(spec, { fontUrls, zmerajText }) });
   } catch (err) {
     self.postMessage({ id, error: err.message || String(err) });
   }
