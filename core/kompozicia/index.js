@@ -8,11 +8,12 @@
 // Everything is deterministic: the `variant` string seeds the PRNG and the
 // same spec always produces byte-identical SVG.
 
-import { buildShape, computeAxes, defaultParams, loadProporcie, TYPES } from '../index.js';
+import { buildShape, computeAxes, defaultParams, loadProporcie, paramSpec, TYPES } from '../index.js';
 import { ValidationError } from '../errors.js';
 import { createRng } from './rng.js';
 import { placeShapes } from './rozmiestnenie.js';
 import { renderSvg, translatePathD } from './svg.js';
+import { maxVelkost } from './velkost.js';
 
 const KOMP = loadProporcie().kompozicia;
 
@@ -173,8 +174,9 @@ function normalizujKompozicia(raw) {
     if (!Array.isArray(v) || v.length !== 2) {
       throw new ValidationError(`${kde} musí byť pole [min, max] v dielikoch, napr. [1, 6].`);
     }
-    cislo(v[0], `${kde}[0]`, { min: 1, max: 40, cele: true });
-    cislo(v[1], `${kde}[1]`, { min: 1, max: 40, cele: true });
+    const max = maxVelkost(typ, paramSpec(typ), KOMP.velkostTvaru);
+    cislo(v[0], `${kde}[0]`, { min: 1, max, cele: true });
+    cislo(v[1], `${kde}[1]`, { min: 1, max, cele: true });
     if (v[0] > v[1]) throw new ValidationError(`${kde}[0] musí byť menšia alebo rovná ${kde}[1].`);
   }
   komp.velkosti = Object.fromEntries(vsetky.map((t) => [t, komp.velkosti[t] ?? d.velkosti[t] ?? [1, 6]]));
@@ -192,8 +194,10 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
   const typ = moznosti(raw.typ ?? 'text', `${name}.typ`, TYPY_ZONY);
   const d = KOMP.zona[typ] || {};
   const zona = { typ, ...d, ...raw };
-  cislo(zona.x, `${name}.x`, { min: 0, max: 64, cele: true });
-  cislo(zona.y, `${name}.y`, { min: 0, max: 64, cele: true });
+  // a zone may start anywhere on the format; 64 capped grids wider or
+  // taller than 64 dielikov (grid goes up to 100 columns)
+  cislo(zona.x, `${name}.x`, { min: 0, max: stlpce, cele: true });
+  cislo(zona.y, `${name}.y`, { min: 0, max: Math.max(0, Math.floor(vyskaD + 1e-6)), cele: true });
   cislo(zona.w, `${name}.w`, { min: 0.5, max: 1000 });
   cislo(zona.h, `${name}.h`, { min: 0.5, max: 1000 });
   if (zona.x + zona.w > stlpce + 1e-6) {

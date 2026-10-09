@@ -3,7 +3,8 @@
 // through the composition engine (debounced) and persists to localStorage.
 
 import * as engine from './engine.js';
-import { TYPES, buildShape, defaultParams, computeAxes, proporcie } from '../core/index.js';
+import { TYPES, buildShape, defaultParams, computeAxes, paramSpec, proporcie } from '../core/index.js';
+import { maxVelkost } from '../core/kompozicia/velkost.js';
 import { createViewer } from './viewer.js';
 import {
   exportSvgFile, exportPngFile, exportAvifFile, avifSupported,
@@ -11,6 +12,7 @@ import {
 } from './export.js';
 
 const $ = (sel) => document.querySelector(sel);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const LS_KEY = 'brnosaires-generator-spec-v1';
 const MM_TO_PX = 96 / 25.4; // CSS px per mm at zoom 100 %
@@ -83,23 +85,40 @@ function saveLocal() {
 // ---------- render pipeline ----------
 
 let renderTimer = 0;
+let posledneVarovanie = '';
 function scheduleRender() {
   clearTimeout(renderTimer);
   renderTimer = setTimeout(render, 50);
 }
 
+// Keeps every zone inside the format (a smaller format or grid would leave
+// it hanging over the edge, which the engine rejects).
+function vmestiZony() {
+  const f = spec.format, cols = spec.grid.stlpce;
+  const rows = Math.max(1, Math.floor((f.vyska * cols) / f.sirka + 1e-6));
+  for (const z of spec.zony) {
+    z.w = clamp(z.w, 1, cols);
+    z.h = clamp(z.h, 1, rows);
+    z.x = clamp(z.x, 0, cols - z.w);
+    z.y = clamp(z.y, 0, rows - z.h);
+  }
+}
+
 function render() {
+  vmestiZony();
   try {
     result = engine.komponuj(spec, { fontUrls: fontUrlsAbsolute() });
   } catch (err) {
     toast(err.message || String(err));
     return; // keep the last good sheet on screen
   }
-  const svgEl = mountSvg(result.svg);
-  layoutSheet(svgEl);
-  drawOverlay();
+  mountSvg(result.svg);
+  relayout();
   syncBar();
-  if (result.varovania.length) toast(result.varovania.join(' '), 5000);
+  // a warning shows once, not again on every slider step that keeps it
+  const varovanie = result.varovania.join(' ');
+  if (varovanie && varovanie !== posledneVarovanie) toast(varovanie, 5000);
+  posledneVarovanie = varovanie;
   saveLocal();
 }
 
@@ -154,7 +173,6 @@ function maxCellY(h) {
   return Math.max(0, Math.floor(view.rowsD - h));
 }
 
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 // ---------- overlay ----------
 
@@ -210,6 +228,14 @@ function drawZoneBar() {
   }
   const z = spec.zony[selected];
   zoneBar.hidden = false;
+  // rebuilding the bar while one of its fields has focus (every render
+  // redraws the overlay) would throw away what the designer is typing
+  const key = `${selected}:${z.typ}:${photoPan}`;
+  if (zoneBar.dataset.key === key && zoneBar.contains(document.activeElement)) {
+    placeZoneBar(z);
+    return;
+  }
+  zoneBar.dataset.key = key;
   zoneBar.replaceChildren();
 
   const makeSelect = (label, options, value, onInput) => {
@@ -230,16 +256,7 @@ function drawZoneBar() {
 
   const makeNumber = (label, value, attrs, onInput) => {
     const wrap = document.createElement('label');
-    wrap.append(label + ' ');
-    const input = document.createElement('input');
-    input.type = 'number';
-    for (const [k, v] of Object.entries(attrs)) input.setAttribute(k, String(v));
-    input.value = String(value);
-    input.addEventListener('input', () => {
-      const n = Number(input.value);
-      if (Number.isFinite(n)) { onInput(n); scheduleRender(); }
-    });
-    wrap.append(input);
+    wrap.append(label + ' ', numberInput(value, attrs, onInput));
     return wrap;
   };
 
@@ -247,9 +264,10 @@ function drawZoneBar() {
     zoneBar.append(
       makeSelect('Písmo', [['Brnos Aires', 'Brnos Aires'], ['Nunito', 'Nunito']], z.pismo,
         (v) => { z.pismo = v; positionEditor(); }),
-      makeNumber('Veľkosť', z.velkost, { min: 0.2, max: 40, step: 0.1 },
-        (v) => { z.velkost = v; }),
-      makeSelect('Zarovnanie', [['vlavo', 'vľavo'], ['na stred', 'na stred'], ['vpravo', 'vpravo']],
+      // whole percent of a dielik (the core takes 0.1–20 dielika)
+      makeNumber('Veľkosť %', Math.round(z.velkost * 100), { min: 10, max: 2000, step: 1 },
+        (v) => { z.velkost = v / 100; positionEditor(); }),
+      makeSelect('Zarovnanie', [['vlavo', 'vľavo'], ['stred', 'na stred'], ['vpravo', 'vpravo']],
         z.zarovnanie, (v) => { z.zarovnanie = v; }),
       makeSelect('Správanie', SPRAVANIE, z.spravanie, (v) => { z.spravanie = v; }),
     );
@@ -272,8 +290,11 @@ function drawZoneBar() {
   del.textContent = '✕';
   del.addEventListener('click', () => deleteZone(selected));
   zoneBar.append(del);
+  placeZoneBar(z);
+}
 
-  // Place under the zone, above when there is no room.
+// Place under the zone, above when there is no room.
+function placeZoneBar(z) {
   const r = zoneRectPx(z);
   zoneBar.style.left = '0px';
   zoneBar.style.top = '0px';
@@ -306,7 +327,7 @@ function deleteZone(i) {
 
 overlay.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
-  if (e.target.closest('#zone-bar')) return;
+  if (e.target.closest('#zone-bar, #text-editor')) return;
   const handle = e.target.closest('.handle');
   const zoneDiv = e.target.closest('.zone');
   const pos = cursorDieliks(e);
@@ -324,6 +345,11 @@ overlay.addEventListener('pointerdown', (e) => {
   if (zoneDiv) {
     const i = Number(zoneDiv.dataset.i);
     const z = spec.zony[i];
+    if (isDoublePress(e, i)) {
+      e.preventDefault(); // keep the focus in the text editor it opens
+      zoneDoubleClick(i);
+      return;
+    }
     if (selected !== i) photoPan = false;
     selected = i;
     if (z.typ === 'fotka' && photoPan) {
@@ -346,6 +372,7 @@ overlay.addEventListener('pointerdown', (e) => {
   }
 
   // Empty space: start creating a zone (a plain click only deselects).
+  lastPress = null;
   closeEditor();
   selected = -1;
   const cell = {
@@ -364,6 +391,11 @@ overlay.addEventListener('pointermove', (e) => {
   const posCell = {
     x: clamp(Math.floor(pos.x), 0, view.cols),
     y: clamp(Math.floor(pos.y), 0, Math.floor(view.rowsD)),
+  };
+  // a resized edge snaps to the nearest grid line, not to the cell's start
+  const posLine = {
+    x: clamp(Math.round(pos.x), 0, view.cols),
+    y: clamp(Math.round(pos.y), 0, Math.floor(view.rowsD)),
   };
 
   if (dragging.kind === 'create') {
@@ -394,10 +426,10 @@ overlay.addEventListener('pointermove', (e) => {
     const l = { x: z.x, y: z.y };
     const r = { x: z.x + z.w, y: z.y + z.h };
     const c = dragging.corner;
-    if (c.includes('l')) l.x = clamp(posCell.x, 0, r.x - 1);
-    if (c.includes('r')) r.x = clamp(posCell.x, l.x + 1, view.cols);
-    if (c.includes('t')) l.y = clamp(posCell.y, 0, r.y - 1);
-    if (c.includes('b')) r.y = clamp(posCell.y, l.y + 1, Math.ceil(view.rowsD));
+    if (c.includes('l')) l.x = clamp(posLine.x, 0, r.x - 1);
+    if (c.includes('r')) r.x = clamp(posLine.x, l.x + 1, view.cols);
+    if (c.includes('t')) l.y = clamp(posLine.y, 0, r.y - 1);
+    if (c.includes('b')) r.y = clamp(posLine.y, l.y + 1, Math.floor(view.rowsD));
     z.x = l.x; z.y = l.y; z.w = r.x - l.x; z.h = r.y - l.y;
     if (editorOpen) positionEditor();
   } else if (dragging.kind === 'photo-pan') {
@@ -434,17 +466,20 @@ overlay.addEventListener('pointerup', (e) => {
     });
     if (rect.w >= 1 && rect.h >= 1) {
       rect.w = Math.min(rect.w, view.cols - rect.x);
-      rect.h = Math.min(rect.h, Math.ceil(view.rowsD) - rect.y);
+      rect.h = Math.min(rect.h, Math.floor(view.rowsD) - rect.y);
       spec.zony.push({ typ: 'prazdna', spravanie: 'prazdna', ...rect });
       selected = spec.zony.length - 1;
+      drawOverlay(); // show the new zone now, the sheet follows after recomposing
+      scheduleRender();
     }
-    scheduleRender();
     return;
   }
 
   if (d.kind === 'photo-pan') {
     zonesHost.querySelector(`.zone[data-i="${d.i}"]`)?.classList.remove('dragging-photo');
   }
+  // a plain click only selects: nothing changed, no need to recompose
+  if (d.kind === 'move' && !d.moved) return;
   scheduleRender();
 });
 
@@ -455,11 +490,29 @@ overlay.addEventListener('pointercancel', () => {
   scheduleRender();
 });
 
+function zoneAt(pos) {
+  for (let i = spec.zony.length - 1; i >= 0; i--) {
+    const z = spec.zony[i];
+    if (pos.x >= z.x && pos.x < z.x + z.w && pos.y >= z.y && pos.y < z.y + z.h) return i;
+  }
+  return -1;
+}
+
+// The zone divs are rebuilt on every pointerdown and the pointer is captured
+// by the overlay, so the browser never fires click/dblclick on a zone. The
+// second press on the same zone within the double-click time counts instead.
+let lastPress = null;
+function isDoublePress(e, i) {
+  const prev = lastPress;
+  lastPress = { t: e.timeStamp, x: e.clientX, y: e.clientY, i };
+  if (!prev || prev.i !== i || e.timeStamp - prev.t > 500
+    || Math.abs(e.clientX - prev.x) > 6 || Math.abs(e.clientY - prev.y) > 6) return false;
+  lastPress = null;
+  return true;
+}
+
 // Double-click: text zone opens the editor, photo zone toggles pan/zoom.
-overlay.addEventListener('dblclick', (e) => {
-  const zoneDiv = e.target.closest('.zone');
-  if (!zoneDiv) return;
-  const i = Number(zoneDiv.dataset.i);
+function zoneDoubleClick(i) {
   const z = spec.zony[i];
   if (!z) return;
   if (z.typ === 'text') {
@@ -471,7 +524,7 @@ overlay.addEventListener('dblclick', (e) => {
     drawOverlay();
     if (photoPan) toast('Úprava fotky: ťahaj pre posun, kolieskom zoom, dvojklik ukončí.', 4000);
   }
-});
+}
 
 // Wheel zooms the photo while its pan mode is on.
 overlay.addEventListener('wheel', (e) => {
@@ -508,8 +561,7 @@ overlay.addEventListener('drop', async (e) => {
     x: clamp(Math.floor(pos.x), 0, view.cols - 1),
     y: clamp(Math.floor(pos.y), 0, maxCellY(1)),
   };
-  const hit = spec.zony.findIndex((z) =>
-    pos.x >= z.x && pos.x < z.x + z.w && pos.y >= z.y && pos.y < z.y + z.h);
+  const hit = zoneAt(pos);
 
   try {
     const zdroj = await readImageFile(file);
@@ -518,10 +570,12 @@ overlay.addEventListener('drop', async (e) => {
       Object.assign(z, { typ: 'fotka', zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1 });
       selected = hit;
     } else {
-      const w = Math.min(4, view.cols - cell.x);
-      const h = Math.min(3, Math.ceil(view.rowsD) - cell.y);
+      // a 4 × 3 frame, moved inwards when dropped near the edge
+      const rows = Math.max(1, Math.floor(view.rowsD));
+      const w = Math.min(4, view.cols);
+      const h = Math.min(3, rows);
       spec.zony.push({
-        typ: 'fotka', x: cell.x, y: cell.y, w, h, spravanie: 'prazdna',
+        typ: 'fotka', x: clamp(cell.x, 0, view.cols - w), y: clamp(cell.y, 0, rows - h), w, h, spravanie: 'prazdna',
         zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1,
       });
       selected = spec.zony.length - 1;
@@ -583,7 +637,7 @@ function positionEditor() {
   ta.style.fontFamily = z.pismo === 'Brnos Aires' ? "'Brnos Aires', serif" : "'Nunito', sans-serif";
   ta.style.fontSize = `${z.velkost * dielikPx()}px`;
   ta.style.lineHeight = String(z.riadkovanie);
-  ta.style.textAlign = z.zarovnanie === 'na stred' ? 'center' : (z.zarovnanie === 'vpravo' ? 'right' : 'left');
+  ta.style.textAlign = z.zarovnanie === 'stred' ? 'center' : (z.zarovnanie === 'vpravo' ? 'right' : 'left');
 }
 
 function closeEditor() {
@@ -661,20 +715,30 @@ function attachPopover(btn, buildContent) {
         pop.hidden = false;
         btn.classList.add('open');
         btn.setAttribute('aria-expanded', 'true');
-        // Align to the button, clamped to the viewport.
+        // Align to the button, clamped to the viewport; below the top bar,
+        // which wraps to more rows in a narrow window.
         const r = btn.getBoundingClientRect();
-        pop.style.left = `${Math.min(r.left, window.innerWidth - pop.offsetWidth - 12)}px`;
+        const top = $('#topbar').getBoundingClientRect().bottom;
+        pop.style.top = `${top}px`;
+        pop.style.maxHeight = `${window.innerHeight - top - 8}px`;
+        pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 12))}px`;
       }
     },
     isOpen: () => !pop.hidden,
+    btn,
   };
   btn.addEventListener('click', () => api.toggle());
   popovers.push(api);
   return api;
 }
 
+// A press outside closes the open popover. A press on the open popover's own
+// button is left to its click handler, which toggles it shut; closing it here
+// first would let that click open it again.
 document.addEventListener('pointerdown', (e) => {
-  if (popovers.some((p) => p.isOpen()) && !e.target.closest('.popover')) closePopovers();
+  if (!popovers.some((p) => p.isOpen()) || e.target.closest('.popover')) return;
+  if (popovers.some((p) => p.isOpen() && p.btn.contains(e.target))) return;
+  closePopovers();
 }, true);
 
 function row(label, control) {
@@ -691,16 +755,23 @@ function numberInput(value, attrs, onInput) {
   input.type = 'number';
   for (const [k, v] of Object.entries(attrs)) input.setAttribute(k, String(v));
   input.value = String(value);
+  let posledne = value;
   // fields with step 1 take whole numbers only: a typed decimal is rounded
   const cele = String(attrs.step) === '1';
   if (cele) input.setAttribute('inputmode', 'numeric');
-  input.addEventListener('input', () => {
+  // committed on change (spinner click, leaving the field), not per
+  // keystroke: typing "12" must not render the sheet with Grid 1 on the way
+  input.addEventListener('change', () => {
     let n = Number(input.value);
-    if (!Number.isFinite(n) || input.value === '') return;
-    if (cele && !Number.isInteger(n)) {
-      n = Math.round(n);
-      input.value = String(n);
+    if (!Number.isFinite(n) || input.value === '') {
+      input.value = String(posledne); // an emptied field goes back
+      return;
     }
+    if (cele) n = Math.round(n);
+    // out-of-range values snap to the field's limits instead of failing later
+    n = clamp(n, attrs.min ?? -Infinity, attrs.max ?? Infinity);
+    if (String(n) !== input.value) input.value = String(n);
+    posledne = n;
     onInput(n);
     scheduleRender();
   });
@@ -720,6 +791,12 @@ function selectInput(options, value, onInput) {
   return select;
 }
 
+// the size slider of a type ends where its parameters would leave their
+// limits (kruh: priemer = 0.8 · s ≤ 20, so s ≤ 25)
+function maxVelkostTypu(typ) {
+  return maxVelkost(typ, paramSpec(typ), proporcie.kompozicia.velkostTvaru);
+}
+
 // drops settings and types the generator no longer knows; older `typy`
 // lists are converted to pomery by the core
 function zahodZastarane(k) {
@@ -733,6 +810,10 @@ function zahodZastarane(k) {
   // sizes may keep connectors, only ids missing from TYPES are dropped
   if (k.velkosti && typeof k.velkosti === 'object' && !Array.isArray(k.velkosti)) {
     k.velkosti = Object.fromEntries(Object.entries(k.velkosti).filter(([t]) => TYPES.some((x) => x.id === t)));
+    // a range saved before the per-type limit (kruh up to 40) is pulled in
+    for (const [t, v] of Object.entries(k.velkosti)) {
+      if (Array.isArray(v) && v.length === 2) k.velkosti[t] = v.map((x) => clamp(x, 1, maxVelkostTypu(t)));
+    }
   }
   if (k.pomery && typeof k.pomery === 'object') {
     k.pomery = Object.fromEntries(Object.entries(k.pomery).filter(([t]) => zname(t)));
@@ -879,7 +960,17 @@ attachPopover($('#btn-format'), (pop) => {
     row('DPI', numberInput(f.dpi, { min: 18, max: 2400, step: 1 }, (v) => { spec.format.dpi = v; })),
     row('Spadávka', numberInput(f.spadavka, { min: 0, max: 50, step: 1 }, (v) => { spec.format.spadavka = v; })),
     h3b,
-    row('Grid', numberInput(g.stlpce, { min: 1, max: 100, step: 1 }, (v) => { spec.grid.stlpce = v; })),
+    row('Grid', numberInput(g.stlpce, { min: 1, max: 100, step: 1 }, (v) => {
+      const pomer = clamp(v, 1, 100) / spec.grid.stlpce;
+      spec.grid.stlpce = clamp(v, 1, 100);
+      // zones are in dielikoch: rescale them so they keep their place
+      for (const z of spec.zony) {
+        z.x = Math.round(z.x * pomer);
+        z.y = Math.round(z.y * pomer);
+        z.w = Math.max(1, Math.round(z.w * pomer));
+        z.h = Math.max(1, Math.round(z.h * pomer));
+      }
+    })),
     row('Zvyšok výšky', selectInput(
       [['okraje', 'okraje'], ['natiahnutie', 'natiahnutie'], ['orez', 'presah a orez']],
       g.zvysok, (v) => { spec.grid.zvysok = v; })),
@@ -1010,7 +1101,7 @@ attachPopover($('#btn-parametre'), (pop) => {
     if (!c.velkosti[t.id]) c.velkosti[t.id] = [1, 6];
     const sizeRow = document.createElement('div');
     sizeRow.className = 'subrow';
-    sizeRow.append(cap('veľkosť'), rangeSlider(c.velkosti[t.id], { min: 1, max: 40 }));
+    sizeRow.append(cap('veľkosť'), rangeSlider(c.velkosti[t.id], { min: 1, max: maxVelkostTypu(t.id) }));
     l.append(sizeRow);
     typesGrid.append(l);
   }
@@ -1128,19 +1219,32 @@ function setZoomOptions() {
   zoomSelect.append(fit);
 }
 
-function applyZoom(value) {
-  if (value === 'fit') {
+// Sizes the sheet and its overlay for the current zoom. "Prispôsobiť" is
+// recomputed every time, so it follows format changes and window resizes.
+// Zoom never recomposes: the sheet is only scaled.
+function relayout() {
+  const svgEl = svgHost.querySelector('svg');
+  if (!svgEl) return;
+  const fitOption = zoomSelect.querySelector('option[value="fit"]');
+  if (zoomSelect.value === 'fit') {
     zoomPct = fitZoomPct();
     // Show the computed percentage in the fit option label.
-    zoomSelect.querySelector('option[value="fit"]').textContent = `Prispôsobiť (${zoomPct} %)`;
+    fitOption.textContent = `Prispôsobiť (${zoomPct} %)`;
   } else {
-    zoomPct = Number(value);
-    zoomSelect.querySelector('option[value="fit"]').textContent = 'Prispôsobiť';
+    zoomPct = Number(zoomSelect.value);
+    fitOption.textContent = 'Prispôsobiť';
   }
-  render();
+  layoutSheet(svgEl);
+  drawOverlay();
 }
 
-zoomSelect.addEventListener('change', () => applyZoom(zoomSelect.value));
+zoomSelect.addEventListener('change', relayout);
+
+let resizeTimer = 0;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (zoomSelect.value === 'fit') relayout(); }, 100);
+});
 
 // ---------- toast ----------
 
@@ -1153,7 +1257,7 @@ function toast(message, ms = 3200) {
   toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
 
-const viewer = createViewer(spec.kresba);
+const viewer = createViewer(() => spec.kresba);
 $('#btn-tvary').addEventListener('click', () => viewer.toggle());
 
 // ---------- boot ----------
@@ -1161,6 +1265,5 @@ $('#btn-tvary').addEventListener('click', () => viewer.toggle());
 if (engine.isStubEngine) $('#stub-note').hidden = false;
 
 setZoomOptions();
-render(); // first paint, so fitZoomPct has a sheet to measure
 zoomSelect.value = 'fit';
-applyZoom('fit');
+render();

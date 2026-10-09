@@ -472,7 +472,15 @@ export function placeShapes(rng, {
   }
 
   const varovania = [];
-  if (!placed.length) varovania.push('Na plátne sa nezmestil žiadny tvar.');
+  // an empty canvas says why: accents alone cannot chain, or no chain
+  // reached its minimum length
+  if (!placed.length && !typyZakladne.length) {
+    varovania.push('Kvapka a kruh sa samy nedajú reťaziť (sú to akcenty pri reťazi): '
+      + 'daj podiel aj nohe, polkruhu alebo štvrťkruhu.');
+  } else if (!placed.length) {
+    varovania.push(`Na plátne sa nezmestil žiadny tvar: žiadna reťaz nedosiahla ${minDlzka} prvkov. `
+      + 'Skráť Dĺžku reťaze, zmenši veľkosti alebo pridaj podiel ďalšiemu typu so spojmi.');
+  }
   // chains rarely reach the density target, so warn only when the canvas stays nearly empty
   return { placed, varovania };
 }

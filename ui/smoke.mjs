@@ -89,7 +89,7 @@ try {
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(OUT_DIR, SHOTS[0]) });
 
-  // (b) drag a zone on the empty canvas, then type into it
+  // (b) drag a zone on the empty canvas, double-click it, type into it
   const box = await page.locator('#overlay').boundingBox();
   const sx = box.x + box.width * 0.16;
   const sy = box.y + box.height * 0.10;
@@ -97,7 +97,9 @@ try {
   await page.mouse.down();
   await page.mouse.move(sx + box.width * 0.52, sy + box.height * 0.14, { steps: 12 });
   await page.mouse.up();
-  await page.waitForTimeout(150);
+  await page.waitForSelector('.zone.sel', { timeout: 15000 });
+  await page.mouse.dblclick(sx + box.width * 0.2, sy + box.height * 0.05);
+  await page.waitForSelector('#text-editor', { timeout: 5000 });
   await page.keyboard.type('MILONGA');
   await page.waitForTimeout(400);
   const typed = await page.locator('#text-editor').inputValue().catch(() => null);
@@ -109,10 +111,11 @@ try {
   await page.waitForSelector('.popover:not([hidden])', { timeout: 5000 });
   await page.waitForTimeout(150);
   await page.screenshot({ path: path.join(OUT_DIR, SHOTS[2]) });
-  await page.keyboard.press('Escape');
+  // no keyboard shortcuts: the button closes its own popover
+  await page.click('#btn-parametre');
 
-  // (d) the shape viewer
-  await page.keyboard.press('t');
+  // (d) the shape viewer, opened by the Tvary button
+  await page.click('#btn-tvary');
   await page.waitForSelector('#viewer:not([hidden])', { timeout: 5000 });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, SHOTS[3]) });

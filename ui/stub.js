@@ -56,7 +56,7 @@ function validateZone(z, index) {
     if (typeof z.text !== 'string') throw new ValidationError(`${kde}: text musí byť reťazec.`);
     if (z.pismo !== undefined) enumv(z.pismo, `${kde}: písmo`, ['Brnos Aires', 'Nunito']);
     if (z.velkost !== undefined) num(z.velkost, `${kde}: veľkosť písma`, { min: 0.1, max: 40 });
-    if (z.zarovnanie !== undefined) enumv(z.zarovnanie, `${kde}: zarovnanie`, ['vlavo', 'na stred', 'vpravo']);
+    if (z.zarovnanie !== undefined) enumv(z.zarovnanie, `${kde}: zarovnanie`, ['vlavo', 'stred', 'vpravo']);
     if (z.riadkovanie !== undefined) num(z.riadkovanie, `${kde}: riadkovanie`, { min: 0.5, max: 4 });
   }
   if (z.typ === 'fotka') {
@@ -299,9 +299,9 @@ function patternSvg(placed, fill) {
 }
 
 function textZoneSvg(z, fill, dielikUnits) {
-  const anchor = z.zarovnanie === 'na stred' ? 'middle' : (z.zarovnanie === 'vpravo' ? 'end' : 'start');
+  const anchor = z.zarovnanie === 'stred' ? 'middle' : (z.zarovnanie === 'vpravo' ? 'end' : 'start');
   const pad = 0.15;
-  const x = z.zarovnanie === 'na stred' ? z.x + z.w / 2
+  const x = z.zarovnanie === 'stred' ? z.x + z.w / 2
     : (z.zarovnanie === 'vpravo' ? z.x + z.w - pad : z.x + pad);
   const lines = String(z.text).split('\n');
   const tspans = lines.map((line, i) => (

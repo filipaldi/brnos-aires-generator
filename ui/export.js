@@ -77,9 +77,10 @@ async function rasterise(spec, mime) {
   const fontUrls = await fontUrlsInlined();
   const { svg, sirkaPx, vyskaPx } = komponuj(spec, { fontUrls });
   // The engine sizes the root in mm/px of the format; pin it to raster pixels.
-  const sized = svg.replace(/<svg([^>]*)>/, (m, attrs) => attrs
+  // (the callback must give back the whole tag, not only its attributes)
+  const sized = svg.replace(/<svg([^>]*)>/, (m, attrs) => `<svg${attrs
     .replace(/\swidth="[^"]*"/, ` width="${sirkaPx}"`)
-    .replace(/\sheight="[^"]*"/, ` height="${vyskaPx}"`));
+    .replace(/\sheight="[^"]*"/, ` height="${vyskaPx}"`)}>`);
   const url = URL.createObjectURL(new Blob([sized], { type: 'image/svg+xml' }));
   try {
     const img = new Image();

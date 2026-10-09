@@ -1,4 +1,4 @@
-// Shape viewer (shortcut T): a full-window debugging tool for shapes and
+// Shape viewer (button Tvary): a full-window debugging tool for shapes and
 // proporcie.json. Selected type large, sliders for Weight / Contrast /
 // Zaoblenie and the type's own params, and a strip of all types at the
 // current axes. Changes here are exploratory only — nothing flows back
@@ -28,7 +28,9 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-export function createViewer(initialAxes) {
+// `getAxes` returns the poster's current kresba; the viewer starts from it
+// every time it opens, so it shows what the Parametre sliders set.
+export function createViewer(getAxes) {
   const root = document.getElementById('viewer');
   const preview = document.getElementById('viewer-preview');
   const axesHost = document.getElementById('viewer-axes');
@@ -37,7 +39,7 @@ export function createViewer(initialAxes) {
 
   const state = {
     typ: TYPES[0].id,
-    axes: { ...initialAxes },
+    axes: { ...getAxes() },
     params: defaultParams(TYPES[0].id),
   };
 
@@ -125,6 +127,7 @@ export function createViewer(initialAxes) {
   }
 
   function open() {
+    state.axes = { ...getAxes() };
     buildAxesPanel();
     buildParamsPanel();
     refreshPreview();

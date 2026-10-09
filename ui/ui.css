@@ -52,8 +52,10 @@ button, input, select { font: inherit; color: inherit; }
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 46px;
+  min-height: 46px;
   padding: 0 12px;
+  /* a narrow window wraps the bar instead of pushing Export off-screen */
+  flex-wrap: wrap;
   background: var(--paper);
   border-bottom: 1px solid var(--ink);
   flex: none;
@@ -112,19 +114,22 @@ button, input, select { font: inherit; color: inherit; }
 /* ---------- popovers ---------- */
 
 .popover {
-  position: absolute;
+  /* top and max-height follow the (possibly wrapped) top bar, set in ui.js;
+     a popover taller than the window scrolls */
+  position: fixed;
   top: 46px;
+  overflow-y: auto;
   background: var(--paper);
   border: 1px solid var(--ink);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14);
   padding: 16px 18px;
-  min-width: 300px;
-  max-width: 380px;
+  min-width: min(300px, calc(100vw - 16px));
+  max-width: min(380px, calc(100vw - 16px));
   z-index: 50;
 }
 
 /* the parametre popover needs room for the per-type slider pairs */
-.popover.wide { max-width: 500px; }
+.popover.wide { max-width: min(500px, calc(100vw - 16px)); }
 
 .popover h3 {
   font-size: 12px;
@@ -209,6 +214,9 @@ button, input, select { font: inherit; color: inherit; }
 .range2-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 
 .range2-row .num { width: 6ch; }
+
+/* in a popover row the pair gets the same track length as single sliders */
+.popover .row .range2 { min-width: 150px; }
 
 .range2 {
   --thumb: 14px;
@@ -301,6 +309,10 @@ button, input, select { font: inherit; color: inherit; }
   inset: 0;
   cursor: crosshair;
   touch-action: none;
+  /* dragging on the canvas must not select text: pressing on a selection
+     starts a native drag, which cancels the pointer mid-move/resize */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #bleed-mark {
@@ -421,6 +433,8 @@ button, input, select { font: inherit; color: inherit; }
   overflow: hidden;
   padding: 0;
   z-index: 8;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 body.inverted #text-editor { background: var(--ink); color: var(--paper); }
