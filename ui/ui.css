@@ -328,13 +328,17 @@ button, input, select { font: inherit; color: inherit; }
   background-image:
     repeating-linear-gradient(to right, rgba(0, 0, 0, 0.13) 0 1px, transparent 1px var(--dielik-px, 52px)),
     repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.13) 0 1px, transparent 1px var(--dielik-px, 52px));
+  /* the dielik grid starts at the trimmed format, one bleed inside the sheet */
+  background-position: var(--grid-ox, 0px) var(--grid-oy, 0px);
 }
 
 #grid-lines::after {
   /* top edge of the first row reads better with a full line */
   content: "";
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: var(--grid-oy, 0px);
   border-top: 1px solid rgba(0, 0, 0, 0.13);
 }
 
@@ -379,7 +383,9 @@ button, input, select { font: inherit; color: inherit; }
   height: 9px;
   background: var(--paper);
   border: 1px solid var(--ink);
-  z-index: 5;
+  /* above the open text editor (8): the editor box can grow past the zone
+     top, the corners must stay grabbable to resize while editing */
+  z-index: 9;
 }
 
 .handle.tl { left: -5px; top: -5px; cursor: nwse-resize; }
@@ -431,6 +437,8 @@ button, input, select { font: inherit; color: inherit; }
   outline: none;
   resize: none;
   overflow: hidden;
+  /* no padding: the box is placed so the text lands on the sheet's glyphs,
+     the border grows it around the zone instead (ui.js positionEditor) */
   padding: 0;
   z-index: 8;
   user-select: text;
@@ -438,6 +446,20 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 body.inverted #text-editor { background: var(--ink); color: var(--paper); }
+
+/* hidden mirror that measures where a font's first baseline sits under the
+   top of its line box (ui.js firstBaselineOffset); the zero-size
+   inline-block span rides on the baseline of the line it starts */
+#text-metrics {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: pre;
+}
+
+#text-metrics span { display: inline-block; width: 0; height: 0; }
 
 /* ---------- toast ---------- */
 
