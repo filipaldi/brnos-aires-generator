@@ -5,19 +5,24 @@
 
 import { komponuj } from './engine.js';
 import { vytvorMeranie } from './meranie.js';
+import { suboryFontov } from '../core/kompozicia/pisma.js';
 
-// Relative to this module, so the fonts resolve wherever the app is served
-// (repo server or a page hosted under a sub-path).
-const FONT_FILES = {
-  'Brnos Aires': '../fonts/brnos-aires.woff2',
-  'Nunito': '../fonts/nunito-variable.ttf',
-};
+// The font files come from the model in proporcie.json (kompozicia.pisma):
+// a variable font is one file, a static font one file per rez — a new Brnos
+// Aires cut lands in the exports by adding its item there, nothing here.
+// Paths are relative to the repository root, resolved against this module,
+// so the fonts resolve wherever the app is served (repo server or a page
+// hosted under a sub-path).
 
 // Absolute URLs: the downloaded SVG stays valid when opened from the server.
+// A variable font maps to one URL, a static font to { rezId: url } — the
+// shape styleForFonts and facesFontov expect.
 export function fontUrlsAbsolute() {
   const out = {};
-  for (const [name, path] of Object.entries(FONT_FILES)) {
-    out[name] = new URL(path, import.meta.url).href;
+  for (const { pismo, rezId, subor } of suboryFontov()) {
+    const url = new URL(`../${subor}`, import.meta.url).href;
+    if (rezId === null) out[pismo] = url;
+    else (out[pismo] ??= {})[rezId] = url;
   }
   return out;
 }
@@ -28,24 +33,63 @@ const zmerajText = vytvorMeranie(fontUrlsAbsolute());
 
 const dataUrlCache = new Map();
 
+async function naDataUrl(url) {
+  if (!dataUrlCache.has(url)) {
+    const blob = await (await fetch(url)).blob();
+    dataUrlCache.set(url, await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    }));
+  }
+  return dataUrlCache.get(url);
+}
+
+// The same URLs as data URLs — every file of every used font, so the SVG
+// image (which cannot fetch external resources) still sets text in the right
+// rez or weight.
 async function fontUrlsInlined() {
   const out = {};
-  for (const [name, path] of Object.entries(fontUrlsAbsolute())) {
-    if (!dataUrlCache.has(path)) {
-      const blob = await (await fetch(path)).blob();
-      dataUrlCache.set(path, await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      }));
+  for (const [pismo, urls] of Object.entries(fontUrlsAbsolute())) {
+    if (typeof urls === 'string') {
+      out[pismo] = await naDataUrl(urls);
+    } else {
+      out[pismo] = {};
+      for (const [rezId, url] of Object.entries(urls)) out[pismo][rezId] = await naDataUrl(url);
     }
-    out[name] = dataUrlCache.get(path);
   }
   return out;
 }
 
-export function download(blob, filename) {
+// Inside a claude.ai artifact the host blocks <a download>; it offers
+// window.claude.use('downloads') → { save({ filename, data }) } (data as a
+// Blob) instead, rejecting with { code }. The use() promise is asked for —
+// and cached — once per page; null means the host has no such capability.
+let hostDownloads; // undefined = not asked yet, null = no capability
+
+function claudeDownloads() {
+  hostDownloads ??= typeof window.claude?.use === 'function'
+    ? window.claude.use('downloads')
+    : null;
+  return hostDownloads;
+}
+
+export async function download(blob, filename) {
+  const host = await claudeDownloads();
+  if (host) {
+    // the host's allowed extensions (png, svg, json, …) have no avif
+    if (/\.avif$/i.test(filename)) throw new Error('AVIF sa tu nedá uložiť, použi PNG');
+    try {
+      await host.save({ filename, data: blob });
+    } catch (err) {
+      // declined = the user turned the save down in the host's UI
+      if (err?.code === 'declined') return;
+      throw err instanceof Error ? err
+        : new Error(err?.code ? `hostiteľ: ${err.code}` : 'hostiteľ súbor neuložil');
+    }
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -63,7 +107,7 @@ export function safeVariant(variant) {
 export async function exportSvgFile(spec) {
   await zmerajText.ready;
   const { svg } = komponuj(spec, { fontUrls: fontUrlsAbsolute(), zmerajText });
-  download(new Blob([svg], { type: 'image/svg+xml' }), `brnos-aires-${safeVariant(spec.variant)}.svg`);
+  await download(new Blob([svg], { type: 'image/svg+xml' }), `brnos-aires-${safeVariant(spec.variant)}.svg`);
 }
 
 let avifSupport = null;
@@ -115,12 +159,12 @@ async function rasterise(spec, mime) {
 
 export async function exportPngFile(spec) {
   const blob = await rasterise(spec, 'image/png');
-  download(blob, `brnos-aires-${safeVariant(spec.variant)}.png`);
+  await download(blob, `brnos-aires-${safeVariant(spec.variant)}.png`);
 }
 
 export async function exportAvifFile(spec) {
   const blob = await rasterise(spec, 'image/avif');
-  download(blob, `brnos-aires-${safeVariant(spec.variant)}.avif`);
+  await download(blob, `brnos-aires-${safeVariant(spec.variant)}.avif`);
 }
 
 export function rasterDimensions(spec) {

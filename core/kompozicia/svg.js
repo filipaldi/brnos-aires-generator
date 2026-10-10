@@ -6,6 +6,7 @@
 
 import { fmt } from '../geometry.js';
 import { fontFeatureSettings } from './features.js';
+import { faceZony, facesFontov, fontFaceCss } from './pisma.js';
 
 export function esc(s) {
   return String(s)
@@ -52,17 +53,13 @@ function f(n) {
   return Object.is(r, -0) ? '0' : String(r);
 }
 
-function fontFace(name, url, format) {
-  return `@font-face { font-family: '${name}'; src: url('${url}') format('${format}'); }`;
-}
-
-const FONT_FORMATS = { 'Brnos Aires': 'woff2', Nunito: 'truetype' };
-
+// The @font-face declarations of the fonts the sheet sets text in: rezy of
+// static fonts from the model in proporcie.json, variable fonts with their
+// whole weight axis (facesFontov). What the URLs cover is up to the caller —
+// the UI passes absolute or inlined URLs, the CLI relative ones.
 export function styleForFonts(fontUrls) {
-  const faces = Object.entries(fontUrls || {})
-    .filter(([name]) => FONT_FORMATS[name])
-    .map(([name, url]) => fontFace(name, url, FONT_FORMATS[name]));
-  return faces.length ? `<style>${faces.join(' ')}</style>` : '';
+  const faces = facesFontov(fontUrls);
+  return faces.length ? `<style>${faces.map((face) => fontFaceCss(face)).join(' ')}</style>` : '';
 }
 
 // --- layers -----------------------------------------------------------------
@@ -128,11 +125,13 @@ function odhadSirky(text, pismo, velkost, cfg) {
 // Word-wraps text to `sirka` (dieliks). Explicit '\n' always breaks. A word
 // wider than `sirka` keeps its own line, unsplit. Spaces between words on one
 // line stay; spaces at a wrap point are dropped and never measured. The
-// zone's features travel to zmerajText, so ligatures measure at their real
-// width and the wrap matches what the sheet renders.
-export function zalamujText(text, sirka, { pismo, velkost, features, zmerajText = null, cfg }) {
+// zone's features and face (family + weight from its rez/hrubka) travel to
+// zmerajText, so ligatures measure at their real width and the wrap matches
+// what the sheet renders.
+export function zalamujText(text, sirka, { pismo, velkost, features, rez, hrubka, zmerajText = null, cfg }) {
+  const face = faceZony({ pismo, rez, hrubka });
   const sirkaTextu = zmerajText
-    ? (t) => zmerajText(t, pismo, velkost, features)
+    ? (t) => zmerajText(t, pismo, velkost, features, face)
     : (t) => odhadSirky(t, pismo, velkost, cfg);
   const riadky = [];
   for (const odstavec of String(text).split('\n')) {
@@ -165,6 +164,10 @@ function textLayer(zony, fg, cfg, zmerajText) {
   zony.forEach((z, i) => {
     if (z.typ !== 'text' || !z.text) return;
     const r = z.rect;
+    // the font's own family and weight: a rez of a static font or the zone's
+    // axis weight of a variable one — the same face the measure and the
+    // editor use, so all three agree
+    const face = faceZony(z);
     const anchor = z.zarovnanie === 'stred' ? 'middle' : z.zarovnanie === 'vpravo' ? 'end' : 'start';
     const x = z.zarovnanie === 'stred' ? r.x + r.w / 2 : z.zarovnanie === 'vpravo' ? r.x + r.w : r.x;
     // The row is the unit: baselines sit `riadok` dieliks apart, on the dielik
@@ -173,7 +176,8 @@ function textLayer(zony, fg, cfg, zmerajText) {
     const velkostPisma = (z.riadok * z.velkost) / 100;
     const lineH = z.riadok;
     const lines = zalamujText(z.text, r.w, {
-      pismo: z.pismo, velkost: velkostPisma, features: z.features, zmerajText, cfg,
+      pismo: z.pismo, velkost: velkostPisma, features: z.features,
+      rez: z.rez, hrubka: z.hrubka, zmerajText, cfg,
     });
     // A line fits while its baseline sits inside the zone (descenders may
     // still poke below); text that overflows only warns, it is never cut.
@@ -185,7 +189,8 @@ function textLayer(zony, fg, cfg, zmerajText) {
       // every feature explicit, on as 1 and off as 0: a disabled liga must
       // read 'liga' 0 in the sheet, never fall back to the browser default
       parts.push(
-        `<text x="${f(x)}" y="${f(y)}" font-family="${esc(z.pismo)}" font-size="${f(velkostPisma)}"`
+        `<text x="${f(x)}" y="${f(y)}" font-family="${esc(face.family)}" font-size="${f(velkostPisma)}"`
+        + ` font-weight="${face.weight}"${face.style !== 'normal' ? ` font-style="${face.style}"` : ''}`
         + ` text-anchor="${anchor}" fill="${fg}" style="font-feature-settings: ${fontFeatureSettings(z.features)}">`
         + `${esc(line)}</text>`);
     });
