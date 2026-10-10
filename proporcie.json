@@ -178,6 +178,27 @@
         "spojkaPomer": 15
       }
     },
+    "pisma": {
+      "_comment": "Rezy písiem textových zón — jediný zdroj pravdy pre výber rezu; čítajú ho jadro (validácia, SVG), meranie, editor aj exporty. Statické písmo má pole rezy, každý rez = { id (do specu), nazov (do lišty), subor (relatívne ku koreňu repozitára), format, voliteľne family / weight / style pre @font-face — rezy jednej rodiny sa musia líšiť family alebo weight/style }. Prvá položka poľa je predvolený rez. Variabilné písmo má namiesto rezy osu: osa (zatiaľ len wght), min, max, predvolene (celé čísla), subor a format; zóna vtedy nesie hrubku — celé číslo v rozsahu osi. Nunito má v súbori predvolených 200 (ExtraLight), na plagát volíme 400: Regular je čitateľná aj nad patternom a 400 je predvolená hrúbka prehliadača, takže náhradné písmo ani merania opticky nezlyhajú. Druhý rez Brnos Aires sa pridá súborom do fonts/ a doplnením položky do rezy — nič viac.",
+      "Brnos Aires": {
+        "rezy": [
+          {
+            "id": "regular",
+            "nazov": "Regular",
+            "subor": "fonts/brnos-aires.woff2",
+            "format": "woff2"
+          }
+        ]
+      },
+      "Nunito": {
+        "osa": "wght",
+        "min": 200,
+        "max": 1000,
+        "predvolene": 400,
+        "subor": "fonts/nunito-variable.ttf",
+        "format": "truetype"
+      }
+    },
     "pismaFeatures": {
       "_comment": "OpenType funkcie (tagy z GSUB), ktoré dané písmo podporuje. Textová zóna ich zapína/vypína v poli features a smie použiť len tieto tagy. Čo ktorý tag robí: liga = štandardné ligatúry; dlig = voliteľné ligatúry (ft, fí, tt, ťt); ss01 = alternatívne bodky (i, j, ä, bodky nad písmenami, . , : ; … ! ? ÷); ss03 = alternatívne E; case = kapitálkové tvary interpunkcie; calt = kontextové alternáty; ss02 = druhý štýlový set Nunito; salt = alternatívne tvary; onum = staré číslice; frac = zlomky; sups = horný index; subs = dolný index; ordn = radové číslovky. zapnute = tagy predvolene zapnuté (aj pre staré specy bez poľa features), ostatné sú predvolene vypnuté — ss01 teda nikdy nesvieti samo od seba.",
       "zapnute": [

@@ -7,6 +7,8 @@ import { readFileSync } from 'node:fs';
 
 import { normalizujSpec, komponuj } from '../core/kompozicia/index.js';
 import { featuresPoZmenePisma } from '../core/kompozicia/features.js';
+import { predvolenePisma } from '../core/kompozicia/pisma.js';
+import { normalizujSpec as normalizujSpecStub } from '../ui/stub.js';
 import { ValidationError } from '../core/errors.js';
 
 const plagat = JSON.parse(readFileSync(new URL('../priklady/plagat-a2.json', import.meta.url), 'utf8'));
@@ -204,6 +206,92 @@ test('zmena písma zachová spoločné tagy, zvyšok dostane predvolené nového
     liga: false, calt: true, ss01: true, ss02: false, salt: false, case: false,
     onum: false, frac: false, sups: false, subs: false, ordn: false,
   });
+});
+
+// --- rez (statický rez) a hrubka (osa variabilného písma) ---
+
+// minimálna textová zóna nad predvolenými hodnotami jadra; viac slov, aby sa
+// zmeral aj zalomený riadok (prvé slovo riadka sa nemeria)
+const zonaText = (extra) => ({
+  typ: 'text', x: 1, y: 1, w: 8, h: 4, text: 'ft va', ...extra,
+});
+const specZTextom = (extra) => normalizujSpec({ zony: [zonaText(extra)] }).zony[0];
+
+test('rez/hrubka: chýbajúce pole dostane predvolený rez, resp. hrúbku osi', () => {
+  assert.equal(specZTextom({}).rez, 'regular');
+  assert.ok(!('hrubka' in specZTextom({})), 'statické písmo nesie hrubku');
+  assert.equal(specZTextom({ pismo: 'Nunito' }).hrubka, 400);
+  assert.ok(!('rez' in specZTextom({ pismo: 'Nunito' })), 'variabilné písmo nesie rez');
+  assert.equal(specZTextom({ rez: 'regular' }).rez, 'regular');
+  assert.equal(specZTextom({ pismo: 'Nunito', hrubka: 900 }).hrubka, 900);
+  // stub engine normalises the same contract
+  assert.equal(normalizujSpecStub({ zony: [zonaText({})] }).zony[0].rez, 'regular');
+  assert.equal(normalizujSpecStub({ zony: [zonaText({ pismo: 'Nunito' })] }).zony[0].hrubka, 400);
+});
+
+test('hrubka mimo osi alebo desatinná je jasná chyba', () => {
+  for (const zla of [{ hrubka: 199 }, { hrubka: 1001 }, { hrubka: 400.5 }, { hrubka: 'bold' }]) {
+    assert.throws(() => specZTextom({ pismo: 'Nunito', ...zla }), (e) => {
+      assert.ok(e instanceof ValidationError, `nie ValidationError pre ${JSON.stringify(zla)}`);
+      assert.match(e.message, /hrubka/);
+      return true;
+    }, JSON.stringify(zla));
+  }
+});
+
+test('neznámy rez je jasná chyba', () => {
+  assert.throws(() => specZTextom({ rez: 'bold' }), (e) => {
+    assert.ok(e instanceof ValidationError);
+    assert.match(e.message, /rez/);
+    assert.match(e.message, /regular/);
+    return true;
+  });
+});
+
+test('pole druhého druhu písma je chyba — zmena písma musí vymeniť pole', () => {
+  assert.throws(() => specZTextom({ pismo: 'Nunito', rez: 'regular' }), /rez/);
+  assert.throws(() => specZTextom({ hrubka: 400 }), /hrubka/);
+  // sekvencia prepnutia písma z lišty: obe polia preč, predvolené nového písma
+  const z = zonaText({ pismo: 'Brnos Aires', rez: 'regular' });
+  const poPrepnuti = { ...z, pismo: 'Nunito' };
+  delete poPrepnuti.rez;
+  delete poPrepnuti.hrubka;
+  Object.assign(poPrepnuti, predvolenePisma('Nunito'));
+  const zona = normalizujSpec({ zony: [poPrepnuti] }).zony[0];
+  assert.equal(zona.hrubka, 400);
+  assert.ok(!('rez' in zona), 'rez ostal po zmene písma');
+});
+
+test('SVG nesie font-weight podľa hrúbky, @font-face celú os variabilného písma', () => {
+  const fontUrls = {
+    Nunito: 'https://example.com/nunito.ttf',
+    'Brnos Aires': { regular: 'https://example.com/brnos-aires.woff2' },
+  };
+  const svg = komponuj({
+    zony: [zonaText({ pismo: 'Nunito', hrubka: 900 }), zonaText({ y: 6, pismo: 'Brnos Aires' })],
+  }, { fontUrls }).svg;
+  assert.match(svg, /<text[^>]*font-family="Nunito"[^>]*font-weight="900"/);
+  assert.match(svg, /<text[^>]*font-family="Brnos Aires"[^>]*font-weight="400"/);
+  assert.match(svg, /@font-face \{ font-family: 'Nunito';[^}]*font-weight: 200 1000;/);
+  assert.match(svg, /@font-face \{ font-family: 'Brnos Aires';[^}]*font-weight: 400;/);
+});
+
+test('komponuj odovzdá face zóny (rez/hrúbka) až do zmerajText', () => {
+  const videne = [];
+  const zmeraj = (text, pismo, velkost, features, face) => {
+    videne.push(face);
+    return text.length * velkost;
+  };
+  komponuj({
+    zony: [zonaText({ pismo: 'Nunito', hrubka: 900 }), zonaText({ y: 6, pismo: 'Brnos Aires' })],
+  }, { zmerajText: zmeraj });
+  assert.ok(videne.length > 0, 'meranie sa nezavolalo');
+  for (const face of videne) {
+    assert.ok(face.family === 'Nunito' || face.family === 'Brnos Aires',
+      `nečakaná rodina ${face.family}`);
+    assert.equal(face.weight, face.family === 'Nunito' ? 900 : 400);
+    assert.equal(face.style, 'normal');
+  }
 });
 
 test('všetky tvary sú vnútri orezaného formátu', () => {

@@ -2,16 +2,16 @@
    The canvas font (Brnos Aires / Nunito) is loaded for the sheet SVG; the
    interface itself uses Nunito with a system fallback. */
 
+/* Nunito is variable: the file carries the whole wght axis (200–1000), the
+   range below lets every zone weight resolve inside it — for the interface
+   font and the sheet alike. The rezy of Brnos Aires are not written here:
+   ui.js declares them at boot from proporcie.json (kompozicia.pisma), so a
+   new cut is added by its file and its item there. */
+
 @font-face {
   font-family: 'Nunito';
   src: url('../fonts/nunito-variable.ttf') format('truetype');
-  font-weight: 300 1000;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Brnos Aires';
-  src: url('../fonts/brnos-aires.woff2') format('woff2');
+  font-weight: 200 1000;
   font-display: swap;
 }
 
