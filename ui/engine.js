@@ -60,9 +60,9 @@ let voFronte = null;     // the newest request waiting for the worker
 async function vyriesNaMieste({ id, spec, fontUrls, resolve }) {
   try {
     const { vytvorMeranie } = await import('./meranie.js');
-    const zmerajText = vytvorMeranie(fontUrls);
-    await zmerajText.ready;
-    resolve({ id, ...impl.komponuj(spec, { fontUrls, zmerajText }) });
+    const { zmerajText, zmerajGlyfy, ready } = vytvorMeranie(fontUrls);
+    await ready;
+    resolve({ id, ...impl.komponuj(spec, { fontUrls, zmerajText, zmerajGlyfy }) });
   } catch (err) {
     resolve({ id, error: err.message || String(err) });
   }
