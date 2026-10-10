@@ -89,6 +89,7 @@ Textová zóna:
 |---|---|---|
 | Text | reťazec | Skutočný text, vysádzaný v náhľade |
 | Písmo | Brnos Aires / Nunito | Každé podporuje iné OpenType funkcie (viď Funkcie) |
+| Rez | Brnos Aires: id rezu (zatiaľ len Regular) / Nunito: celé číslo 200–1000 | Rez písma textu. Statické písmo nesie `rez` (id zo zoznamu rezov), variabilné `hrubku` na osi wght; chýbajúce pole znamená predvolenú hodnotu písma (v Nunitu 400). Pole patrí písmu: po zmene písma dostane zóna predvolený rez/hrúbku nového písma, opačné pole je chyba validácie. |
 | Výška riadku | celé dieliky od 1, bez hornej hranice | Riadky textu ležia na mriežke dielikov: každý ďalší riadok je o N dielikov nižšie |
 | Veľkosť písma | celé % výšky riadku 10–200 | Veľkosť písma v dielikoch = výška riadku · % ÷ 100. 150 % = písmo 1,5× väčšie ako výška riadku; riadky sa pri tom môžu prekrývať, je to zámer. |
 | Zarovnanie | vľavo / na stred / vpravo | |
@@ -100,11 +101,31 @@ rámik zóny, ale samotné písmená — okolo každého viditeľného znaku sto
 tesný obdĺžnik (skutočné metriky písma: inkoust nad a pod linkou, nie em
 článok), takže vzor vchádza do rámika medzi slová, pod ascendery aj pod krátke
 riadky. Metriky meria canvas rovnako vo webovom rozhraní (plátno, worker) ako
-pri exporte, takže SVG aj PNG obtekajú rovnako. V CLI a testoch, kde canvas nie
-je, vzor obteká obdĺžniky celých riadkov — ich výšku určujú konštanty
+pri exporte, v rodine a hrúbke rezu zóny (ten istý font ako `<text>` v SVG),
+takže SVG aj PNG obtekajú rovnako. V CLI a testoch, kde canvas nie je, vzor
+obteká obdĺžniky celých riadkov — ich výšku určujú konštanty
 `riadokHore` a `riadokDole` v `proporcie.json`. Pri obtekaní **rámik** vzor
 drží celý obdĺžnik zóny, ako keď v nej text nie je. Textová zóna bez textu
 ostáva rámik. Fotka a prázdna zóna pole obtekanie nemajú.
+
+### Písma a rezy
+
+Model rezov žije v `proporcie.json` (`kompozicia.pisma`) a je jediný zdroj pravdy: čítajú ho validácia jadra, SVG, meranie textu, editor, lišta aj všetky exporty (UI aj CLI).
+
+- **Statické písmo** (Brnos Aires) má pole `rezy`: jeden rez = jedna položka s `id` (do specu), `nazov` (do lišty), `subor`, `format` a voliteľne `family` / `weight` / `style` pre `@font-face` — rezy jednej rodiny sa musia líšiť aspoň jednou z týchto hodnôt. Prvá položka poľa je predvolený rez. Textová zóna vtedy nesie `rez` (id).
+- **Variabilné písmo** (Nunito) má namiesto rezov osu: `osa` (zatiaľ `wght`), `min`, `max`, `predvolene` (celé čísla), `subor` a `format`. Zóna vtedy nesie `hrubku` — celé číslo v rozsahu osi. Predvolená hrúbka Nunita je 400: súbor má predvolených 200 (ExtraLight), na plagát 400 drží čitateľnosť aj nad vzorom a 400 je zároveň predvolená hrúbka prehliadača, takže náhradné písmo ani merania opticky nezlyhajú.
+
+`@font-face` v SVG aj v UI deklaruje Nunito s celou osou (`font-weight: 200 1000`), rezy Brnos Aires s presnou hrúbkou; meranie (canvas aj worker), editor aj `<text>` v SVG používajú tú istú rodinu a hrúbku, takže zalomenie, editor a výstup sedia.
+
+**Pridanie druhého rezu Brnos Aires** (súbor dodá autor):
+
+1. Súbor daj do `fonts/`, napr. `fonts/brnos-aires-bold.woff2`.
+2. Do `rezy` písma Brnos Aires v `kompozicia.pisma` doplň položku, napr.:
+   ```json
+   { "id": "bold", "nazov": "Bold", "subor": "fonts/brnos-aires-bold.woff2", "format": "woff2", "weight": 700 }
+   ```
+   Rez môže mať aj vlastnú `family`; ak nie, stačí `weight` (prípadne `style`), aby sa rezy v `@font-face` líšili.
+3. Hotovo. Select v lište sa odomkne sám, meranie, editor, SVG, PNG/AVIF aj CLI vezmu nový rez automaticky — všetky čítajú ten istý model v `proporcie.json`.
 
 Fotková zóna:
 
@@ -122,10 +143,6 @@ Fotková zóna:
 | Text | upraviteľný / krivky | Len SVG |
 
 SVG má vrstvy `pattern`, `text`, `fotky`, `spadavka`.
-
-### Predvoľby
-
-Uložená kombinácia všetkých parametrov okrem seedu, napr. „plagát A2“ alebo „náhľad akcie“. Build webu používa predvoľbu.
 
 ### Technická poistka
 
@@ -171,17 +188,17 @@ Body napojenia vyplývajú z geometrie (konce nôh, päty oblúka), netreba ich 
 ## Ako to funguje
 
 ```
-proporcie.json + predvoľby ──► jadro ──┬─► webové rozhranie ──► SVG / PNG
-                                       ├─► CLI (agent) ──────► SVG / PNG / AVIF
-                                       └─► build webu ───────► náhľady, pozadia
+proporcie.json ──► jadro ──┬─► webové rozhranie ──► SVG / PNG
+                           ├─► CLI (agent) ──────► SVG / PNG / AVIF
+                           └─► build webu ───────► náhľady, pozadia
 ```
 
 ### Postup
 
-1. Formát a grid, potom parametre (alebo predvoľba).
+1. Formát a grid, potom parametre.
 2. Zóny ťahaním na gride.
 3. Generátor rozmiestni tvary okolo zón.
-4. Ďalší seed = ďalší variant. Predvoľba sa dá použiť pre celú sériu.
+4. Ďalší seed = ďalší variant.
 
 **Rozmiestnenie dlaždice:** tvary v mriežke, otáčané a zrkadlené, napojené podľa pravidiel skladania. Zóny fungujú rovnako.
 
@@ -224,7 +241,7 @@ Zľava doprava v poradí, v akom sa pri práci používa:
 
 | Položka | Ako často | Obsah |
 |---|---|---|
-| `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba (načítať / uložiť), rozmer a jednotka, DPI, spadávka, Grid, zvyšok výšky |
+| `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba formátu (A2, A3, IG, web), rozmer a jednotka, DPI, spadávka, Grid, zvyšok výšky |
 | `Parametre ▾` | občas | Weight, Contrast, inverzia, veľkosť, rozloženie, typy, rozmiestnenie (voľné / dlaždice) |
 | `◀ Variant 42 ▶ ⟳` | neustále | Predchádzajúci, číslo variantu (dá sa prepísať), ďalší, náhodný |
 | `75 %` | podľa potreby | Zoom plátna |
@@ -240,14 +257,14 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
   - Pretiahneš fotku na prázdne miesto → fotková zóna vznikne tam, na veľkosť dielikov pod kurzorom.
 - **Presun a zmena veľkosti:** ťahaním zóny a jej rohov.
 - **Fotka:** dvojklik prepne na posun a zoom fotky.
-- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, výšku riadku v dielikoch, veľkosť v % riadku, zarovnanie, typografické funkcie, okraj (celé číslo v dielikoch) a obtekanie (obtekať rámik / obtekať písmená, predvolené písmená), pri fotke režim (rámik / maska / prekrytie) a okraj. Polia a prepínače lišty majú ikonky, význam vysvetlí tooltip. ✕ zónu zmaže.
+- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, rez (statické písmo: select rezov, zamknutý kým je rez jeden; variabilné: číselné pole hrúbky v rozsahu osi), výšku riadku v dielikoch, veľkosť v % riadku, zarovnanie, typografické funkcie, okraj (celé číslo v dielikoch) a obtekanie (obtekať rámik / obtekať písmená, predvolené písmená), pri fotke režim (rámik / maska / prekrytie) a okraj. Polia a prepínače lišty majú ikonky, význam vysvetlí tooltip. ✕ zónu zmaže.
 - **Typografické funkcie** (tlačidlo s ligatúrou fi) otvoria popover so zaškrtávacími prepínačmi funkcií aktuálneho písma; klik prepína a list aj editor sa prekreslia hneď. Zmena písma zachová spoločné tagy a zvyšok nastaví na predvolené hodnoty nového písma.
 - **Čiary gridu** sa ukážu samy, keď ťaháš zónu. Inak sú skryté, prepínač netreba.
 - **Spadávka** je vždy jemne vyznačená.
 
-### Bez klávesových skratiek
+### Klik a klávesy
 
-Všetko sa ovláda klikom, klávesové skratky nie sú. Číselné polia berú len celé čísla.
+Všetko sa dá vyklikať. Štandardné klávesy na vybranej zóne (Delete/Backspace, Cmd/Ctrl+C, Cmd/Ctrl+V, Cmd/Ctrl+D, Escape) sú povolené ako doplnok, nikdy nie ako jediná možnosť. Číselné polia berú len celé čísla.
 
 ### Prehliadač tvarov
 

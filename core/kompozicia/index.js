@@ -14,6 +14,7 @@ import { createRng } from './rng.js';
 import { placeShapes } from './rozmiestnenie.js';
 import { prekazkyTextu, renderSvg, translatePathD } from './svg.js';
 import { FONTY, normalizujFeatures } from './features.js';
+import { normalizujRezZony } from './pisma.js';
 import { maxVelkost } from './velkost.js';
 
 const KOMP = loadProporcie().kompozicia;
@@ -227,7 +228,7 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
   }
   polia(raw, [
     'typ', 'x', 'y', 'w', 'h', 'okraj',
-    'text', 'pismo', 'velkost', 'zarovnanie', 'riadok', 'features', 'obtekanie',
+    'text', 'pismo', 'rez', 'hrubka', 'velkost', 'zarovnanie', 'riadok', 'features', 'obtekanie',
     'zdroj', 'rezim', 'posun', 'zoom',
   ], name);
   const d = KOMP.zona[typ] || {};
@@ -251,6 +252,10 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
       throw new ValidationError(`${name}.text musí byť reťazec.`);
     }
     moznosti(zona.pismo, `${name}.pismo`, PISMA);
+    // rez (a static font's cut) or hrubka (a variable font's axis weight):
+    // a missing field means the font's default, the other font's field is an
+    // error — a spec that switched fonts switches the field with it
+    Object.assign(zona, normalizujRezZony(raw, zona.pismo, name));
     // no upper bound: a row taller than its zone only warns that the text does not fit
     cislo(zona.riadok, `${name}.riadok`, { min: 1, cele: true });
     cislo(zona.velkost, `${name}.velkost`, { min: 10, max: 200, cele: true });
@@ -312,11 +317,11 @@ export function normalizujSpec(input) {
 export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
   if (zmerajText !== undefined && typeof zmerajText !== 'function') {
     throw new ValidationError(
-      'zmerajText musí byť funkcia (text, pismo, velkost, features) → šírka v dielikoch.');
+      'zmerajText musí byť funkcia (text, pismo, velkost, features, face) → šírka v dielikoch.');
   }
   if (zmerajGlyfy !== undefined && typeof zmerajGlyfy !== 'function') {
     throw new ValidationError(
-      'zmerajGlyfy musí byť funkcia (text, pismo, velkost, features) → pole { x, sirka, hore, dole } v dielikoch.');
+      'zmerajGlyfy musí byť funkcia (text, pismo, velkost, features, face) → pole { x, sirka, hore, dole } v dielikoch.');
   }
   const spec = normalizujSpec(input);
   const { format, grid, kresba, kompozicia: komp } = spec;

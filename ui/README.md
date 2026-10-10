@@ -24,8 +24,8 @@ repozitára, takže jadro (`/core/`) aj fonty
 | `worker.js` | web worker so skladaním (`komponuj` jadra mimo hlavné vlákno) |
 | `stub.js` | náhradný engine (rovnaké API, náhodné rozmiestnenie so seedom) |
 | `viewer.js` | prehliadač tvarov (tlačidlo Tvary) |
-| `meranie.js` | meranie šírky textu cez canvas (fonty ako v SVG) pre zalomenie do zóny a tesných obdĺžnikov písmen (`zmerajGlyfy`) pre obtekanie textu vzorom; funguje aj vo workeri |
-| `export.js` | SVG priamo, PNG/AVIF cez canvas s vloženými fontmi |
+| `meranie.js` | meranie šírky textu cez canvas (fonty a rezy ako v SVG) pre zalomenie do zóny a tesných obdĺžnikov písmen (`zmerajGlyfy`) pre obtekanie textu vzorom; funguje aj vo workeri |
+| `export.js` | SVG priamo, PNG/AVIF cez canvas s vloženými fontmi; v claude.ai artefakte ukladá cez hostiteľa (downloads, bez AVIF) |
 | `smoke.mjs` | smoke test cez Playwright so štyrmi screenshotmi |
 
 ## Práca s rozhraním
@@ -39,15 +39,16 @@ repozitára, takže jadro (`/core/`) aj fonty
   má rozsah veľkosti (jej šírku). Riadok „Krúžky a kvapky“ už neexistuje.
 - **Fotka:** dvojklik prepne posun a zoom (ťahaj, koliesko), ďalší dvojklik
   ukončí.
-- **Bez klávesových skratiek:** všetko sa ovláda klikom. Prehliadač tvarov
-  otvára tlačidlo Tvary, zónu maže ✕ v jej lište.
+- **Klávesy len na vybranej zóne:** Delete/Backspace ju maže, Cmd/Ctrl+C
+  kopíruje, Cmd/Ctrl+V prilepí kópiu o dielik vpravo dole, Cmd/Ctrl+D
+  duplikuje, Escape ruší výber. V poliach (textový editor, čísla, ponuky)
+  klávesy fungujú normálne a všetko sa dá aj vyklikať — zónu duplikuje
+  tlačidlo v jej lište, maže ✕. Prehliadač tvarov otvára tlačidlo Tvary.
 - **Skladanie beží vo web workeri:** pri zmene ostáva na plátne stará kresba
   a v hornom paneli svieti „skladám…“, kým nová nie je hotová. Posuvníky v
   Parametroch počas ťahania menia len číslo (a spec); list sa prekreslí až
   po pustení alebo kliknutí.
 - **Čísla** v ponukách sú celé, desatinné sa zaokrúhlia.
-- **Predvoľba** (v ponuke formátu): uloží/načíta parametre bez variantu a
-  bez zón ako JSON.
 
 Stav sa automaticky ukladá do `localStorage`; náhodný variant tlačidlom `⟳`
 je jediné miesto, kde rozhranie ťahá náhodu (engine zostáva deterministický).
@@ -67,3 +68,11 @@ node ui/smoke.mjs [adresár-pre-screenshoty]
 
 Vyžaduje Playwright v globálnych `node_modules` (`npm root -g`) a Chromium v
 `PLAYWRIGHT_BROWSERS_PATH`. Server si podľa potreby sám spustí a vypne.
+
+Už bežiaci web (napr. `_site` z `scripts/zostav-web.sh` servírovaný cez
+`python3 -m http.server`) otestuješ premennou `BASE_URL`; skúša sa vždy
+`<base>/ui/`:
+
+```sh
+BASE_URL=http://localhost:8000 node ui/smoke.mjs /tmp/web-screenshoty
+```

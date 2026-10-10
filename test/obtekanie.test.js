@@ -201,6 +201,26 @@ test('zmerajGlyfy dostane features a velkost písma zóny', () => {
   }
 });
 
+test('zmerajGlyfy aj zmerajText dostanú rez/hrúbku zóny — ten istý font ako <text> v SVG', () => {
+  const tvare = [];
+  const zmerajT = (text, pismo, velkost, features, face) => {
+    tvare.push(['text', face]);
+    return znak(text, pismo, velkost);
+  };
+  const zmerajG = (text, pismo, velkost, features, face) => {
+    tvare.push(['glyfy', face]);
+    return glyfyZnaku(text, pismo, velkost);
+  };
+  const { svg } = komponuj(spec({ pismo: 'Nunito', hrubka: 700, features: undefined }),
+    { zmerajText: zmerajT, zmerajGlyfy: zmerajG });
+  assert.ok(tvare.some(([k]) => k === 'glyfy'), 'meranie glyfov sa nezavolalo');
+  for (const [kto, face] of tvare) {
+    assert.equal(face?.family, 'Nunito', `${kto}: rodina`);
+    assert.equal(face?.weight, 700, `${kto}: hrúbka`);
+  }
+  assert.match(svg, /<text [^>]*font-family="Nunito"[^>]*font-weight="700"/);
+});
+
 test('rovnaké zmerajGlyfy dvakrát dáva bajtovo rovnaké SVG', () => {
   const s = spec({});
   assert.equal(
