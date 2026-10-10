@@ -22,5 +22,5 @@ Generator of graphics from the Brnos Aires typeface components (shapes, composit
 
 ## Architecture
 
-- `ARCHITECTURE.md` is the target shape: layers, allowed and forbidden dependencies, invariants. New code follows it; it is never lowered to match the code.
+- Layers, dependencies and invariants: [ARCHITECTURE.md](ARCHITECTURE.md#enforcement).
 - Architect modes: `design: democrat` (the existing tree may contest a draft, but only with evidence from outside the tree).
