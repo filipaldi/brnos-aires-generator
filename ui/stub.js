@@ -6,6 +6,7 @@
 import { buildShape, computeAxes, defaultParams, TYPES, proporcie } from '../core/index.js';
 import { ValidationError } from '../core/errors.js';
 import { fontFeatureSettings, normalizujFeatures } from '../core/kompozicia/features.js';
+import { faceZony, facesFontov, fontFaceCss, normalizujRezZony } from '../core/kompozicia/pisma.js';
 
 const ALL_TYPES = TYPES.map((t) => t.id);
 
@@ -171,6 +172,9 @@ export function normalizujSpec(input) {
           riadok: z.riadok ?? 3, velkost: z.velkost ?? 80,
           zarovnanie: z.zarovnanie || 'vlavo',
           features: normalizujFeatures(z.features, z.pismo || 'Brnos Aires', `Zóna č. ${i + 1}`),
+          // same contract as the core: rez for a static font, hrubka for a
+          // variable one, missing means the font's default
+          ...normalizujRezZony(z, z.pismo || 'Brnos Aires', `Zóna č. ${i + 1}`),
         };
       }
       if (z.typ === 'fotka') {
@@ -294,17 +298,10 @@ function placeShapes(spec, geom, rng, axes) {
 
 // ---------- SVG assembly ----------
 
-function fontFaceCss(fontUrls) {
-  const faces = [];
-  if (fontUrls['Brnos Aires']) {
-    faces.push(
-      `@font-face{font-family:'Brnos Aires';src:url('${escAttr(fontUrls['Brnos Aires'])}') format('woff2')}`);
-  }
-  if (fontUrls.Nunito) {
-    faces.push(
-      `@font-face{font-family:'Nunito';src:url('${escAttr(fontUrls.Nunito)}') format('truetype');font-weight:300 1000`);
-  }
-  return faces.length ? faces.join('}') + '}' : '';
+// The @font-face declarations from the font model in proporcie.json — the
+// same rules the real engine's styleForFonts writes (facesFontov).
+function fontFacesStyl(fontUrls) {
+  return facesFontov(fontUrls).map((face) => fontFaceCss(face)).join('');
 }
 
 function patternSvg(placed, fill) {
@@ -322,13 +319,15 @@ function textZoneSvg(z, fill, dielikUnits) {
     : (z.zarovnanie === 'vpravo' ? z.x + z.w - pad : z.x + pad);
   const lines = String(z.text).split('\n');
   // same model as the core: baselines `riadok` dieliks apart, glyphs fill
-  // `velkost` % of the row
+  // `velkost` % of the row, the face comes from the zone's rez/hrubka
   const velkostPisma = (z.riadok * z.velkost) / 100;
+  const face = faceZony(z);
   const tspans = lines.map((line, i) => (
     `<tspan x="${fmt(x)}" y="${fmt(z.y + velkostPisma * 0.78 + i * z.riadok)}">${esc(line)}</tspan>`
   )).join('');
-  return `<text font-family="${escAttr(z.pismo)}" font-size="${fmt(velkostPisma)}" `
-    + `text-anchor="${anchor}" fill="${fill}" style="font-feature-settings: ${fontFeatureSettings(z.features)}">`
+  return `<text font-family="${escAttr(face.family)}" font-size="${fmt(velkostPisma)}" `
+    + `font-weight="${fmt(face.weight)}" text-anchor="${anchor}" fill="${fill}" `
+    + `style="font-feature-settings: ${fontFeatureSettings(z.features)}">`
     + `${tspans}</text>`;
 }
 
@@ -405,7 +404,7 @@ export function komponuj(spec, { fontUrls = {} } = {}) {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${fmt(f.sirka)}${f.jednotka === 'mm' ? 'mm' : ''}" `
     + `height="${fmt(f.vyska)}${f.jednotka === 'mm' ? 'mm' : ''}" `
     + `viewBox="${fmt(-b)} ${fmt(-b)} ${fmt(W + 2 * b)} ${fmt(H + 2 * b)}">`);
-  const css = fontFaceCss(fontUrls);
+  const css = fontFacesStyl(fontUrls);
   if (css) svgParts.push(`<defs><style>${css}}</style></defs>`);
   svgParts.push(`<rect x="${fmt(-b)}" y="${fmt(-b)}" width="${fmt(W + 2 * b)}" height="${fmt(H + 2 * b)}" fill="${white}"/>`);
 

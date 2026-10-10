@@ -2,22 +2,25 @@
    The canvas font (Brnos Aires / Nunito) is loaded for the sheet SVG; the
    interface itself uses Nunito with a system fallback. */
 
+/* Nunito is variable: the file carries the whole wght axis (200–1000), the
+   range below lets every zone weight resolve inside it — for the interface
+   font and the sheet alike. The rezy of Brnos Aires are not written here:
+   ui.js declares them at boot from proporcie.json (kompozicia.pisma), so a
+   new cut is added by its file and its item there. */
+
 @font-face {
   font-family: 'Nunito';
   src: url('../fonts/nunito-variable.ttf') format('truetype');
-  font-weight: 300 1000;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Brnos Aires';
-  src: url('../fonts/brnos-aires.woff2') format('woff2');
+  font-weight: 200 1000;
   font-display: swap;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  /* one black-and-white look whatever the viewer's theme: native controls
+     (textarea, number fields, selects) stay light too */
+  color-scheme: light;
   --ink: #000;
   --paper: #fff;
   --dim: #666;
@@ -183,7 +186,7 @@ button, input, select { font: inherit; color: inherit; }
 
 .popover .presets { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.popover .presets button, .popover .actions button {
+.popover .presets button {
   border: 1px solid var(--ink);
   background: var(--paper);
   padding: 4px 10px;
@@ -191,7 +194,7 @@ button, input, select { font: inherit; color: inherit; }
   border-radius: 2px;
 }
 
-.popover .presets button:hover, .popover .actions button:hover { background: var(--ink); color: var(--paper); }
+.popover .presets button:hover { background: var(--ink); color: var(--paper); }
 
 .popover .types { display: grid; grid-template-columns: 1fr; gap: 6px; }
 
@@ -215,8 +218,6 @@ button, input, select { font: inherit; color: inherit; }
 .popover .types .cap { flex: none; width: 8ch; font-size: 11px; color: var(--dim); }
 
 .popover .note { font-size: 12px; color: var(--dim); margin-top: 10px; }
-
-.popover .actions { display: flex; gap: 8px; margin-top: 14px; }
 
 /* dual-thumb slider: two overlaid ranges share one drawn track */
 .range2-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
@@ -537,6 +538,8 @@ button, input, select { font: inherit; color: inherit; }
 #zone-bar .z-feat-row .tag { margin-left: auto; color: var(--faint); font-size: 11px; }
 
 #zone-bar .del {
+  display: inline-flex;
+  align-items: center;
   border: none;
   background: none;
   cursor: pointer;
@@ -544,11 +547,21 @@ button, input, select { font: inherit; color: inherit; }
   padding: 2px 5px;
 }
 
+/* the Duplikovať icon button sits next to the ✕ one: its icon follows the
+   button's colour, so it swaps to paper on ink on hover like the glyph */
+#zone-bar .del .z-ico { color: inherit; cursor: pointer; }
+
+#zone-bar .del .z-ico svg { width: 14px; height: 14px; }
+
 #zone-bar .del:hover { background: var(--ink); color: var(--paper); }
 
 #text-editor {
   position: absolute;
   background: var(--paper);
+  /* a textarea does not inherit the page colour: without this a dark
+     colour scheme gives it white text on the paper background */
+  color: var(--ink);
+  caret-color: var(--ink);
   border: 1px solid var(--ink);
   outline: none;
   resize: none;
