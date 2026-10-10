@@ -67,3 +67,11 @@ node ui/smoke.mjs [adresár-pre-screenshoty]
 
 Vyžaduje Playwright v globálnych `node_modules` (`npm root -g`) a Chromium v
 `PLAYWRIGHT_BROWSERS_PATH`. Server si podľa potreby sám spustí a vypne.
+
+Už bežiaci web (napr. `_site` z `scripts/zostav-web.sh` servírovaný cez
+`python3 -m http.server`) otestuješ premennou `BASE_URL`; skúša sa vždy
+`<base>/ui/`:
+
+```sh
+BASE_URL=http://localhost:8000 node ui/smoke.mjs /tmp/web-screenshoty
+```
