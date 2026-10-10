@@ -34,8 +34,13 @@ function vZone(box, zone) {
   // blizsieAko(gap) demands `gap` of separation between the two rects:
   // okraj ≥ 0 keeps shapes that many dieliks from the zone (0 = they may
   // touch its edge), a negative okraj shrinks the zone by |okraj| per side
-  // instead — shapes may reach that deep into it, but no further
-  return blizsieAko(box, zone.rect, zone.okraj);
+  // instead — shapes may reach that deep into it, but no further.
+  // A text zone with text carries its glyphs' tight boxes instead of the
+  // frame: `rect` is then their union, a cheap pre-test every candidate
+  // passes before the per-glyph scan (a shape far from the union is far
+  // from every glyph inside it).
+  if (!blizsieAko(box, zone.rect, zone.okraj)) return false;
+  return zone.glyfy ? zone.glyfy.some((g) => blizsieAko(box, g, zone.okraj)) : true;
 }
 
 function voFormate(box, { stlpce, bandY, bandH }) {
@@ -235,16 +240,20 @@ function prirast(rng, chain, ctx, pokusy, minDlzka = 1, { koniec = null, typy = 
   return null;
 }
 
-// zones: [{ rect: {x, y, w, h}, okraj }] — okraj ≥ 0 is the separation the
-// pattern keeps from the rect; komponuj hands negative zone okraje over
-// already shrunk to the rect the shapes must stay out of
+// zones: [{ rect: {x, y, w, h}, okraj, glyfy?, plocha? }] — okraj ≥ 0 is the
+// separation the pattern keeps from the zone; komponuj hands negative zone
+// okraje over already shrunk to the boxes the shapes must stay out of.
+// `glyfy` (a text zone with text) replaces the frame test with a test
+// against each glyph box, `rect` then being their union for the pre-test;
+// `plocha` is the area the zone blocks for the density target (a text zone
+// counts its glyphs' ink, not the whole frame).
 export function placeShapes(rng, {
   build, axes, defaultsOf, typy, velkostTvaru, vahyTvaru,
   velkosti,
   stlpce, bandY, bandH, zony, medzera, hustota, maxPokusov, skok,
   retazenieDlzka, retazeniePokusy, dotyk, neuspechov, spojky = [], spojkyMinKontrast = 0.8, spojkaPomer = 30, zakazanePary = [], pomery = {}, kvapka,
 }) {
-  const zoneArea = zony.reduce((a, z) => a + z.rect.w * z.rect.h, 0);
+  const zoneArea = zony.reduce((a, z) => a + (z.plocha ?? z.rect.w * z.rect.h), 0);
   const freeArea = Math.max(stlpce * bandH - zoneArea, 0);
   // Ink-weighted coverage: a bare bbox area counts empty space, so sparse
   // shapes (kvapka, polkruh) would hit the target while the canvas stays empty.
