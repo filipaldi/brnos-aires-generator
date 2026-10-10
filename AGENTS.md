@@ -18,3 +18,8 @@ Generator of graphics from the Brnos Aires typeface components (shapes, composit
 ## Layout
 
 - `core/` shapes, primitives, compositions; `cli.js` CLI; `ui/` browser UI (`node ui/serve.js`, http://localhost:41235/ui/); `docs/GENERATOR.md` design notes.
+
+## Architecture
+
+- `ARCHITECTURE.md` is the target shape: layers, allowed and forbidden dependencies, invariants. New code follows it; it is never lowered to match the code.
+- Architect modes: `design: democrat` (the existing tree may contest a draft, but only with evidence from outside the tree).
