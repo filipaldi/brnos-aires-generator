@@ -10,7 +10,7 @@ Generator of graphics from the Brnos Aires typeface components (shapes, composit
 - Zero dependencies. Node 22, ES modules. The core (`core/`) must stay browser-safe (no Node APIs).
 - Run `npm test` before every commit; tests must pass.
 - All numeric inputs are integers (no decimals) in the UI.
-- Keyboard shortcuts only on the selected zone (Delete/Backspace, copy, paste, duplicate, Escape); everything stays reachable by click. No other shortcuts.
+- Everything works by click. Standard keys on the selected zone (Delete/Backspace, Cmd/Ctrl+C, V, D, Escape) are allowed as an addition, never as the only way.
 - Only legs (`noha`, and the pätka foot) are rounded. Arcs are never rounded.
 - Every line ends with a teardrop.
 - No images committed to the repo (PNG exports and screenshots stay out; fonts in `fonts/` are the only binary assets).

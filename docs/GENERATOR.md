@@ -229,9 +229,9 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
 - **Čiary gridu** sa ukážu samy, keď ťaháš zónu. Inak sú skryté, prepínač netreba.
 - **Spadávka** je vždy jemne vyznačená.
 
-### Bez klávesových skratiek
+### Klik a klávesy
 
-Všetko sa ovláda klikom, klávesové skratky nie sú. Číselné polia berú len celé čísla.
+Všetko sa dá vyklikať. Štandardné klávesy na vybranej zóne (Delete/Backspace, Cmd/Ctrl+C, Cmd/Ctrl+V, Cmd/Ctrl+D, Escape) sú povolené ako doplnok, nikdy nie ako jediná možnosť. Číselné polia berú len celé čísla.
 
 ### Prehliadač tvarov
 
