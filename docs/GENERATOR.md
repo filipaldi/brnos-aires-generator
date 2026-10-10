@@ -81,7 +81,7 @@ Spoločné pre každú zónu:
 |---|---|---|
 | Typ | text / fotka | Určí sa obsahom: začneš písať = text, pretiahneš fotku = fotka |
 | Poloha a veľkosť | v dielikoch | Prichytené na mriežku |
-| Okraj | celé číslo −20 až 20 (dieliky) | Kladný = okolo zóny ostane N dielikov voľna. 0 = tvary idú tesne k hrane zóny, dovnútra nie. Záporný = tvary smú zasiahnuť do zóny až \|N\| dielikov od hrany; zóna, ktorá tým zanikne, sa pre vzor ignoruje. |
+| Okraj | celé číslo −20 až 20 (dieliky) | Pri textovej zóne s textom a obtekaní písmen je okraj vzdialenosť od písmen, nie od rámika (viď Obtekanie nižšie). Kladný = N dielikov voľna od písmen, 0 = tesne k písmenám, záporný = tvary smú zasiahnuť do písmen až \|N\| dielikov; písmeno, ktoré tým zanikne, sa pre vzor ignoruje. Pri zóne bez textu (a pri obtekaní rámika) platí rámik: kladný = okolo zóny ostane N dielikov voľna, 0 = tvary idú tesne k hrane zóny, dovnútra nie, záporný = tvary smú zasiahnuť do zóny až \|N\| dielikov od hrany; zóna, ktorá tým zanikne, sa pre vzor ignoruje. |
 
 Textová zóna:
 
@@ -92,7 +92,19 @@ Textová zóna:
 | Výška riadku | celé dieliky od 1, bez hornej hranice | Riadky textu ležia na mriežke dielikov: každý ďalší riadok je o N dielikov nižšie |
 | Veľkosť písma | celé % výšky riadku 10–200 | Veľkosť písma v dielikoch = výška riadku · % ÷ 100. 150 % = písmo 1,5× väčšie ako výška riadku; riadky sa pri tom môžu prekrývať, je to zámer. |
 | Zarovnanie | vľavo / na stred / vpravo | |
+| Obtekanie | rámik / písmená | Čo vzor obteká: **rámik** = obdĺžnik celej zóny (správanie ako pri zóne bez textu), **písmená** = samotné glyfy. Predvolené **písmená** — aj pre starý spec bez poľa, aj pre novú zónu. Okraj platí v oboch režimoch, od rámika alebo od písmen. |
 | Funkcie | { tag: zap/vyp } per písmo | OpenType funkcie písma: ligatúry, voliteľné ligatúry, štýlové sety… Zoznam tagov každého písma je v `proporcie.json` (`kompozicia.pismaFeatures`). Predvolene svieti len `liga` (v Nunito aj `calt`), ostatné vrátane `ss01` sú vypnuté; neznámy tag pre dané písmo je chyba validácie. V SVG sa zapíšu všetky explicitne (`'liga' 1, 'dlig' 0, …`), takže vypnutá ligatúra zostane vypnutá aj v cudzom prehliadači. |
+
+**Obtekanie:** pri textovej zóne s textom a obtekaní **písmen** vzor neobteká
+rámik zóny, ale samotné písmená — okolo každého viditeľného znaku stojí jeho
+tesný obdĺžnik (skutočné metriky písma: inkoust nad a pod linkou, nie em
+článok), takže vzor vchádza do rámika medzi slová, pod ascendery aj pod krátke
+riadky. Metriky meria canvas rovnako vo webovom rozhraní (plátno, worker) ako
+pri exporte, takže SVG aj PNG obtekajú rovnako. V CLI a testoch, kde canvas nie
+je, vzor obteká obdĺžniky celých riadkov — ich výšku určujú konštanty
+`riadokHore` a `riadokDole` v `proporcie.json`. Pri obtekaní **rámik** vzor
+drží celý obdĺžnik zóny, ako keď v nej text nie je. Textová zóna bez textu
+ostáva rámik. Fotka a prázdna zóna pole obtekanie nemajú.
 
 Fotková zóna:
 
@@ -228,7 +240,7 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
   - Pretiahneš fotku na prázdne miesto → fotková zóna vznikne tam, na veľkosť dielikov pod kurzorom.
 - **Presun a zmena veľkosti:** ťahaním zóny a jej rohov.
 - **Fotka:** dvojklik prepne na posun a zoom fotky.
-- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, výšku riadku v dielikoch, veľkosť v % riadku, zarovnanie, typografické funkcie a okraj (celé číslo v dielikoch), pri fotke režim (rámik / maska / prekrytie) a okraj. Polia a prepínače lišty majú ikonky, význam vysvetlí tooltip. ✕ zónu zmaže.
+- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, výšku riadku v dielikoch, veľkosť v % riadku, zarovnanie, typografické funkcie, okraj (celé číslo v dielikoch) a obtekanie (obtekať rámik / obtekať písmená, predvolené písmená), pri fotke režim (rámik / maska / prekrytie) a okraj. Polia a prepínače lišty majú ikonky, význam vysvetlí tooltip. ✕ zónu zmaže.
 - **Typografické funkcie** (tlačidlo s ligatúrou fi) otvoria popover so zaškrtávacími prepínačmi funkcií aktuálneho písma; klik prepína a list aj editor sa prekreslia hneď. Zmena písma zachová spoločné tagy a zvyšok nastaví na predvolené hodnoty nového písma.
 - **Čiary gridu** sa ukážu samy, keď ťaháš zónu. Inak sú skryté, prepínač netreba.
 - **Spadávka** je vždy jemne vyznačená.

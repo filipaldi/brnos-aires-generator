@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 
 import { normalizujSpec, komponuj } from '../core/kompozicia/index.js';
 import { featuresPoZmenePisma } from '../core/kompozicia/features.js';
+import { prekazkyTextu } from '../core/kompozicia/svg.js';
 import { ValidationError } from '../core/errors.js';
 
 const plagat = JSON.parse(readFileSync(new URL('../priklady/plagat-a2.json', import.meta.url), 'utf8'));
@@ -48,12 +49,17 @@ test('nahlad v px bez zón beží a má vrstvy', () => {
 
 test('žiadny tvar sa nedotýka zóny s okrajom 0', () => {
   const { tvary } = komponuj(plagat);
+  // a text zone with text excludes only the boxes of its lines (the pattern
+  // wraps around the text, not the frame); every other zone is a frame
+  const cfg = JSON.parse(readFileSync(new URL('../proporcie.json', import.meta.url), 'utf8')).kompozicia.svg;
   const zony = plagat.zony.filter((z) => z.okraj === 0)
-    .map((z) => ({ x: z.x, y: z.y, w: z.w, h: z.h }));
+    .flatMap((z) => (z.typ === 'text' && z.text
+      ? prekazkyTextu({ ...z, rect: { x: z.x, y: z.y, w: z.w, h: z.h } }, { cfg })
+      : [{ x: z.x, y: z.y, w: z.w, h: z.h }]));
   assert.ok(zony.length > 0);
   for (const t of tvary) {
     for (const z of zony) {
-      assert.ok(!prekryv(t.bbox, z), `tvar ${t.typ} ${JSON.stringify(t.bbox)} prekrýva zónu ${JSON.stringify(z)}`);
+      assert.ok(!prekryv(t.bbox, z), `tvar ${t.typ} ${JSON.stringify(t.bbox)} prekrýva ${JSON.stringify(z)}`);
     }
   }
 });

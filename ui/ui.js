@@ -284,18 +284,21 @@ function drawZoneBar() {
   const makeNumber = (ico, label, value, attrs, onInput) =>
     makeField(ico, label, numberInput(value, attrs, onInput));
 
-  // Icon toggle group (alignment, photo mode). The buttons keep their own
-  // active look — the bar is not rebuilt while one of its fields has focus.
+  // Icon toggle group (alignment, photo mode, obtekanie). The buttons keep
+  // their own active look — the bar is not rebuilt while one of its fields
+  // has focus. A group with a label prefixes it to every option
+  // („Zarovnanie: vľavo“); a group without one gives each option its whole
+  // sentence as the title and names only the group itself.
   const makeToggle = (label, options, aktualna, onInput) => {
     const group = document.createElement('span');
     group.className = 'z-seg';
     group.setAttribute('role', 'group');
-    group.setAttribute('aria-label', label);
+    if (label) group.setAttribute('aria-label', label);
     const tlacidla = options.map(([val, nazov, ico]) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'z-tgl';
-      const popis = `${label}: ${nazov}`;
+      const popis = label ? `${label}: ${nazov}` : nazov;
       b.title = popis;
       b.setAttribute('aria-label', popis);
       b.append(ikona(ico, popis));
@@ -312,6 +315,18 @@ function drawZoneBar() {
       }
     };
     obnov();
+    return group;
+  };
+
+  // Obtekanie: what the pattern wraps — the zone's frame or the letters
+  // themselves; okraj then keeps its distance from that. Whole-verb-phrase
+  // titles, so the group goes out without a label prefix.
+  const makeObtekanie = (z) => {
+    const group = makeToggle('', [
+      ['ram', 'Obtekať rámik', 'obtekanie-ram'],
+      ['text', 'Obtekať písmená', 'obtekanie-text'],
+    ], () => z.obtekanie, (v) => { z.obtekanie = v; });
+    group.setAttribute('aria-label', 'Obtekanie');
     return group;
   };
 
@@ -340,6 +355,7 @@ function drawZoneBar() {
       // whole dieliks of free space around the zone (negative lets the
       // pattern reach that deep into it)
       makeNumber('okraj', 'Okraj', z.okraj, { min: -20, max: 20, step: 1 }, (v) => { z.okraj = v; }),
+      makeObtekanie(z),
     );
   } else if (z.typ === 'fotka') {
     zoneBar.append(
@@ -481,6 +497,13 @@ const IKONY = {
   riadok: '<path d="M8.5 3.5H15M8.5 8H15M8.5 12.5H15"/>'
     + '<path d="M4.5 2.2v11.6M2.5 4.2l2-2 2 2M2.5 11.8l2 2 2-2"/>',
   okraj: '<rect x="1.5" y="3" width="13" height="10"/><rect x="4.7" y="6.2" width="6.6" height="3.6"/>',
+  // the pattern (the four marks outside) wraps the zone's frame, or the
+  // letters themselves — the marks stand around a rectangle / a glyph
+  'obtekanie-ram': '<rect x="5" y="5" width="6" height="6"/>'
+    + '<path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8"/>',
+  'obtekanie-text': '<path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8"/>'
+    + '<text x="8" y="11.8" text-anchor="middle" font-size="12.5"'
+    + ' fill="currentColor" stroke="none">a</text>',
   'zarovnanie-vlavo': '<path d="M2 4h12M2 8h9M2 12h11"/>',
   'zarovnanie-stred': '<path d="M3 4h10M1.5 8h13M4 12h8"/>',
   'zarovnanie-vpravo': '<path d="M2 4h12M5 8h9M3 12h11"/>',
@@ -812,6 +835,8 @@ function zoneToText(i, firstKey) {
   z.riadok = 3;
   z.velkost = 80;
   z.zarovnanie = 'vlavo';
+  // a fresh text zone wraps the letters right away (obtekanie 'text')
+  z.obtekanie = 'text';
   z.features = predvoleneFeatures(z.pismo);
   openEditor(i);
 }
@@ -928,7 +953,7 @@ function closeEditor() {
       // Nothing was written: the zone goes back to being empty.
       z.typ = 'prazdna';
       delete z.text; delete z.pismo; delete z.velkost;
-      delete z.zarovnanie; delete z.riadok; delete z.features;
+      delete z.zarovnanie; delete z.riadok; delete z.features; delete z.obtekanie;
     }
   }
   ta.remove();
