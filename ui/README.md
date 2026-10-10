@@ -49,8 +49,6 @@ repozitára, takže jadro (`/core/`) aj fonty
   Parametroch počas ťahania menia len číslo (a spec); list sa prekreslí až
   po pustení alebo kliknutí.
 - **Čísla** v ponukách sú celé, desatinné sa zaokrúhlia.
-- **Predvoľba** (v ponuke formátu): uloží/načíta parametre bez variantu a
-  bez zón ako JSON.
 
 Stav sa automaticky ukladá do `localStorage`; náhodný variant tlačidlom `⟳`
 je jediné miesto, kde rozhranie ťahá náhodu (engine zostáva deterministický).

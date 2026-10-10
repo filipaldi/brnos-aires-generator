@@ -186,7 +186,7 @@ button, input, select { font: inherit; color: inherit; }
 
 .popover .presets { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.popover .presets button, .popover .actions button {
+.popover .presets button {
   border: 1px solid var(--ink);
   background: var(--paper);
   padding: 4px 10px;
@@ -194,7 +194,7 @@ button, input, select { font: inherit; color: inherit; }
   border-radius: 2px;
 }
 
-.popover .presets button:hover, .popover .actions button:hover { background: var(--ink); color: var(--paper); }
+.popover .presets button:hover { background: var(--ink); color: var(--paper); }
 
 .popover .types { display: grid; grid-template-columns: 1fr; gap: 6px; }
 
@@ -218,8 +218,6 @@ button, input, select { font: inherit; color: inherit; }
 .popover .types .cap { flex: none; width: 8ch; font-size: 11px; color: var(--dim); }
 
 .popover .note { font-size: 12px; color: var(--dim); margin-top: 10px; }
-
-.popover .actions { display: flex; gap: 8px; margin-top: 14px; }
 
 /* dual-thumb slider: two overlaid ranges share one drawn track */
 .range2-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }

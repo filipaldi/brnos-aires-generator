@@ -111,10 +111,6 @@ Fotková zóna:
 
 SVG má vrstvy `pattern`, `text`, `fotky`, `spadavka`.
 
-### Predvoľby
-
-Uložená kombinácia všetkých parametrov okrem seedu, napr. „plagát A2“ alebo „náhľad akcie“. Build webu používa predvoľbu.
-
 ### Technická poistka
 
 Vlasová linka nikdy nie je tenšia ako 1 px výstupu, pri tlači 0,1 mm. Jediná absolútna hodnota, zasiahne len pri extrémoch.
@@ -159,17 +155,17 @@ Body napojenia vyplývajú z geometrie (konce nôh, päty oblúka), netreba ich 
 ## Ako to funguje
 
 ```
-proporcie.json + predvoľby ──► jadro ──┬─► webové rozhranie ──► SVG / PNG
-                                       ├─► CLI (agent) ──────► SVG / PNG / AVIF
-                                       └─► build webu ───────► náhľady, pozadia
+proporcie.json ──► jadro ──┬─► webové rozhranie ──► SVG / PNG
+                           ├─► CLI (agent) ──────► SVG / PNG / AVIF
+                           └─► build webu ───────► náhľady, pozadia
 ```
 
 ### Postup
 
-1. Formát a grid, potom parametre (alebo predvoľba).
+1. Formát a grid, potom parametre.
 2. Zóny ťahaním na gride.
 3. Generátor rozmiestni tvary okolo zón.
-4. Ďalší seed = ďalší variant. Predvoľba sa dá použiť pre celú sériu.
+4. Ďalší seed = ďalší variant.
 
 **Rozmiestnenie dlaždice:** tvary v mriežke, otáčané a zrkadlené, napojené podľa pravidiel skladania. Zóny fungujú rovnako.
 
@@ -212,7 +208,7 @@ Zľava doprava v poradí, v akom sa pri práci používa:
 
 | Položka | Ako často | Obsah |
 |---|---|---|
-| `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba (načítať / uložiť), rozmer a jednotka, DPI, spadávka, Grid, zvyšok výšky |
+| `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba formátu (A2, A3, IG, web), rozmer a jednotka, DPI, spadávka, Grid, zvyšok výšky |
 | `Parametre ▾` | občas | Weight, Contrast, inverzia, veľkosť, rozloženie, typy, rozmiestnenie (voľné / dlaždice) |
 | `◀ Variant 42 ▶ ⟳` | neustále | Predchádzajúci, číslo variantu (dá sa prepísať), ďalší, náhodný |
 | `75 %` | podľa potreby | Zoom plátna |

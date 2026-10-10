@@ -9,7 +9,7 @@ import { maxVelkost } from '../core/kompozicia/velkost.js';
 import { createViewer } from './viewer.js';
 import {
   exportSvgFile, exportPngFile, exportAvifFile, avifSupported,
-  rasterDimensions, download, fontUrlsAbsolute,
+  rasterDimensions, fontUrlsAbsolute,
 } from './export.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -1341,53 +1341,6 @@ attachPopover($('#btn-format'), (pop) => {
       [['okraje', 'okraje'], ['natiahnutie', 'natiahnutie'], ['orez', 'presah a orez']],
       g.zvysok, (v) => { spec.grid.zvysok = v; })),
   );
-
-  const actions = document.createElement('div');
-  actions.className = 'actions';
-  const loadBtn = document.createElement('button');
-  loadBtn.type = 'button';
-  loadBtn.textContent = 'Načítať predvoľbu';
-  loadBtn.addEventListener('click', () => $('#predvolba-file').click());
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'button';
-  saveBtn.textContent = 'Uložiť predvoľbu';
-  saveBtn.addEventListener('click', savePredvolba);
-  actions.append(loadBtn, saveBtn);
-  pop.append(actions);
-});
-
-async function savePredvolba() {
-  // A preset is the spec without the variant and without the zones.
-  const { variant, zony, ...rest } = spec;
-  try {
-    await download(
-      new Blob([JSON.stringify(rest, null, 2)], { type: 'application/json' }),
-      'predvolba-generator.json',
-    );
-  } catch (err) {
-    toast(`Predvoľbu sa nepodarilo uložiť: ${err.message}`);
-  }
-  closePopovers();
-}
-
-$('#predvolba-file').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  e.target.value = '';
-  if (!file) return;
-  try {
-    const loaded = JSON.parse(await file.text());
-    if (loaded?.kompozicia) zahodZastarane(loaded.kompozicia);
-    spec = engine.normalizujSpec({
-      ...loaded,
-      variant: spec.variant, // a preset never touches the variant
-      zony: spec.zony,       // ...nor the zones
-    });
-    selected = -1;
-    closePopovers();
-    render();
-  } catch (err) {
-    toast(`Predvoľbu sa nepodarilo načítať: ${err.message}`);
-  }
 });
 
 // ----- parametre popover -----
