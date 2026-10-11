@@ -22,17 +22,13 @@ const LS_KEY = 'brnosaires-generator-spec-v1';
 const MM_TO_PX = 96 / 25.4; // CSS px per mm at zoom 100 %
 const ZOOM_STEPS = [25, 33, 50, 67, 75, 90, 100, 125, 150, 200];
 
-const FORMAT_PRESETS = {
-  A2: { sirka: 420, vyska: 594, jednotka: 'mm', dpi: 300, spadavka: 3 },
-  A3: { sirka: 297, vyska: 420, jednotka: 'mm', dpi: 300, spadavka: 3 },
-  IG: { sirka: 1080, vyska: 1350, jednotka: 'px', dpi: 72, spadavka: 0 },
-  web: { sirka: 1200, vyska: 630, jednotka: 'px', dpi: 72, spadavka: 0 },
-};
+// The six fields a medium of presets/media.json sets on spec.format
+const POLIA_FORMATU = ['sirka', 'vyska', 'jednotka', 'dpi', 'spadavka', 'okraj'];
 
 // ---------- state ----------
 
 let spec = loadSpec();
-let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, cols: 8, rowsD: 0 };
+let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, okrajD: 0, cols: 8, rowsD: 0 };
 let zoomPct = 75;
 let selected = -1;
 let editorOpen = false;
@@ -44,6 +40,7 @@ const svgHost = $('#svg-host');
 const zonesHost = $('#zones');
 const gridLines = $('#grid-lines');
 const bleedMark = $('#bleed-mark');
+const okrajMark = $('#okraj-mark');
 const zoneBar = $('#zone-bar');
 
 // The static fonts' rezy (Brnos Aires) are declared here, not in ui.css: the
@@ -161,6 +158,7 @@ function layoutSheet(svgEl) {
   view = {
     s, vbX: vb.x, vbY: vb.y,
     bleedD: f.spadavka / dielikUnits,
+    okrajD: f.okraj / dielikUnits,
     cols: g.stlpce,
     rowsD: f.vyska / dielikUnits,
   };
@@ -222,6 +220,17 @@ function drawOverlay() {
   bleedMark.style.top = `${bi}px`;
   bleedMark.style.right = `${bi}px`;
   bleedMark.style.bottom = `${bi}px`;
+
+  // Margin (okraj): a guide inset from the trim edge (one bleed inside the
+  // sheet edge), shown only when the format has one. Like the bleed mark it
+  // is an overlay; the composed SVG carries its own thin line, as for the
+  // bleed.
+  const oi = (view.bleedD + view.okrajD) * view.s;
+  okrajMark.hidden = view.okrajD <= 0.0005;
+  okrajMark.style.left = `${oi}px`;
+  okrajMark.style.top = `${oi}px`;
+  okrajMark.style.right = `${oi}px`;
+  okrajMark.style.bottom = `${oi}px`;
 
   zonesHost.replaceChildren();
   spec.zony.forEach((z, i) => {
@@ -1377,22 +1386,96 @@ function rangeSlider(value, { min, max }, onChange) {
 
 // ----- format popover -----
 
+// Media (named formats) are data in presets/media.json, loaded at runtime as
+// JSON — the ui never imports from presets/. Until they arrive the panel
+// shows Custom alone; an open panel fills up in place, a closed one builds
+// with them on open.
+let mediaSkupiny = null;
+let mediaHost = null; // the groups container of the format panel on screen
+let customZvolene = false; // Custom clicked: it stays lit even on a medium's values
+let custom1Pole = null; // the first editable field of Custom (the width)
+
+fetch(new URL('../presets/media.json', import.meta.url))
+  .then((r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  })
+  .then(({ skupiny }) => {
+    mediaSkupiny = Array.isArray(skupiny) ? skupiny : null;
+    if (mediaHost?.isConnected) nakresliMedia(mediaHost);
+  })
+  .catch((err) => {
+    console.warn('Médiá sa nepodarilo načítať, panel Formát ukáže len Custom.', err);
+  });
+
+// A medium is active when the format equals it in every field it sets.
+function jeAktivneMedium(medium) {
+  return !customZvolene && POLIA_FORMATU.every((k) => spec.format[k] === medium[k]);
+}
+
+function skupinaButtonov(nazov, buttony) {
+  const group = document.createElement('div');
+  group.className = 'media-group';
+  const cap = document.createElement('div');
+  cap.className = 'cap';
+  cap.textContent = nazov;
+  const presets = document.createElement('div');
+  presets.className = 'presets';
+  presets.append(...buttony);
+  group.append(cap, presets);
+  return group;
+}
+
+function buttonMedia(text, aktivny, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = text;
+  b.classList.toggle('aktivny', aktivny);
+  b.setAttribute('aria-pressed', String(aktivny));
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function nakresliMedia(host) {
+  host.replaceChildren();
+  let niektore = false;
+  for (const { nazov, media } of mediaSkupiny ?? []) {
+    const buttony = (media ?? []).map((medium) => {
+      const aktivny = jeAktivneMedium(medium);
+      niektore ||= aktivny;
+      // a click applies the whole format of the medium, okraj included
+      return buttonMedia(medium.nazov, aktivny, () => {
+        for (const k of POLIA_FORMATU) spec.format[k] = medium[k];
+        customZvolene = false;
+        closePopovers();
+        scheduleRender();
+      });
+    });
+    host.append(skupinaButtonov(nazov, buttony));
+  }
+  // Custom keeps the current values: the editable rows below the groups are it
+  host.append(skupinaButtonov('Custom', [buttonMedia('Custom', !niektore, () => {
+    customZvolene = true;
+    nakresliMedia(host);
+    custom1Pole?.focus();
+  })]));
+}
+
+// A typed format field: the value goes to the spec and the lit medium follows.
+function poleFormatu(k, attrs) {
+  return numberInput(spec.format[k], attrs, (v) => {
+    spec.format[k] = v;
+    if (mediaHost?.isConnected) nakresliMedia(mediaHost);
+  });
+}
+
 attachPopover($('#btn-format'), (pop) => {
   const f = spec.format, g = spec.grid;
 
-  const presets = document.createElement('div');
-  presets.className = 'presets';
-  for (const name of Object.keys(FORMAT_PRESETS)) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = name;
-    b.addEventListener('click', () => {
-      Object.assign(spec.format, FORMAT_PRESETS[name]);
-      closePopovers();
-      scheduleRender();
-    });
-    presets.append(b);
-  }
+  const media = document.createElement('div');
+  media.className = 'media';
+  mediaHost = media;
+  nakresliMedia(media);
 
   const h3a = document.createElement('h3');
   h3a.textContent = 'Formát';
@@ -1402,18 +1485,22 @@ attachPopover($('#btn-format'), (pop) => {
   const sizeWrap = document.createElement('div');
   sizeWrap.className = 'grow';
   sizeWrap.append(
-    numberInput(f.sirka, { min: 10, max: 20000, step: 1 }, (v) => { spec.format.sirka = v; }),
+    custom1Pole = poleFormatu('sirka', { min: 10, max: 20000, step: 1 }),
     Object.assign(document.createElement('span'), { textContent: '×' }),
-    numberInput(f.vyska, { min: 10, max: 20000, step: 1 }, (v) => { spec.format.vyska = v; }),
-    selectInput([['mm', 'mm'], ['px', 'px']], f.jednotka, (v) => { spec.format.jednotka = v; }),
+    poleFormatu('vyska', { min: 10, max: 20000, step: 1 }),
+    selectInput([['mm', 'mm'], ['px', 'px']], f.jednotka, (v) => {
+      spec.format.jednotka = v;
+      if (mediaHost?.isConnected) nakresliMedia(mediaHost);
+    }),
   );
 
   pop.replaceChildren(
     h3a,
-    row('Predvoľba', presets),
+    media,
     row('Rozmer', sizeWrap),
-    row('DPI', numberInput(f.dpi, { min: 18, max: 2400, step: 1 }, (v) => { spec.format.dpi = v; })),
-    row('Spadávka', numberInput(f.spadavka, { min: 0, max: 50, step: 1 }, (v) => { spec.format.spadavka = v; })),
+    row('DPI', poleFormatu('dpi', { min: 18, max: 2400, step: 1 })),
+    row('Spadávka', poleFormatu('spadavka', { min: 0, max: 50, step: 1 })),
+    row('Okraj', poleFormatu('okraj', { min: 0, max: 10000, step: 1 })),
     h3b,
     row('Grid', numberInput(g.stlpce, { min: 1, max: 100, step: 1 }, (v) => {
       const pomer = clamp(v, 1, 100) / spec.grid.stlpce;

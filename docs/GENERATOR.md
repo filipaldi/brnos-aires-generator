@@ -24,13 +24,20 @@ Jednotka **dielik** = šírka formátu / počet stĺpcov.
 
 ### Formát
 
-V rozhraní pod `420 × 594 mm · Grid 8 ▾`, spolu s mriežkou a predvoľbou.
+V rozhraní pod `420 × 594 mm · Grid 8 ▾`, spolu s mriežkou a médiami.
 
 | Parameter | Hodnoty | Poznámka |
 |---|---|---|
-| Šírka × výška | číslo + jednotka (mm / px) | Predvoľby A2, A3, IG, web sú len skratky |
-| DPI | číslo | Len pri mm, pre PNG |
-| Spadávka | mm | Technická, pre tlač. Na plátne je vždy jemne vyznačená. |
+| Šírka × výška | celé číslo + jednotka (mm / px) | Médiá sú len skratky, hodnoty sa dajú ďalej meniť |
+| DPI | celé číslo | Len pri mm, pre PNG |
+| Spadávka | celé číslo v jednotke formátu | Technická, pre tlač. Na plátne je vždy jemne vyznačená. |
+| Okraj | celé číslo v jednotke formátu, predvolene 0 | Vnútorný okraj média, za ktorý nejde obsah. Menší ako polovica kratšej strany. Na plátne bodkovaná vodiaca čiara od orezu dovnútra, v SVG tenká prerušovaná čiara ako pri spadávke. Starší spec bez okraja má okraj 0. |
+
+**Médiá** sú pevné formáty s názvom v `presets/media.json` (skupiny Tlač A, Tlač B, Ostatná tlač, Instagram, Facebook, LinkedIn, Web). Každé médium nesie `nazov`, `sirka`, `vyska`, `jednotka`, `dpi`, `spadavka` a `okraj`, všetko celé čísla. Tlač má 300 DPI a spadávku 3 mm (Billboard 50 DPI), digitál 72 DPI a spadávku 0. Nové médium je nová položka v JSON, žiadny kód.
+
+V paneli Formát sú médiá tlačidlá pod malými nadpismi skupín. Klik nastaví celý formát média (aj okraj) a prekreslí list. Posledná skupina je **Custom**: ponechá aktuálne hodnoty, ktoré sa menia v riadkoch Rozmer, DPI, Spadávka a Okraj pod tlačidlami. Rozsvietené je médium, ktorému formát presne zodpovedá, inak Custom. Rozhranie načítava `presets/media.json` za behu ako dáta; vlastný formát sa ukladá v prehliadači s celým stavom.
+
+V CLI `node cli.js kompozicia --spec <súbor.json> --format "<médium>" --out <súbor.svg>` prepíše formát specu médiom podľa názvu (napr. `A3` alebo `IG story / reels`); neznámy názov vypíše zoznam médií.
 
 ### Mriežka
 
@@ -142,7 +149,7 @@ Fotková zóna:
 | Súbor | SVG / PNG / AVIF | |
 | Text | upraviteľný / krivky | Len SVG |
 
-SVG má vrstvy `pattern`, `text`, `fotky`, `spadavka`.
+SVG má vrstvy `pattern`, `text`, `fotky`, `spadavka` a pri nenulovom okraji `okraj`.
 
 ### Technická poistka
 
@@ -261,6 +268,7 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
 - **Typografické funkcie** (tlačidlo s ligatúrou fi) otvoria popover so zaškrtávacími prepínačmi funkcií aktuálneho písma; klik prepína a list aj editor sa prekreslia hneď. Zmena písma zachová spoločné tagy a zvyšok nastaví na predvolené hodnoty nového písma.
 - **Čiary gridu** sa ukážu samy, keď ťaháš zónu. Inak sú skryté, prepínač netreba.
 - **Spadávka** je vždy jemne vyznačená.
+- **Okraj** formátu je vyznačený bodkovanou čiarou, keď je väčší ako 0.
 
 ### Klik a klávesy
 
