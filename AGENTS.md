@@ -7,7 +7,7 @@ Generator of graphics from the Brnos Aires typeface components (shapes, composit
 - No AI attribution anywhere: no Co-Authored-By, session links or "Generated with" lines in commits, PRs or code.
 - The only author of a commit is a real person, who has the final word. Agents (Claude, GLM or any other) never appear as author or committer; commit as the repository's configured human identity.
 - Enforced by `.githooks/commit-msg`, `scripts/bez-ai-podpisu.sh` and the `bez-ai-podpisu` workflow (commit messages, PR titles and descriptions); the hook activates with `git config core.hooksPath .githooks` (also run by `npm install` and `npm test`).
-- Zero dependencies. Node 22, ES modules. The core (`core/`) must stay browser-safe (no Node APIs).
+- Zero dependencies. Node 22, ES modules. What the core may touch at runtime is stated in [ARCHITECTURE.md](ARCHITECTURE.md#invariants).
 - Run `npm test` before every commit; tests must pass.
 - All numeric inputs are integers (no decimals) in the UI.
 - Everything works by click. Standard keys on the selected zone (Delete/Backspace, Cmd/Ctrl+C, V, D, Escape) are allowed as an addition, never as the only way.
@@ -17,4 +17,10 @@ Generator of graphics from the Brnos Aires typeface components (shapes, composit
 
 ## Layout
 
-- `core/` shapes, primitives, compositions; `cli.js` CLI; `ui/` browser UI (`node ui/serve.js`, http://localhost:41235/ui/); `docs/GENERATOR.md` design notes.
+- The target layout (layers, their paths and what each holds) is in [ARCHITECTURE.md](ARCHITECTURE.md#layers).
+- Browser UI: `node ui/serve.js`, http://localhost:41235/ui/. Design notes: `docs/GENERATOR.md`.
+
+## Architecture
+
+- Layers, dependencies and invariants: [ARCHITECTURE.md](ARCHITECTURE.md#enforcement).
+- Architect modes: `design: democrat` (the existing tree may contest a draft, but only with evidence from outside the tree).
