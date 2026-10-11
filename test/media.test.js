@@ -1,9 +1,10 @@
 // Médiá (presets/media.json) a okraj mriežky: tvar dát médií, celé čísla,
 // skupiny podľa issue, validácia okraja (v dielikoch) v jadre aj v náhradnom
-// engine a jeho vodiaca čiara v SVG.
+// engine, jeho vodiaca čiara v SVG a to, že vzor aj zóny ostávajú vnútri neho.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -12,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { komponuj, normalizujSpec } from '../core/kompozicia/index.js';
-import { normalizujSpec as normalizujSpecStub } from '../ui/stub.js';
+import { komponuj as komponujStub, normalizujSpec as normalizujSpecStub } from '../ui/stub.js';
 import { ValidationError } from '../core/errors.js';
 
 const exec = promisify(execFile);
@@ -24,6 +25,8 @@ const MEDIA = JSON.parse(readFileSync(new URL('../presets/media.json', import.me
 const SKUPINY = ['Tlač A', 'Tlač B', 'Ostatná tlač', 'Instagram', 'Facebook', 'LinkedIn', 'Web'];
 const POLIA = ['nazov', 'sirka', 'vyska', 'jednotka', 'dpi', 'spadavka'];
 const CELE_CISLA = ['sirka', 'vyska', 'dpi', 'spadavka'];
+
+const EPS = 1e-6;
 
 const vsetkyMedia = () => MEDIA.skupiny.flatMap((s) => s.media);
 
@@ -148,7 +151,82 @@ test('vodiaca čiara okraja je v SVG len pri nenulovom okraji, na čiarach gridu
   // 2 dieliky in from the left, top and right and from the last whole row
   const s = komponuj({ ...zaklad, grid: { okraj: 2 } }).svg;
   assert.match(s, /<g id="okraj"><rect x="2" y="2" width="26" height="38"/);
-  assert.equal(s.replace(/<g id="okraj">.*<\/g>\n/, ''), bez, 'okraj nemení nič iné');
+});
+
+// SHA-256 of the SVG the composition wrote before the margin moved the
+// pattern: a grid without a margin must keep producing it byte for byte
+// (retuning the pattern itself changes these digests on purpose)
+const PRED_OKRAJOM = [
+  [{ variant: 'okraj', zony: [] },
+    '4a08ea1e34bcd974cf782f4a710992829c81c1fcfcf6abf2cd8670b267552031'],
+  [{
+    variant: '7',
+    format: { sirka: 210, vyska: 297, jednotka: 'mm', dpi: 300, spadavka: 3 },
+    grid: { stlpce: 30, okraj: 0 },
+    zony: [{ typ: 'prazdna', x: 0, y: 0, w: 6, h: 4 }],
+  }, 'e9605fd459cc85f2dc5ba6a7a25a1d080f4a1b693581ed4cc60cd6aace268c56'],
+];
+
+test('okraj 0 nechá list bajt po bajte taký, aký bol pred okrajom', () => {
+  for (const [spec, digest] of PRED_OKRAJOM) {
+    assert.equal(createHash('sha256').update(komponuj(spec).svg).digest('hex'), digest, spec.variant);
+  }
+});
+
+// A4 at 30 columns: 42.42… dieliky high, 42 whole rows
+const A4 = { sirka: 210, vyska: 297, jednotka: 'mm', dpi: 300, spadavka: 3 };
+
+test('okraj posúva vzor: každý tvar leží vnútri vodiacej čiary okraja', () => {
+  const ok = 3;
+  for (const zvysok of ['okraje', 'natiahnutie', 'orez']) {
+    for (const variant of ['1', '2', 'okraj']) {
+      const spec = { variant, format: A4, grid: { stlpce: 30, zvysok, okraj: ok }, zony: [] };
+      const { tvary, svg } = komponuj(spec);
+      assert.ok(tvary.length > 0, `${zvysok}/${variant}: žiadny tvar`);
+      for (const t of tvary) {
+        const b = t.bbox;
+        const kde = `${zvysok}/${variant} ${t.typ} ${JSON.stringify(b)}`;
+        assert.ok(b.x >= ok - EPS && b.y >= ok - EPS, `${kde} zasahuje do okraja vľavo alebo hore`);
+        assert.ok(b.x + b.w <= 30 - ok + EPS, `${kde} zasahuje do okraja vpravo`);
+        assert.ok(b.y + b.h <= 42 - ok + EPS, `${kde} zasahuje pod vodiacu čiaru`);
+      }
+      // deterministic for the same spec, and a different sheet than without the margin
+      assert.equal(komponuj(spec).svg, svg);
+      const bez = komponuj({ ...spec, grid: { stlpce: 30, zvysok, okraj: 0 } });
+      assert.notEqual(bez.svg.replace(/<g id="okraj">.*\n/, ''), svg.replace(/<g id="okraj">.*\n/, ''));
+    }
+  }
+});
+
+test('náhradný engine kladie vzor tiež len vnútri okraja', () => {
+  const ok = 3;
+  const { tvary } = komponujStub({ variant: '5', format: A4, grid: { stlpce: 30, okraj: ok } });
+  assert.ok(tvary.length > 0);
+  for (const { bbox: b } of tvary) {
+    assert.ok(b.x >= ok - EPS && b.y >= ok - EPS && b.x + b.w <= 30 - ok + EPS && b.y + b.h <= 42 - ok + EPS,
+      JSON.stringify(b));
+  }
+});
+
+test('zóna musí ležať vnútri okraja gridu, v jadre aj v náhradnom engine', () => {
+  const grid = { stlpce: 30, okraj: 3 };
+  const zona = (r) => ({ format: A4, grid, zony: [{ typ: 'prazdna', okraj: 0, ...r }] });
+  // exactly on the guide is inside
+  assert.doesNotThrow(() => normalizujSpec(zona({ x: 3, y: 3, w: 24, h: 36 })));
+  assert.doesNotThrow(() => normalizujSpecStub(zona({ x: 3, y: 3, w: 24, h: 36 })));
+  for (const r of [
+    { x: 2, y: 3, w: 4, h: 4 }, { x: 3, y: 2, w: 4, h: 4 },
+    { x: 24, y: 3, w: 4, h: 4 }, { x: 3, y: 36, w: 4, h: 4 },
+  ]) {
+    assert.throws(() => normalizujSpec(zona(r)), (e) => {
+      assert.ok(e instanceof ValidationError);
+      assert.match(e.message, /zóna 1 zasahuje do okraja gridu/);
+      return true;
+    }, JSON.stringify(r));
+    assert.throws(() => normalizujSpecStub(zona(r)), /zasahuje do okraja gridu/, JSON.stringify(r));
+  }
+  // without a margin the same zone at the edge stays valid
+  assert.doesNotThrow(() => normalizujSpec({ format: A4, grid: { stlpce: 30 }, zony: [{ typ: 'prazdna', x: 0, y: 0, w: 4, h: 4 }] }));
 });
 
 test('CLI --format nastaví formát podľa názvu média, neznáme médium je chyba', async () => {

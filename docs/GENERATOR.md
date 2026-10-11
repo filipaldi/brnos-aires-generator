@@ -44,7 +44,7 @@ V CLI `node cli.js kompozicia --spec <súbor.json> --format "<médium>" --out <s
 |---|---|---|
 | Grid (N stĺpcov) | celé číslo | Dielik = šírka / N, štvorcový |
 | Zvyšok výšky | okraje / natiahnutie / presah a orez | Keď výška nie je násobkom dielika. Volí sa podľa potreby. |
-| Okraj | celé číslo v dielikoch, predvolene 0 | Vnútorný okraj, za ktorý nejde obsah, ako súčasť gridu (`grid.okraj`). Dvojnásobok okraja musí byť menší ako počet stĺpcov aj počet celých riadkov; menší grid okraj zmenší na najväčší možný. Leží na čiarach gridu: okraj dielikov od ľavého, horného a pravého okraja orezu a od poslednej celej čiary riadkov. Na plátne bodkovaná vodiaca čiara, v SVG tenká prerušovaná čiara ako pri spadávke. Médium okraj nemení. Starší spec bez okraja má okraj 0; `format.okraj` z predošlej verzie rozhranie pri načítaní zahodí. |
+| Okraj | celé číslo v dielikoch, predvolene 0 | Vnútorný okraj ako súčasť gridu (`grid.okraj`): plocha pri okrajoch listu, do ktorej nejde grafika ani zóny. Vzor sa pri okraji väčšom ako 0 kladie len vnútri vodiacej čiary (pri okraji 0 ide ako doteraz po hranu orezu, list je bajt po bajte rovnaký) a zóny musia ležať vnútri nej, inak jadro spec odmietne. Rozhranie zóny pri ťahaní, zmene veľkosti, vkladaní aj pri zväčšení okraja či zmenšení formátu zatlačí dovnútra, v prípade potreby ich zmenší. Dvojnásobok okraja musí byť menší ako počet stĺpcov aj počet celých riadkov; menší grid okraj zmenší na najväčší možný. Leží na čiarach gridu: okraj dielikov od ľavého, horného a pravého okraja orezu a od poslednej celej čiary riadkov. Na plátne bodkovaná vodiaca čiara, v SVG tenká prerušovaná čiara ako pri spadávke. Médium okraj nemení. Starší spec bez okraja má okraj 0; `format.okraj` z predošlej verzie rozhranie pri načítaní zahodí. |
 
 ### Kresba
 
@@ -87,7 +87,7 @@ Spoločné pre každú zónu:
 | Parameter | Hodnoty | Poznámka |
 |---|---|---|
 | Typ | text / fotka | Určí sa obsahom: začneš písať = text, pretiahneš fotku = fotka |
-| Poloha a veľkosť | v dielikoch | Prichytené na mriežku |
+| Poloha a veľkosť | v dielikoch | Prichytené na mriežku, vnútri okraja gridu |
 | Okraj | celé číslo −20 až 20 (dieliky) | Pri textovej zóne s textom a obtekaní písmen je okraj vzdialenosť od písmen, nie od rámika (viď Obtekanie nižšie). Kladný = N dielikov voľna od písmen, 0 = tesne k písmenám, záporný = tvary smú zasiahnuť do písmen až \|N\| dielikov; písmeno, ktoré tým zanikne, sa pre vzor ignoruje. Pri zóne bez textu (a pri obtekaní rámika) platí rámik: kladný = okolo zóny ostane N dielikov voľna, 0 = tvary idú tesne k hrane zóny, dovnútra nie, záporný = tvary smú zasiahnuť do zóny až \|N\| dielikov od hrany; zóna, ktorá tým zanikne, sa pre vzor ignoruje. |
 
 Textová zóna:

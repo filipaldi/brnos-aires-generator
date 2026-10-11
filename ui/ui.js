@@ -106,18 +106,29 @@ function scheduleRender() {
   renderTimer = setTimeout(render, 50);
 }
 
-// Keeps every zone inside the format (a smaller format or grid would leave
-// it hanging over the edge, which the engine rejects).
-function vmestiZony() {
+// The grid lines a zone edge may sit on: the format's columns and whole
+// rows, or, with a margin (grid.okraj), only those inside its guide — okraj
+// whole dieliky in from the left, top and right edge and from the last whole
+// row. Zones stay out of the margin like the pattern does.
+function oblastZon() {
   const f = spec.format, cols = spec.grid.stlpce;
   const rows = Math.max(1, Math.floor((f.vyska * cols) / f.sirka + 1e-6));
-  // the margin likewise: a medium with fewer rows must not leave it too wide
+  const ok = spec.grid.okraj ?? 0;
+  return { x0: ok, y0: ok, x1: cols - ok, y1: rows - ok };
+}
+
+// Keeps every zone inside the format and its margin (a smaller format or
+// grid, or a wider margin, would leave it hanging over the edge, which the
+// engine rejects): a zone is shrunk to fit and pushed inside.
+function vmestiZony() {
+  // the margin first: a medium with fewer rows must not leave it too wide
   spec.grid.okraj = clamp(spec.grid.okraj ?? 0, 0, maxOkraj());
+  const o = oblastZon();
   for (const z of spec.zony) {
-    z.w = clamp(z.w, 1, cols);
-    z.h = clamp(z.h, 1, rows);
-    z.x = clamp(z.x, 0, cols - z.w);
-    z.y = clamp(z.y, 0, rows - z.h);
+    z.w = clamp(z.w, 1, o.x1 - o.x0);
+    z.h = clamp(z.h, 1, o.y1 - o.y0);
+    z.x = clamp(z.x, o.x0, o.x1 - z.w);
+    z.y = clamp(z.y, o.y0, o.y1 - z.h);
   }
 }
 
@@ -197,19 +208,14 @@ function zoneRectPx(z) {
 
 // The one snapping rule of the canvas: every zone edge lies on a grid line,
 // the one nearest to the cursor (the threshold sits in the middle of a cell).
-// `max` is the last line — the column count, or the floor of the sheet height.
-function naCiaru(v, max) {
-  return clamp(Math.round(v), 0, max);
+// `min` and `max` are the first and last line a zone may use (oblastZon).
+function naCiaru(v, max, min = 0) {
+  return clamp(Math.round(v), min, max);
 }
 
 // The height need not divide into whole rows; the last whole line counts.
 function maxRiadok() {
   return Math.floor(view.rowsD);
-}
-
-// The bottom-most top edge of a zone h dieliks tall.
-function maxCellY(h) {
-  return Math.max(0, maxRiadok() - h);
 }
 
 
@@ -706,13 +712,12 @@ function duplicateZone() {
 // inside the format (whole dieliks); it is selected, drawn and saved exactly
 // like a zone dragged out on the canvas.
 function pasteZone(vzor) {
-  const f = spec.format, g = spec.grid;
-  const rows = Math.max(1, Math.floor((f.vyska * g.stlpce) / f.sirka + 1e-6));
+  const o = oblastZon();
   const z = structuredClone(vzor);
-  z.w = clamp(Math.round(z.w), 1, g.stlpce);
-  z.h = clamp(Math.round(z.h), 1, rows);
-  z.x = clamp(Math.round(z.x) + 1, 0, g.stlpce - z.w);
-  z.y = clamp(Math.round(z.y) + 1, 0, rows - z.h);
+  z.w = clamp(Math.round(z.w), 1, o.x1 - o.x0);
+  z.h = clamp(Math.round(z.h), 1, o.y1 - o.y0);
+  z.x = clamp(Math.round(z.x) + 1, o.x0, o.x1 - z.w);
+  z.y = clamp(Math.round(z.y) + 1, o.y0, o.y1 - z.h);
   spec.zony.push(z);
   selected = spec.zony.length - 1;
   photoPan = false;
@@ -805,17 +810,19 @@ overlay.addEventListener('pointermove', (e) => {
   if (dragging.kind === 'move') {
     dragging.moved = true;
     // the top-left corner snaps to the line nearest to (cursor − grab)
-    z.x = naCiaru(pos.x - dragging.grabX, view.cols - z.w);
-    z.y = naCiaru(pos.y - dragging.grabY, maxCellY(z.h));
+    const o = oblastZon();
+    z.x = naCiaru(pos.x - dragging.grabX, o.x1 - z.w, o.x0);
+    z.y = naCiaru(pos.y - dragging.grabY, o.y1 - z.h, o.y0);
   } else if (dragging.kind === 'resize') {
     // the dragged edge snaps to the nearest line, the opposite one stays put
+    const o = oblastZon();
     const l = { x: z.x, y: z.y };
     const r = { x: z.x + z.w, y: z.y + z.h };
     const c = dragging.corner;
-    if (c.includes('l')) l.x = naCiaru(pos.x, r.x - 1);
-    if (c.includes('r')) r.x = Math.max(l.x + 1, naCiaru(pos.x, view.cols));
-    if (c.includes('t')) l.y = naCiaru(pos.y, r.y - 1);
-    if (c.includes('b')) r.y = Math.max(l.y + 1, naCiaru(pos.y, maxRiadok()));
+    if (c.includes('l')) l.x = naCiaru(pos.x, r.x - 1, o.x0);
+    if (c.includes('r')) r.x = Math.max(l.x + 1, naCiaru(pos.x, o.x1, o.x0));
+    if (c.includes('t')) l.y = naCiaru(pos.y, r.y - 1, o.y0);
+    if (c.includes('b')) r.y = Math.max(l.y + 1, naCiaru(pos.y, o.y1, o.y0));
     z.x = l.x; z.y = l.y; z.w = r.x - l.x; z.h = r.y - l.y;
     if (editorOpen) positionEditor();
   } else if (dragging.kind === 'photo-pan') {
@@ -834,24 +841,26 @@ overlay.addEventListener('pointermove', (e) => {
 // nearest to its point (the press, the cursor), so the drag works in every
 // direction. An axis whose corners share a line grows by one dielik towards
 // the drag; with no movement at all the rect stays empty and a plain click
-// keeps only deselecting, as before. Everything is clamped into the format.
+// keeps only deselecting, as before. Everything is clamped into the format
+// and its margin.
 function rectZTvorania(press, pos) {
-  const a = { x: naCiaru(press.x, view.cols), y: naCiaru(press.y, maxRiadok()) };
-  const b = { x: naCiaru(pos.x, view.cols), y: naCiaru(pos.y, maxRiadok()) };
+  const o = oblastZon();
+  const a = { x: naCiaru(press.x, o.x1, o.x0), y: naCiaru(press.y, o.y1, o.y0) };
+  const b = { x: naCiaru(pos.x, o.x1, o.x0), y: naCiaru(pos.y, o.y1, o.y0) };
   const rect = {
     x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
     w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y),
   };
   if (!rect.w && pos.x !== press.x) {
-    rect.x = pos.x < press.x ? Math.max(0, a.x - 1) : a.x;
+    rect.x = pos.x < press.x ? Math.max(o.x0, a.x - 1) : a.x;
     rect.w = 1;
   }
   if (!rect.h && pos.y !== press.y) {
-    rect.y = pos.y < press.y ? Math.max(0, a.y - 1) : a.y;
+    rect.y = pos.y < press.y ? Math.max(o.y0, a.y - 1) : a.y;
     rect.h = 1;
   }
-  rect.w = Math.min(rect.w, view.cols - rect.x);
-  rect.h = Math.min(rect.h, maxRiadok() - rect.y);
+  rect.w = Math.min(rect.w, o.x1 - rect.x);
+  rect.h = Math.min(rect.h, o.y1 - rect.y);
   return rect;
 }
 
@@ -966,14 +975,15 @@ overlay.addEventListener('drop', async (e) => {
       Object.assign(z, { typ: 'fotka', zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1 });
       selected = hit;
     } else {
-      // a 4 × 3 frame centred on the cursor, edges on the nearest lines
-      const rows = Math.max(1, maxRiadok());
-      const w = Math.min(4, view.cols);
-      const h = Math.min(3, rows);
+      // a 4 × 3 frame centred on the cursor, edges on the nearest lines,
+      // inside the margin
+      const o = oblastZon();
+      const w = Math.min(4, o.x1 - o.x0);
+      const h = Math.min(3, Math.max(1, o.y1 - o.y0));
       spec.zony.push({
         typ: 'fotka',
-        x: naCiaru(pos.x - w / 2, view.cols - w),
-        y: naCiaru(pos.y - h / 2, rows - h),
+        x: naCiaru(pos.x - w / 2, o.x1 - w, o.x0),
+        y: naCiaru(pos.y - h / 2, o.y1 - h, o.y0),
         w, h, okraj: 0,
         zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1,
       });
@@ -1545,8 +1555,11 @@ const formatPopover = attachPopover($('#btn-format'), (pop) => {
 
   // the margin in whole dieliky of the grid, at most what leaves a column
   // and a whole row inside
+  // a wider margin pushes the zones inside it at once
   const okrajPole = numberInput(g.okraj, { min: 0, max: maxOkraj(), step: 1 }, (v) => {
     spec.grid.okraj = clamp(v, 0, maxOkraj());
+    vmestiZony();
+    drawOverlay();
   });
 
   const sizeWrap = document.createElement('div');

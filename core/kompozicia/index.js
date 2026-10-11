@@ -300,6 +300,21 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
   return zona;
 }
 
+// A zone stays inside the grid's margin like the pattern does: okraj whole
+// dieliky in from the left, top and right edge and from the last whole row.
+// A grid without a margin leaves the format's own bounds above.
+function zonaVOkraji(zona, index, format, grid) {
+  const ok = grid.okraj;
+  if (ok <= 0) return;
+  const name = `zóna ${index + 1}`;
+  const x1 = grid.stlpce - ok;
+  const y1 = celeRiadky(format, grid) - ok;
+  if (zona.x < ok - 1e-6 || zona.y < ok - 1e-6 || zona.x + zona.w > x1 + 1e-6 || zona.y + zona.h > y1 + 1e-6) {
+    throw new ValidationError(
+      `${name} zasahuje do okraja gridu (${ok} dielikov): musí ležať v stĺpcoch ${ok}–${x1} a riadkoch ${ok}–${y1}.`);
+  }
+}
+
 // --- public API -------------------------------------------------------------
 
 export function normalizujSpec(input) {
@@ -329,6 +344,7 @@ export function normalizujSpec(input) {
     throw new ValidationError('zony musí byť pole zón.');
   }
   spec.zony = zony.map((z, i) => normalizujZonu(z ?? {}, i, spec.grid.stlpce, vyskaD));
+  spec.zony.forEach((z, i) => zonaVOkraji(z, i, spec.format, spec.grid));
   return spec;
 }
 
@@ -359,6 +375,18 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
     bandY = (vyskaD - rows) / 2;
   } else if (grid.zvysok === 'orez') {
     bandH = Math.ceil(vyskaD - 1e-9); // the partial row is filled and cropped by the viewBox
+  }
+  // The margin (grid.okraj) keeps the pattern off the edges: shapes stay
+  // inside its guide, okraj whole dieliky in from the trimmed format's left,
+  // top and right edge and from the last whole row, whatever the leftover
+  // height does. A grid without a margin keeps the band above.
+  let bandX = 0;
+  let bandW = grid.stlpce;
+  if (grid.okraj > 0) {
+    bandX = grid.okraj;
+    bandW = grid.stlpce - 2 * grid.okraj;
+    bandY = grid.okraj;
+    bandH = riadkyD - 2 * grid.okraj;
   }
 
   const axes = computeAxes(kresba.weight, kresba.contrast, loadProporcie(), kresba.zaoblenie);
@@ -426,6 +454,8 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
     vahyTvaru: KOMP.vahyTvaru,
     velkosti: komp.velkosti,
     stlpce: grid.stlpce,
+    bandX,
+    bandW,
     bandY,
     bandH,
     zony: zonyVzor,

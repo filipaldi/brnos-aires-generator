@@ -198,6 +198,17 @@ export function normalizujSpec(input) {
       }
       return base;
     });
+    // zones stay inside the grid's margin, as in the core
+    if (g.okraj > 0) {
+      const x1 = g.stlpce - g.okraj;
+      const y1 = riadky - g.okraj;
+      out.zony.forEach((z, i) => {
+        if (z.x < g.okraj || z.y < g.okraj || z.x + z.w > x1 || z.y + z.h > y1) {
+          throw new ValidationError(
+            `Zóna č. ${i + 1} zasahuje do okraja gridu (${g.okraj} dielikov): musí ležať v stĺpcoch ${g.okraj}–${x1} a riadkoch ${g.okraj}–${y1}.`);
+        }
+      });
+    }
   }
   return out;
 }
@@ -265,7 +276,10 @@ function zoneBlockers(zony) {
 
 function placeShapes(spec, geom, rng, axes) {
   const c = spec.kompozicia;
-  const { W, H } = geom;
+  // the pattern's band: the whole format, or the inside of the grid's margin
+  // (okraj whole dieliky in from the left, top and right edge and from the
+  // last whole row), as in the core
+  const { X0, Y0, W, H } = geom.pas;
   const blockers = zoneBlockers(spec.zony);
   const placed = [];
   const avg = (c.velkost[0] + c.velkost[1]) / 2;
@@ -287,8 +301,8 @@ function placeShapes(spec, geom, rng, axes) {
     const h = shape.bbox.h * s;
     let rect = null;
     for (let attempt = 0; attempt < 120; attempt++) {
-      const x = rng() * (W - w);
-      const y = rng() * (H - h);
+      const x = X0 + rng() * (W - w);
+      const y = Y0 + rng() * (H - h);
       const candidate = { x, y, w, h };
       if (blockers.some((b) => rectsIntersect(candidate, b, 0.05))) continue;
       if (placed.some((p) => rectsIntersect(candidate, p.rect, 0.12))) continue;
@@ -397,7 +411,12 @@ export function komponuj(spec, { fontUrls = {} } = {}) {
   const W = g.stlpce;
   const H = f.vyska / dielikUnits;
   const b = f.spadavka / dielikUnits; // bleed in dieliks
-  const geom = { W, H, b, dielikUnits, axes };
+  const ok = g.okraj;
+  const riadky = Math.floor((f.vyska * g.stlpce) / f.sirka + 1e-6);
+  const pas = ok > 0
+    ? { X0: ok, Y0: ok, W: W - 2 * ok, H: riadky - 2 * ok }
+    : { X0: 0, Y0: 0, W, H };
+  const geom = { W, H, b, dielikUnits, axes, pas };
 
   const rng = mulberry32(hashString(spec.variant));
   const placed = placeShapes(spec, geom, rng, axes);
