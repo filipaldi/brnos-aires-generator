@@ -1,0 +1,119 @@
+{
+  "nazov": "Milonga IG",
+  "medium": {
+    "skupina": "Instagram",
+    "nazov": "IG post na výšku 4:5"
+  },
+  "spec": {
+    "format": {
+      "sirka": 1080,
+      "vyska": 1350,
+      "jednotka": "px",
+      "dpi": 72,
+      "spadavka": 0
+    },
+    "grid": {
+      "stlpce": 20,
+      "zvysok": "okraje",
+      "okraj": 1
+    },
+    "variant": "7",
+    "zony": [
+      {
+        "typ": "text",
+        "okraj": 0,
+        "text": "MILONGA",
+        "pismo": "Nunito",
+        "riadok": 3,
+        "velkost": 90,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 2,
+        "y": 2,
+        "w": 10,
+        "h": 4,
+        "hrubka": 400,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        }
+      },
+      {
+        "typ": "fotka",
+        "okraj": 2,
+        "rezim": "maska",
+        "posun": [
+          0.25,
+          -0.5
+        ],
+        "zoom": 1.5,
+        "x": 2,
+        "y": 8,
+        "w": 8,
+        "h": 6
+      }
+    ],
+    "kresba": {
+      "weight": 20,
+      "contrast": 70,
+      "zaoblenie": 30
+    },
+    "kompozicia": {
+      "velkosti": {
+        "noha": [
+          1,
+          6
+        ],
+        "stvrtoblouk": [
+          1,
+          6
+        ],
+        "polkruh": [
+          1,
+          6
+        ],
+        "stvrtkruh": [
+          1,
+          6
+        ],
+        "kvapka": [
+          1,
+          2
+        ],
+        "kruh": [
+          1,
+          1
+        ]
+      },
+      "pomery": {
+        "noha": 30,
+        "polkruh": 20,
+        "stvrtkruh": 20,
+        "kvapka": 15,
+        "kruh": 15
+      },
+      "rozmiestnenie": "volne",
+      "retazenieDlzka": [
+        5,
+        20
+      ],
+      "typy": [
+        "noha",
+        "polkruh",
+        "stvrtkruh",
+        "kvapka",
+        "kruh"
+      ]
+    },
+    "inverzia": false
+  }
+}

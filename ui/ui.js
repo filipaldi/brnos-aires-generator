@@ -11,6 +11,9 @@ import {
 import { maxVelkost } from '../core/kompozicia/velkost.js';
 import { createViewer } from './viewer.js';
 import {
+  sablonaJson, suboryIndexu, citajSablonu, zhodujeSaSoSablonou,
+} from './state/sablony.js';
+import {
   exportSvgFile, exportPngFile, exportAvifFile, avifSupported,
   rasterDimensions, fontUrlsAbsolute,
 } from './export.js';
@@ -58,19 +61,23 @@ const zoneBar = $('#zone-bar');
   document.head.append(style);
 }
 
+// A spec saved earlier (the state, a template) made current: settings the
+// generator dropped are removed, then the engine validates and normalises
+// it. Throws the engine's error when the spec is not valid.
+function pripravSpec(saved) {
+  // types and settings dropped from the set (koleno, bod, retazenie,
+  // rozlozenie) must not discard the saved state
+  if (saved?.kompozicia) zahodZastarane(saved.kompozicia);
+  // the margin moved from the format (its unit) to the grid (dieliky):
+  // a format.okraj saved by the earlier preview is dropped, not converted
+  if (saved?.format && typeof saved.format === 'object') delete saved.format.okraj;
+  return engine.normalizujSpec(saved);
+}
+
 function loadSpec() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) {
-      const saved = JSON.parse(raw);
-      // types and settings dropped from the set (koleno, bod, retazenie,
-      // rozlozenie) must not discard the saved state
-      if (saved?.kompozicia) zahodZastarane(saved.kompozicia);
-      // the margin moved from the format (its unit) to the grid (dieliky):
-      // a format.okraj saved by the earlier preview is dropped, not converted
-      if (saved?.format && typeof saved.format === 'object') delete saved.format.okraj;
-      return engine.normalizujSpec(saved);
-    }
+    if (raw) return pripravSpec(JSON.parse(raw));
   } catch (err) {
     console.warn('Uložený stav sa nepodarilo načítať, začínam odznova.', err);
   }
@@ -260,6 +267,7 @@ function drawOverlay() {
       hint.textContent = 'Dvojklik pre text alebo pretiahni fotku';
       div.append(hint);
     }
+    if (z.typ === 'fotka' && !z.zdroj) div.append(nahradaFotky());
     if (i === selected) {
       for (const corner of ['tl', 'tr', 'bl', 'br']) {
         const handle = document.createElement('div');
@@ -273,6 +281,24 @@ function drawOverlay() {
 
   drawZoneBar();
   positionEditor();
+}
+
+// A photo zone without its photo (a loaded template keeps no photos): a
+// placeholder drawn here, a grey wash with a diagonal cross and the word
+// Fotka, until a photo is dropped in. It lives in the overlay only, so the
+// exported files keep what the core writes for such a zone (a plain light
+// grey rectangle). Translucent: in maska and prekrytie the pattern shows.
+function nahradaFotky() {
+  const wrap = document.createElement('div');
+  wrap.className = 'foto-nahrada';
+  wrap.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">'
+    + '<path d="M0 0L100 100M100 0L0 100" vector-effect="non-scaling-stroke"/></svg>';
+  const popis = document.createElement('span');
+  popis.className = 'hint';
+  popis.textContent = 'Fotka';
+  popis.title = 'Pretiahni sem fotku';
+  wrap.append(popis);
+  return wrap;
 }
 
 function styleRect(r) {
@@ -972,7 +998,13 @@ overlay.addEventListener('drop', async (e) => {
     const zdroj = await readImageFile(file);
     if (hit >= 0) {
       const z = spec.zony[hit];
-      Object.assign(z, { typ: 'fotka', zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1 });
+      if (z.typ === 'fotka' && !z.zdroj) {
+        // the placeholder of a template: the photo takes the zone's own
+        // rezim, posun and zoom, saved with the template
+        z.zdroj = zdroj;
+      } else {
+        Object.assign(z, { typ: 'fotka', zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1 });
+      }
       selected = hit;
     } else {
       // a 4 × 3 frame centred on the cursor, edges on the nearest lines,
@@ -1464,15 +1496,18 @@ function sediMedium(medium) {
 // The one lit medium: the clicked one while the format fits it, otherwise
 // the first fitting one in list order; none (Custom) when nothing fits or
 // Custom was clicked.
-function aktivneMedium() {
+// The lit one with its group ({ skupina, medium }), or null.
+function aktivnaPolozkaMedia() {
   if (customZvolene) return null;
   const vsetky = (mediaSkupiny ?? []).flatMap(({ nazov: skupina, media }) =>
     (media ?? []).map((medium) => ({ skupina, medium })));
   const zvolene = zvoleneMedium && vsetky.find(({ skupina, medium }) =>
     skupina === zvoleneMedium.skupina && medium.nazov === zvoleneMedium.nazov);
-  if (zvolene && sediMedium(zvolene.medium)) return zvolene.medium;
-  return vsetky.find(({ medium }) => sediMedium(medium))?.medium ?? null;
+  if (zvolene && sediMedium(zvolene.medium)) return zvolene;
+  return vsetky.find(({ medium }) => sediMedium(medium)) ?? null;
 }
+
+const aktivneMedium = () => aktivnaPolozkaMedia()?.medium ?? null;
 
 function skupinaButtonov(nazov, buttony) {
   const group = document.createElement('div');
@@ -1601,6 +1636,93 @@ const formatPopover = attachPopover($('#btn-format'), (pop) => {
       [['okraje', 'okraje'], ['natiahnutie', 'natiahnutie'], ['orez', 'presah a orez']],
       g.zvysok, (v) => { spec.grid.zvysok = v; })),
   );
+});
+
+// ----- šablóny popover -----
+
+// Templates are files in the repository (presets/sablony/<slug>.json, in the
+// order of presets/sablony/index.json), loaded at runtime as JSON like the
+// media — the ui never imports from presets/. A file that is missing or
+// unreadable is skipped. The rules (no photos, the file's shape, the match
+// with the spec) live in ui/state/sablony.js; this is the panel: the list,
+// and a click loads the template.
+let sablony = null; // [{ subor, nazov, medium, spec }] once loaded
+// the template loaded last and the spec it gave: it stays lit while the spec
+// still equals it
+let poslednaSablona = null;
+
+const SABLONY_URL = new URL('../presets/sablony/', import.meta.url);
+
+async function nacitajJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+nacitajJson(new URL('index.json', SABLONY_URL))
+  .then((index) => Promise.all(suboryIndexu(index).map((subor) =>
+    nacitajJson(new URL(subor, SABLONY_URL))
+      .then((data) => {
+        const s = citajSablonu(data);
+        if (!s) throw new Error('chýba názov alebo spec');
+        return { subor, ...s };
+      })
+      .catch((err) => {
+        console.warn(`Šablónu ${subor} sa nepodarilo načítať, vynechávam ju.`, err);
+        return null;
+      }))))
+  .then((zoznam) => zoznam.filter(Boolean))
+  .catch((err) => {
+    console.warn('Zoznam šablón sa nepodarilo načítať.', err);
+    return [];
+  })
+  .then((zoznam) => {
+    sablony = zoznam;
+    if (sablonyPopover.isOpen()) sablonyPopover.rebuild();
+  });
+
+// A template replaces the current spec through the same path as the saved
+// state; one that does not validate leaves the current spec as it is.
+function nacitajSablonu(s) {
+  let novy;
+  try {
+    novy = pripravSpec(structuredClone(s.spec));
+  } catch (err) {
+    toast(`Šablónu „${s.nazov}“ sa nepodarilo načítať: ${err.message}`, 5000);
+    return;
+  }
+  closeEditor();
+  selected = -1;
+  photoPan = false;
+  spec = novy;
+  customZvolene = false;
+  zvoleneMedium = s.medium;
+  ulozZvoleneMedium();
+  poslednaSablona = { subor: s.subor, spec: structuredClone(spec) };
+  zoneBar.dataset.key = '';
+  syncBar();
+  drawOverlay();
+  sablonyPopover.rebuild();
+  scheduleRender();
+}
+
+const sablonyPopover = attachPopover($('#btn-sablony'), (pop) => {
+  pop.classList.add('sablony');
+  if (!sablony?.length) {
+    pop.replaceChildren(Object.assign(document.createElement('p'), {
+      className: 'note', textContent: 'Zatiaľ žiadne šablóny.',
+    }));
+    return;
+  }
+  const zoznam = document.createElement('div');
+  zoznam.className = 'presets zoznam';
+  for (const s of sablony) {
+    const svieti = poslednaSablona?.subor === s.subor && zhodujeSaSoSablonou(spec, poslednaSablona.spec);
+    const b = buttonMedia(s.nazov, svieti, () => nacitajSablonu(s));
+    b.title = `Načítať šablónu ${s.nazov}`;
+    zoznam.append(b);
+  }
+  pop.replaceChildren(zoznam);
 });
 
 // ----- parametre popover -----
@@ -1754,12 +1876,47 @@ const exportPopover = attachPopover($('#btn-export'), (pop) => {
   const avifWrap = document.createElement('div');
   avifWrap.className = 'presets';
 
+  // JSON template: the current spec as a template file (photos left out) to
+  // the clipboard; where the clipboard refuses, the text waits selected in
+  // a read-only field below the buttons
+  const sablonaWrap = document.createElement('div');
+  sablonaWrap.className = 'sablona-json';
+  const sablonaBtn = document.createElement('button');
+  sablonaBtn.type = 'button';
+  sablonaBtn.textContent = 'JSON template';
+  sablonaBtn.addEventListener('click', () => {
+    const polozka = aktivnaPolozkaMedia();
+    const text = sablonaJson(spec, polozka && { skupina: polozka.skupina, nazov: polozka.medium.nazov });
+    const ukazText = () => {
+      const pole = document.createElement('textarea');
+      pole.readOnly = true;
+      pole.spellcheck = false;
+      pole.rows = 8;
+      pole.value = text;
+      pole.setAttribute('aria-label', 'JSON šablóny');
+      sablonaWrap.replaceChildren(pole);
+      pole.focus();
+      pole.select();
+      toast('Schránka nie je dostupná: text šablóny je označený, skopíruj ho.', 5000);
+    };
+    try {
+      navigator.clipboard.writeText(text).then(() => toast('Skopírované'), ukazText);
+    } catch {
+      ukazText(); // no clipboard at all (an insecure page)
+    }
+  });
+  const sablonaPresets = document.createElement('div');
+  sablonaPresets.className = 'presets sablona-tlacidlo';
+  sablonaPresets.append(sablonaBtn);
+
   pop.replaceChildren(
     mkH('Export'),
     wrap,
     pngDims,
     svgNote,
     avifWrap,
+    sablonaPresets,
+    sablonaWrap,
   );
 
   avifSupported().then((ok) => {

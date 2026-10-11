@@ -20,6 +20,7 @@ repozitára, takže jadro (`/core/`) aj fonty
 | `serve.js` | malý statický server (port 41235) |
 | `index.html`, `ui.css` | kostra stránky a štýl (čierno-biely) |
 | `ui.js` | lišta, popovery, plátno, zóny, ukladanie stavu |
+| `state/sablony.js` | pravidlá šablón bez DOM: zahodenie fotiek, text pre JSON template, čítanie `index.json` a súboru šablóny, zhoda so specom |
 | `engine.js` | adapter: natiahne `core/kompozicia`, kým neexistuje, použije `stub.js`; skladanie posiela do workera, pri zlyhaní kreslí na hlavnom vlákne |
 | `worker.js` | web worker so skladaním (`komponuj` jadra mimo hlavné vlákno) |
 | `stub.js` | náhradný engine (rovnaké API, náhodné rozmiestnenie so seedom) |
@@ -49,6 +50,10 @@ repozitára, takže jadro (`/core/`) aj fonty
   Parametroch počas ťahania menia len číslo (a spec); list sa prekreslí až
   po pustení alebo kliknutí.
 - **Čísla** v ponukách sú celé, desatinné sa zaokrúhlia.
+
+- **Šablóny:** panel Šablóny v lište ukazuje šablóny z repozitára
+  (`presets/sablony/`), klik šablónu načíta. Export → JSON template
+  skopíruje aktuálny dokument ako súbor šablóny (bez fotiek).
 
 Stav sa automaticky ukladá do `localStorage`; náhodný variant tlačidlom `⟳`
 je jediné miesto, kde rozhranie ťahá náhodu (engine zostáva deterministický).
