@@ -4,7 +4,9 @@ name: Bez AI podpisu
 # messages, PR titles or descriptions, authors or committers. NEW commits
 # only (push range, PR range) — never the repository history. The rules live
 # in scripts/bez-ai-podpisu.sh, shared with the local .githooks/commit-msg
-# hook.
+# hook. The PR title and description are fetched from the API at run time,
+# so a re-run judges them as they are now (e.g. after a footer a tool appended
+# was removed), not as frozen in the event payload.
 
 on:
   push:
@@ -13,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   kontrola:
@@ -26,11 +29,12 @@ jobs:
       - name: Kontrola titulku a popisu PR
         if: github.event_name == 'pull_request'
         env:
-          TITLE: ${{ github.event.pull_request.title }}
-          BODY: ${{ github.event.pull_request.body }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
         run: |
           text=$(mktemp)
-          printf '%s\n' "$TITLE" "$BODY" >"$text"
+          gh api "repos/$REPO/pulls/$NUMBER" --jq '.title, .body // ""' >"$text"
           scripts/bez-ai-podpisu.sh --text "$text"
 
       - name: Kontrola nových commitov
