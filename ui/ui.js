@@ -1183,6 +1183,12 @@ function attachPopover(btn, buildContent) {
         pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 12))}px`;
       }
     },
+    // Rebuild the open popover in place, keeping its scroll position.
+    rebuild() {
+      const y = pop.scrollTop;
+      buildContent(pop);
+      pop.scrollTop = y;
+    },
     isOpen: () => !pop.hidden,
     btn,
   };
@@ -1447,7 +1453,8 @@ function nakresliMedia(host) {
       return buttonMedia(medium.nazov, aktivny, () => {
         for (const k of POLIA_FORMATU) spec.format[k] = medium[k];
         customZvolene = false;
-        closePopovers();
+        // the panel stays open, so the fields below show the new medium
+        formatPopover.rebuild();
         scheduleRender();
       });
     });
@@ -1469,7 +1476,7 @@ function poleFormatu(k, attrs) {
   });
 }
 
-attachPopover($('#btn-format'), (pop) => {
+const formatPopover = attachPopover($('#btn-format'), (pop) => {
   const f = spec.format, g = spec.grid;
 
   const media = document.createElement('div');
