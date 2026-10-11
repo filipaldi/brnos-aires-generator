@@ -352,7 +352,7 @@ dependencies:
 ## Enforcement
 
 - This file states the target shape; where the code differs, the code is what moves, so today's flat files (the core modules, the entry scripts, the page modules and the data, host document and stylesheet beside them) move into the layer homes during migration and no glob widens to reach them.
-- Machine-checked: nothing yet; `architect` reads Python only, so the `forbid` edges of this JavaScript repository and the numeric-literal invariant wait for boundary tests of their own in `test/`.
+- Machine-checked: `test/hranice.test.js` reads the block above, fails when allow and forbid do not name every ordered pair of distinct layers exactly once or name an unknown layer, and fails on every relative import (static, `export ... from` or `import()` of a string) from one layer home into another along a `forbid` edge; files outside every layer glob are skipped until they move, and the numeric-literal invariant still waits for a test of its own in `test/`.
 - Out of scope: the numeric-literal invariants apply to code, so the lengths and colours of the page's stylesheet are not claimed by them.
 - Reviewer judgement: every `forbid` edge until those tests exist, every `## Invariants` line and every Responsibility and Rationale cell, which is most of the words in this file.
 - Not claimed: `test/**`, `scripts/**`, `priklady/**`, `fonts/**` and `docs/**`, the tooling `.github/**`, `.githooks/**` and `package.json`, plus the development server and the smoke test, which belong under `scripts/`.
