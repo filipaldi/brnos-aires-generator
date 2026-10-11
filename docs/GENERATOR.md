@@ -31,11 +31,10 @@ V rozhraní pod `420 × 594 mm · Grid 8 ▾`, spolu s mriežkou a médiami.
 | Šírka × výška | celé číslo + jednotka (mm / px) | Médiá sú len skratky, hodnoty sa dajú ďalej meniť |
 | DPI | celé číslo | Len pri mm, pre PNG |
 | Spadávka | celé číslo v jednotke formátu | Technická, pre tlač. Na plátne je vždy jemne vyznačená. |
-| Okraj | celé číslo v jednotke formátu, predvolene 0 | Vnútorný okraj média, za ktorý nejde obsah. Menší ako polovica kratšej strany. Na plátne bodkovaná vodiaca čiara od orezu dovnútra, v SVG tenká prerušovaná čiara ako pri spadávke. Starší spec bez okraja má okraj 0. |
 
-**Médiá** sú pevné formáty s názvom v `presets/media.json` (skupiny Tlač A, Tlač B, Ostatná tlač, Instagram, Facebook, LinkedIn, Web). Každé médium nesie `nazov`, `sirka`, `vyska`, `jednotka`, `dpi`, `spadavka` a `okraj`, všetko celé čísla. Tlač má 300 DPI a spadávku 3 mm (Billboard 50 DPI), digitál 72 DPI a spadávku 0. Nové médium je nová položka v JSON, žiadny kód.
+**Médiá** sú pevné formáty s názvom v `presets/media.json` (skupiny Tlač A, Tlač B, Ostatná tlač, Instagram, Facebook, LinkedIn, Web). Každé médium nesie `nazov`, `sirka`, `vyska`, `jednotka`, `dpi` a `spadavka`, všetky čísla celé. Okraj médium nenastavuje, patrí mriežke. Tlač má 300 DPI a spadávku 3 mm (Billboard 50 DPI), digitál 72 DPI a spadávku 0. Nové médium je nová položka v JSON, žiadny kód.
 
-Formát sa nastavuje v paneli **Dokument** (tlačidlo v hornej lište, rozmer a grid ukáže pri prejdení myšou). Médiá sú tlačidlá pod malými nadpismi skupín. Klik nastaví celý formát média (aj okraj) a prekreslí list; panel ostane otvorený, takže sa dajú hneď upraviť ďalšie polia. Posledná skupina je **Custom**: ponechá aktuálne hodnoty, ktoré sa menia v riadkoch Rozmer, DPI, Spadávka a Okraj pod tlačidlami. Rozsvietené je médium, ktorému formát presne zodpovedá, inak Custom. Rozhranie načítava `presets/media.json` za behu ako dáta; vlastný formát sa ukladá v prehliadači s celým stavom.
+Formát sa nastavuje v paneli **Dokument** (tlačidlo v hornej lište, rozmer a grid ukáže pri prejdení myšou). Médiá sú tlačidlá pod malými nadpismi skupín. Klik nastaví celý formát média (mriežku vrátane okraja nechá) a prekreslí list; panel ostane otvorený, takže sa dajú hneď upraviť ďalšie polia. Posledná skupina je **Custom**: ponechá aktuálne hodnoty, ktoré sa menia v riadkoch Rozmer, DPI a Spadávka pod tlačidlami. Rozsvietené je vždy len jedno tlačidlo: kliknuté médium, kým mu formát zodpovedá; inak prvé zodpovedajúce médium v poradí zoznamu (niekoľko médií má rovnaké hodnoty, napr. 1080 × 1350 px), a keď nezodpovedá žiadne, Custom. Kliknuté médium (skupina a názov) si prehliadač pamätá spolu so stavom. Rozhranie načítava `presets/media.json` za behu ako dáta; vlastný formát sa ukladá v prehliadači s celým stavom.
 
 V CLI `node cli.js kompozicia --spec <súbor.json> --format "<médium>" --out <súbor.svg>` prepíše formát specu médiom podľa názvu (napr. `A3` alebo `IG story / reels`); neznámy názov vypíše zoznam médií.
 
@@ -45,6 +44,7 @@ V CLI `node cli.js kompozicia --spec <súbor.json> --format "<médium>" --out <s
 |---|---|---|
 | Grid (N stĺpcov) | celé číslo | Dielik = šírka / N, štvorcový |
 | Zvyšok výšky | okraje / natiahnutie / presah a orez | Keď výška nie je násobkom dielika. Volí sa podľa potreby. |
+| Okraj | celé číslo v dielikoch, predvolene 0 | Vnútorný okraj, za ktorý nejde obsah, ako súčasť gridu (`grid.okraj`). Dvojnásobok okraja musí byť menší ako počet stĺpcov aj počet celých riadkov; menší grid okraj zmenší na najväčší možný. Leží na čiarach gridu: okraj dielikov od ľavého, horného a pravého okraja orezu a od poslednej celej čiary riadkov. Na plátne bodkovaná vodiaca čiara, v SVG tenká prerušovaná čiara ako pri spadávke. Médium okraj nemení. Starší spec bez okraja má okraj 0; `format.okraj` z predošlej verzie rozhranie pri načítaní zahodí. |
 
 ### Kresba
 
@@ -248,7 +248,7 @@ Zľava doprava v poradí, v akom sa pri práci používa:
 
 | Položka | Ako často | Obsah |
 |---|---|---|
-| `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba formátu (A2, A3, IG, web), rozmer a jednotka, DPI, spadávka, Grid, zvyšok výšky |
+| `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba formátu (A2, A3, IG, web), rozmer a jednotka, DPI, spadávka, Grid, okraj, zvyšok výšky |
 | `Parametre ▾` | občas | Weight, Contrast, inverzia, veľkosť, rozloženie, typy, rozmiestnenie (voľné / dlaždice) |
 | `◀ Variant 42 ▶ ⟳` | neustále | Predchádzajúci, číslo variantu (dá sa prepísať), ďalší, náhodný |
 | `75 %` | podľa potreby | Zoom plátna |

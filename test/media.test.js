@@ -1,5 +1,6 @@
-// Médiá (presets/media.json) a okraj formátu: tvar dát médií, celé čísla,
-// skupiny podľa issue, validácia okraja v jadre aj v náhradnom engine.
+// Médiá (presets/media.json) a okraj mriežky: tvar dát médií, celé čísla,
+// skupiny podľa issue, validácia okraja (v dielikoch) v jadre aj v náhradnom
+// engine a jeho vodiaca čiara v SVG.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,8 +22,8 @@ const NODE = process.execPath;
 const MEDIA = JSON.parse(readFileSync(new URL('../presets/media.json', import.meta.url), 'utf8'));
 
 const SKUPINY = ['Tlač A', 'Tlač B', 'Ostatná tlač', 'Instagram', 'Facebook', 'LinkedIn', 'Web'];
-const POLIA = ['nazov', 'sirka', 'vyska', 'jednotka', 'dpi', 'spadavka', 'okraj'];
-const CELE_CISLA = ['sirka', 'vyska', 'dpi', 'spadavka', 'okraj'];
+const POLIA = ['nazov', 'sirka', 'vyska', 'jednotka', 'dpi', 'spadavka'];
+const CELE_CISLA = ['sirka', 'vyska', 'dpi', 'spadavka'];
 
 const vsetkyMedia = () => MEDIA.skupiny.flatMap((s) => s.media);
 
@@ -81,56 +82,72 @@ test('rozmery médií sedia s issue (výber)', () => {
     assert.ok(podlaNazvu[nazov], `chýba médium ${nazov}`);
     assert.deepEqual([podlaNazvu[nazov].sirka, podlaNazvu[nazov].vyska], rozmer, nazov);
   }
+  // dropped by the owner: the landscape IG post is no medium any more
+  assert.ok(!podlaNazvu['IG post na šírku'], 'IG post na šírku má zo zoznamu zmiznúť');
 });
 
-test('okraj formátu: chýbajúce pole znamená 0, zadané sa zachová', () => {
-  assert.equal(normalizujSpec({}).format.okraj, 0);
-  assert.equal(normalizujSpec({ format: { sirka: 420, vyska: 594 } }).format.okraj, 0);
-  assert.equal(normalizujSpec({ format: { okraj: 7 } }).format.okraj, 7);
+test('okraj mriežky: chýbajúce pole znamená 0, zadané sa zachová', () => {
+  assert.equal(normalizujSpec({}).grid.okraj, 0);
+  assert.equal(normalizujSpec({ grid: { stlpce: 30 } }).grid.okraj, 0);
+  assert.equal(normalizujSpec({ grid: { okraj: 2 } }).grid.okraj, 2);
   // the same contract in the fallback engine
-  assert.equal(normalizujSpecStub({}).format.okraj, 0);
-  assert.equal(normalizujSpecStub({ format: { okraj: 7 } }).format.okraj, 7);
+  assert.equal(normalizujSpecStub({}).grid.okraj, 0);
+  assert.equal(normalizujSpecStub({ grid: { okraj: 2 } }).grid.okraj, 2);
 });
 
-test('okraj formátu: záporné a desatinné číslo je chyba', () => {
+test('okraj už nie je pole formátu', () => {
+  assert.throws(() => normalizujSpec({ format: { okraj: 0 } }), /Neznáme pole „okraj“ v format/);
+  assert.ok(!('okraj' in normalizujSpec({}).format));
+});
+
+test('okraj mriežky: záporné a desatinné číslo je chyba', () => {
   for (const zla of [-1, 2.5, '5', null]) {
-    assert.throws(() => normalizujSpec({ format: { okraj: zla } }), (e) => {
+    assert.throws(() => normalizujSpec({ grid: { okraj: zla } }), (e) => {
       assert.ok(e instanceof ValidationError, `nie ValidationError pre ${JSON.stringify(zla)}`);
-      assert.match(e.message, /format\.okraj/);
+      assert.match(e.message, /grid\.okraj/);
       return true;
     }, JSON.stringify(zla));
   }
-  assert.throws(() => normalizujSpecStub({ format: { okraj: -1 } }), (e) => {
+  assert.throws(() => normalizujSpecStub({ grid: { okraj: -1 } }), (e) => {
     assert.ok(e instanceof ValidationError);
     assert.match(e.message, /okraj/i);
     return true;
   });
-  assert.throws(() => normalizujSpecStub({ format: { okraj: 1.5 } }), /okraj/i);
+  assert.throws(() => normalizujSpecStub({ grid: { okraj: 1.5 } }), /okraj/i);
 });
 
-test('formát média z presets/media.json prejde validáciou jadra', () => {
-  // a medium minus its name is exactly a spec format: okraj included,
-  // spadavka of its world (the CLI applies it the same way)
+test('okraj mriežky nechá vnútri aspoň stĺpec a celý riadok', () => {
+  // 10 columns on 100 × 200: 20 whole rows, so the columns bound the margin
+  assert.throws(() => normalizujSpec({ format: { sirka: 100, vyska: 200 }, grid: { stlpce: 10, okraj: 5 } }), /grid\.okraj.*stĺpcov/);
+  assert.equal(normalizujSpec({ format: { sirka: 100, vyska: 200 }, grid: { stlpce: 10, okraj: 4 } }).grid.okraj, 4);
+  // 30 columns on a 1640 × 624 cover: 11.41… dieliky high, 11 whole rows
+  const titulka = { sirka: 1640, vyska: 624, jednotka: 'px', dpi: 72, spadavka: 0 };
+  assert.throws(() => normalizujSpec({ format: titulka, grid: { stlpce: 30, okraj: 6 } }), /grid\.okraj.*riadkov/);
+  assert.equal(normalizujSpec({ format: titulka, grid: { stlpce: 30, okraj: 5 } }).grid.okraj, 5);
+  assert.throws(() => normalizujSpecStub({ format: { sirka: 100, vyska: 200 }, grid: { stlpce: 10, okraj: 5 } }), /okraj/i);
+  assert.throws(() => normalizujSpecStub({ format: titulka, grid: { stlpce: 30, okraj: 6 } }), /okraj/i);
+});
+
+test('médium nenastavuje okraj: formát média prejde validáciou jadra', () => {
+  // a medium minus its name is exactly a spec format, spadavka of its world
+  // (the CLI applies it the same way); the margin belongs to the grid
+  for (const m of vsetkyMedia()) assert.ok(!('okraj' in m), `${m.nazov} nastavuje okraj`);
   const { nazov, ...a3 } = vsetkyMedia().find((m) => m.nazov === 'A3');
-  const spec = normalizujSpec({ format: a3 });
-  assert.equal(spec.format.okraj, 0);
+  const spec = normalizujSpec({ format: a3, grid: { okraj: 2 } });
+  assert.equal(spec.grid.okraj, 2);
   assert.equal(spec.format.spadavka, 3);
   assert.equal(spec.format.dpi, 300);
 });
 
-test('okraj formátu: aspoň polovica kratšej strany je chyba', () => {
-  assert.throws(() => normalizujSpec({ format: { sirka: 100, vyska: 200, okraj: 50 } }), /format\.okraj/);
-  assert.equal(normalizujSpec({ format: { sirka: 100, vyska: 200, okraj: 49 } }).format.okraj, 49);
-  assert.throws(() => normalizujSpecStub({ format: { sirka: 100, vyska: 200, okraj: 50 } }), /okraj/i);
-});
-
-test('vodiaca čiara okraja je v SVG len pri nenulovom okraji', () => {
+test('vodiaca čiara okraja je v SVG len pri nenulovom okraji, na čiarach gridu', () => {
   const zaklad = { variant: 'okraj', zony: [] };
   const bez = komponuj(zaklad).svg;
   assert.doesNotMatch(bez, /id="okraj"/);
-  const s = komponuj({ ...zaklad, format: { sirka: 420, vyska: 594, okraj: 21 } }).svg;
-  // 21 mm on a 420 mm sheet of 30 columns is 1.5 dieliks
-  assert.match(s, /<g id="okraj"><rect x="1\.5" y="1\.5" width="27"/);
+  assert.doesNotMatch(komponuj({ ...zaklad, grid: { okraj: 0 } }).svg, /id="okraj"/);
+  // A2 at 30 columns is 42.43… dieliky high: 42 whole rows, so the guide is
+  // 2 dieliky in from the left, top and right and from the last whole row
+  const s = komponuj({ ...zaklad, grid: { okraj: 2 } }).svg;
+  assert.match(s, /<g id="okraj"><rect x="2" y="2" width="26" height="38"/);
   assert.equal(s.replace(/<g id="okraj">.*<\/g>\n/, ''), bez, 'okraj nemení nič iné');
 });
 

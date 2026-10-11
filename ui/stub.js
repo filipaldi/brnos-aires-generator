@@ -11,8 +11,8 @@ import { faceZony, facesFontov, fontFaceCss, normalizujRezZony } from '../core/k
 const ALL_TYPES = TYPES.map((t) => t.id);
 
 const DEFAULTS = {
-  format: { sirka: 420, vyska: 594, jednotka: 'mm', dpi: 300, spadavka: 3, okraj: 0 },
-  grid: { stlpce: 8, zvysok: 'okraje' },
+  format: { sirka: 420, vyska: 594, jednotka: 'mm', dpi: 300, spadavka: 3 },
+  grid: { stlpce: 8, zvysok: 'okraje', okraj: 0 },
   kresba: { weight: 60, contrast: 70, zaoblenie: 30 },
   kompozicia: {
     velkost: [1, 6],
@@ -124,12 +124,17 @@ export function normalizujSpec(input) {
   enumv(f.jednotka, 'Jednotka', ['mm', 'px']);
   num(f.dpi, 'DPI', { min: 18, max: 2400, integer: true });
   num(f.spadavka, 'Spadávka', { min: 0, max: 50 });
-  num(f.okraj, 'Okraj', { min: 0, max: 10000, integer: true });
-  if (2 * f.okraj >= Math.min(f.sirka, f.vyska)) {
-    throw new ValidationError(`Okraj musí byť menší ako polovica kratšej strany formátu (je ${f.okraj}).`);
-  }
   num(g.stlpce, 'Grid', { min: 1, max: 64, integer: true });
   enumv(g.zvysok, 'Zvyšok výšky', ['okraje', 'natiahnutie', 'orez']);
+  // okraj in whole dieliky; at least one column and one whole row stay inside
+  num(g.okraj, 'Okraj', { min: 0, integer: true });
+  if (2 * g.okraj >= g.stlpce) {
+    throw new ValidationError(`Okraj musí byť menší ako polovica stĺpcov gridu (${g.stlpce}, je ${g.okraj}).`);
+  }
+  const riadky = Math.floor((f.vyska * g.stlpce) / f.sirka + 1e-6);
+  if (2 * g.okraj >= riadky) {
+    throw new ValidationError(`Okraj musí byť menší ako polovica celých riadkov gridu (${riadky}, je ${g.okraj}).`);
+  }
   num(k.weight, 'Weight', { min: 0, max: 100 });
   num(k.contrast, 'Contrast', { min: 0, max: 100 });
   num(k.zaoblenie, 'Zaoblenie', { min: 0, max: 100 });

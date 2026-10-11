@@ -7,9 +7,10 @@
 //   node cli.js kompozicia --spec ...
 //
 // --variant overrides the spec's variant, --format the spec's format with a
-// medium named in presets/media.json (okraj included). Fonts are referenced
-// by relative URLs from the output SVG to fonts/; the PNG export inlines
-// them as base64 data URLs in a temporary SVG so text renders in Chromium.
+// medium named in presets/media.json (the grid, its okraj included, stays
+// the spec's). Fonts are referenced by relative URLs from the output SVG to
+// fonts/; the PNG export inlines them as base64 data URLs in a temporary SVG
+// so text renders in Chromium.
 
 import { parseArgs } from 'node:util';
 import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';

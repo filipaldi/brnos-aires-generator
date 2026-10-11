@@ -247,7 +247,7 @@ function textLayer(zony, fg, cfg, zmerajText) {
 // --- document ---------------------------------------------------------------
 
 export function renderSvg({
-  stlpce, vyskaD, bleedD, okrajD = 0, jednotka, sirka, vyska, spadavka,
+  stlpce, vyskaD, bleedD, okrajD = 0, riadkyD = vyskaD, jednotka, sirka, vyska, spadavka,
   placed, zony, inverzia, fontUrls, zmerajText, cfg,
 }) {
   const fg = inverzia ? '#fff' : '#000';
@@ -276,9 +276,11 @@ export function renderSvg({
       ? `<rect x="0" y="0" width="${f(stlpce)}" height="${f(vyskaD)}" fill="none" stroke="${cfg.spadavkaFarba}" stroke-width="${f(cfg.spadavkaHrubka)}"/>`
       : ''}</g>`,
     // the margin guide (okraj) is drawn like the trim line of the bleed, but
-    // dashed; a format without a margin keeps the document as it was
+    // dashed, on grid lines: okraj whole dieliky in from the trimmed format's
+    // left, top and right edge and from the last whole row; a grid without a
+    // margin keeps the document as it was
     okrajD > 0
-      ? `<g id="okraj"><rect x="${f(okrajD)}" y="${f(okrajD)}" width="${f(stlpce - 2 * okrajD)}" height="${f(vyskaD - 2 * okrajD)}" fill="none" stroke="${cfg.spadavkaFarba}" stroke-width="${f(cfg.spadavkaHrubka)}" stroke-dasharray="${f(cfg.spadavkaHrubka * 6)}"/></g>`
+      ? `<g id="okraj"><rect x="${f(okrajD)}" y="${f(okrajD)}" width="${f(stlpce - 2 * okrajD)}" height="${f(riadkyD - 2 * okrajD)}" fill="none" stroke="${cfg.spadavkaFarba}" stroke-width="${f(cfg.spadavkaHrubka)}" stroke-dasharray="${f(cfg.spadavkaHrubka * 6)}"/></g>`
       : '',
     '</svg>',
   ];

@@ -19,11 +19,13 @@ const $ = (sel) => document.querySelector(sel);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const LS_KEY = 'brnosaires-generator-spec-v1';
+const LS_MEDIUM_KEY = 'brnosaires-generator-medium-v1';
 const MM_TO_PX = 96 / 25.4; // CSS px per mm at zoom 100 %
 const ZOOM_STEPS = [25, 33, 50, 67, 75, 90, 100, 125, 150, 200];
 
-// The six fields a medium of presets/media.json sets on spec.format
-const POLIA_FORMATU = ['sirka', 'vyska', 'jednotka', 'dpi', 'spadavka', 'okraj'];
+// The five fields a medium of presets/media.json sets on spec.format; the
+// margin (grid.okraj) belongs to the grid, so a medium never touches it
+const POLIA_FORMATU = ['sirka', 'vyska', 'jednotka', 'dpi', 'spadavka'];
 
 // ---------- state ----------
 
@@ -64,6 +66,9 @@ function loadSpec() {
       // types and settings dropped from the set (koleno, bod, retazenie,
       // rozlozenie) must not discard the saved state
       if (saved?.kompozicia) zahodZastarane(saved.kompozicia);
+      // the margin moved from the format (its unit) to the grid (dieliky):
+      // a format.okraj saved by the earlier preview is dropped, not converted
+      if (saved?.format && typeof saved.format === 'object') delete saved.format.okraj;
       return engine.normalizujSpec(saved);
     }
   } catch (err) {
@@ -106,6 +111,8 @@ function scheduleRender() {
 function vmestiZony() {
   const f = spec.format, cols = spec.grid.stlpce;
   const rows = Math.max(1, Math.floor((f.vyska * cols) / f.sirka + 1e-6));
+  // the margin likewise: a medium with fewer rows must not leave it too wide
+  spec.grid.okraj = clamp(spec.grid.okraj ?? 0, 0, maxOkraj());
   for (const z of spec.zony) {
     z.w = clamp(z.w, 1, cols);
     z.h = clamp(z.h, 1, rows);
@@ -158,7 +165,7 @@ function layoutSheet(svgEl) {
   view = {
     s, vbX: vb.x, vbY: vb.y,
     bleedD: f.spadavka / dielikUnits,
-    okrajD: f.okraj / dielikUnits,
+    okrajD: g.okraj ?? 0,
     cols: g.stlpce,
     rowsD: f.vyska / dielikUnits,
   };
@@ -221,16 +228,18 @@ function drawOverlay() {
   bleedMark.style.right = `${bi}px`;
   bleedMark.style.bottom = `${bi}px`;
 
-  // Margin (okraj): a guide inset from the trim edge (one bleed inside the
-  // sheet edge), shown only when the format has one. Like the bleed mark it
-  // is an overlay; the composed SVG carries its own thin line, as for the
-  // bleed.
-  const oi = (view.bleedD + view.okrajD) * view.s;
-  okrajMark.hidden = view.okrajD <= 0.0005;
-  okrajMark.style.left = `${oi}px`;
-  okrajMark.style.top = `${oi}px`;
-  okrajMark.style.right = `${oi}px`;
-  okrajMark.style.bottom = `${oi}px`;
+  // Margin (okraj): a guide on grid lines, okraj whole dieliky in from the
+  // trimmed format's left, top and right edge and from the last whole row,
+  // shown only when the grid has one. Like the bleed mark it is an overlay;
+  // the composed SVG carries its own thin line, as for the bleed.
+  const ok = view.okrajD;
+  okrajMark.hidden = ok <= 0;
+  Object.assign(okrajMark.style, styleRect({
+    left: (ok - view.vbX) * view.s,
+    top: (ok - view.vbY) * view.s,
+    width: (view.cols - 2 * ok) * view.s,
+    height: (maxRiadok() - 2 * ok) * view.s,
+  }));
 
   zonesHost.replaceChildren();
   spec.zony.forEach((z, i) => {
@@ -1401,6 +1410,27 @@ function rangeSlider(value, { min, max }, onChange) {
 let mediaSkupiny = null;
 let mediaHost = null; // the groups container of the format panel on screen
 let customZvolene = false; // Custom clicked: it stays lit even on a medium's values
+// The medium last clicked (group + name), kept in the browser beside the
+// spec: several media share the same values (1080 × 1350 px), so the one
+// clicked is the one lit while the format still matches it.
+let zvoleneMedium = nacitajZvoleneMedium();
+
+function nacitajZvoleneMedium() {
+  try {
+    const m = JSON.parse(localStorage.getItem(LS_MEDIUM_KEY));
+    return typeof m?.skupina === 'string' && typeof m?.nazov === 'string' ? m : null;
+  } catch {
+    return null;
+  }
+}
+
+function ulozZvoleneMedium() {
+  try {
+    localStorage.setItem(LS_MEDIUM_KEY, JSON.stringify(zvoleneMedium));
+  } catch {
+    // private mode or full storage: the choice lives for this visit only
+  }
+}
 let custom1Pole = null; // the first editable field of Custom (the width)
 
 fetch(new URL('../presets/media.json', import.meta.url))
@@ -1416,9 +1446,22 @@ fetch(new URL('../presets/media.json', import.meta.url))
     console.warn('Médiá sa nepodarilo načítať, panel Formát ukáže len Custom.', err);
   });
 
-// A medium is active when the format equals it in every field it sets.
-function jeAktivneMedium(medium) {
-  return !customZvolene && POLIA_FORMATU.every((k) => spec.format[k] === medium[k]);
+// A medium fits when the format equals it in every field it sets.
+function sediMedium(medium) {
+  return POLIA_FORMATU.every((k) => spec.format[k] === medium[k]);
+}
+
+// The one lit medium: the clicked one while the format fits it, otherwise
+// the first fitting one in list order; none (Custom) when nothing fits or
+// Custom was clicked.
+function aktivneMedium() {
+  if (customZvolene) return null;
+  const vsetky = (mediaSkupiny ?? []).flatMap(({ nazov: skupina, media }) =>
+    (media ?? []).map((medium) => ({ skupina, medium })));
+  const zvolene = zvoleneMedium && vsetky.find(({ skupina, medium }) =>
+    skupina === zvoleneMedium.skupina && medium.nazov === zvoleneMedium.nazov);
+  if (zvolene && sediMedium(zvolene.medium)) return zvolene.medium;
+  return vsetky.find(({ medium }) => sediMedium(medium))?.medium ?? null;
 }
 
 function skupinaButtonov(nazov, buttony) {
@@ -1446,15 +1489,16 @@ function buttonMedia(text, aktivny, onClick) {
 
 function nakresliMedia(host) {
   host.replaceChildren();
-  let niektore = false;
+  const aktivne = aktivneMedium();
   for (const { nazov, media } of mediaSkupiny ?? []) {
     const buttony = (media ?? []).map((medium) => {
-      const aktivny = jeAktivneMedium(medium);
-      niektore ||= aktivny;
-      // a click applies the whole format of the medium, okraj included
+      const aktivny = medium === aktivne;
+      // a click applies the whole format of the medium; the grid stays
       return buttonMedia(medium.nazov, aktivny, () => {
         for (const k of POLIA_FORMATU) spec.format[k] = medium[k];
         customZvolene = false;
+        zvoleneMedium = { skupina: nazov, nazov: medium.nazov };
+        ulozZvoleneMedium();
         // the panel stays open, so the fields below show the new medium
         formatPopover.rebuild();
         scheduleRender();
@@ -1463,7 +1507,7 @@ function nakresliMedia(host) {
     host.append(skupinaButtonov(nazov, buttony));
   }
   // Custom keeps the current values: the editable rows below the groups are it
-  host.append(skupinaButtonov('Custom', [buttonMedia('Custom', !niektore, () => {
+  host.append(skupinaButtonov('Custom', [buttonMedia('Custom', !aktivne, () => {
     customZvolene = true;
     nakresliMedia(host);
     custom1Pole?.focus();
@@ -1478,6 +1522,14 @@ function poleFormatu(k, attrs) {
   });
 }
 
+// The widest margin (grid.okraj, in dieliky) the grid takes: twice the
+// margin stays below both the columns and the whole rows.
+function maxOkraj() {
+  const f = spec.format, cols = spec.grid.stlpce;
+  const rows = Math.floor((f.vyska * cols) / f.sirka + 1e-6);
+  return Math.max(0, Math.floor((Math.min(cols, rows) - 1) / 2));
+}
+
 const formatPopover = attachPopover($('#btn-format'), (pop) => {
   const f = spec.format, g = spec.grid;
 
@@ -1490,6 +1542,12 @@ const formatPopover = attachPopover($('#btn-format'), (pop) => {
   h3a.textContent = 'Dokument';
   const h3b = document.createElement('h3');
   h3b.textContent = 'Mriežka';
+
+  // the margin in whole dieliky of the grid, at most what leaves a column
+  // and a whole row inside
+  const okrajPole = numberInput(g.okraj, { min: 0, max: maxOkraj(), step: 1 }, (v) => {
+    spec.grid.okraj = clamp(v, 0, maxOkraj());
+  });
 
   const sizeWrap = document.createElement('div');
   sizeWrap.className = 'grow';
@@ -1509,7 +1567,6 @@ const formatPopover = attachPopover($('#btn-format'), (pop) => {
     row('Rozmer', sizeWrap),
     row('DPI', poleFormatu('dpi', { min: 18, max: 2400, step: 1 })),
     row('Spadávka', poleFormatu('spadavka', { min: 0, max: 50, step: 1 })),
-    row('Okraj', poleFormatu('okraj', { min: 0, max: 10000, step: 1 })),
     h3b,
     row('Grid', numberInput(g.stlpce, { min: 1, max: 100, step: 1 }, (v) => {
       const pomer = clamp(v, 1, 100) / spec.grid.stlpce;
@@ -1521,7 +1578,12 @@ const formatPopover = attachPopover($('#btn-format'), (pop) => {
         z.w = Math.max(1, Math.round(z.w * pomer));
         z.h = Math.max(1, Math.round(z.h * pomer));
       }
+      // the margin stays in dieliky; a smaller grid clamps it to what fits
+      spec.grid.okraj = clamp(spec.grid.okraj, 0, maxOkraj());
+      okrajPole.value = String(spec.grid.okraj);
+      okrajPole.max = String(maxOkraj());
     })),
+    row('Okraj', okrajPole),
     row('Zvyšok výšky', selectInput(
       [['okraje', 'okraje'], ['natiahnutie', 'natiahnutie'], ['orez', 'presah a orez']],
       g.zvysok, (v) => { spec.grid.zvysok = v; })),
