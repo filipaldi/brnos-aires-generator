@@ -73,6 +73,12 @@ function normalizujFormat(raw) {
   moznosti(format.jednotka, 'format.jednotka', JEDNOTKY);
   cislo(format.dpi, 'format.dpi', { min: 18, max: 2400 });
   cislo(format.spadavka, 'format.spadavka', { min: 0, max: 100 });
+  // inner margin of the medium, in its unit; older specs carry no field → 0
+  cislo(format.okraj, 'format.okraj', { min: 0, max: 10000, cele: true });
+  if (2 * format.okraj >= Math.min(format.sirka, format.vyska)) {
+    throw new ValidationError(
+      `format.okraj musí byť menší ako polovica kratšej strany formátu (dostal som ${format.okraj}).`);
+  }
   return format;
 }
 
@@ -329,6 +335,7 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
   const dielik = format.sirka / grid.stlpce;
   const vyskaD = format.vyska / dielik;
   const bleedD = format.spadavka / dielik;
+  const okrajD = format.okraj / dielik;
 
   // The usable band for shapes depends on how the leftover height is handled.
   // Zones always live in absolute dieliks from the top of the trimmed format.
@@ -444,6 +451,7 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
     stlpce: grid.stlpce,
     vyskaD,
     bleedD,
+    okrajD,
     jednotka: format.jednotka,
     sirka: format.sirka,
     vyska: format.vyska,

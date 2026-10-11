@@ -46,7 +46,8 @@
         "vyska": 594,
         "jednotka": "mm",
         "dpi": 300,
-        "spadavka": 3
+        "spadavka": 3,
+        "okraj": 0
       },
       "grid": {
         "stlpce": 30,
