@@ -202,41 +202,35 @@ button, input, select { font: inherit; color: inherit; }
 /* media of the format panel: a small group heading over its medium buttons */
 .media-group { margin: 8px 0 10px; }
 
-/* ----- šablóny: a list of name buttons (the media button look) with small
-   rename and delete buttons, and the inline steps that replace a row ----- */
+/* ----- šablóny: the repository's templates as name buttons (the media
+   button look), one per line ----- */
 
-.popover.sablony .zoznam { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.popover.sablony .zoznam { flex-direction: column; flex-wrap: nowrap; }
 
-.popover.sablony .sablona { display: flex; flex-direction: column; gap: 6px; }
-
-.popover.sablony .sablona > .presets { flex-wrap: nowrap; }
-
-.popover.sablony .presets button.meno {
-  flex: 1;
-  min-width: 0;
+.popover.sablony .zoznam button {
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.popover.sablony .presets button.maly { flex: none; padding: 4px 8px; }
+.popover.sablony .note { margin-top: 0; }
 
-.popover.sablony .ulozenie { display: flex; flex-direction: column; gap: 6px; }
+/* export: JSON template on its own line, and the read-only text it shows
+   where the clipboard refuses */
+.popover .presets.sablona-tlacidlo { margin-top: 10px; }
 
-.popover.sablony input.nazov {
+.popover .sablona-json textarea {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
   border: 1px solid var(--ink);
   background: var(--paper);
   padding: 4px 6px;
   border-radius: 2px;
-  width: 100%;
+  font: 11px/1.4 ui-monospace, monospace;
+  resize: vertical;
 }
-
-.popover.sablony .otazka { font-size: 13px; }
-
-.popover.sablony .zoznam .note, .popover.sablony .ulozenie .note { margin-top: 0; }
-
-.popover .note.chyba { color: var(--ink); }
 
 .media-group .cap { margin-bottom: 4px; font-size: 11px; color: var(--dim); }
 

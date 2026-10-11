@@ -1,110 +1,146 @@
-// Šablóny: uloženie zahodí zdroj fotiek a nechá všetko ostatné, cesta
-// uloženie → text → načítanie vráti ten istý spec bez zdroja a poškodené
-// uložené dáta sa ticho ignorujú.
+// Šablóny: every template in presets/sablony/ is listed once in index.json,
+// exists, carries no photo and its spec passes the core's validation and
+// composes; a bad template (fixture in test/sablony/) is caught; the JSON
+// template the Export panel copies drops photo sources and loads back as the
+// same spec.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
 
-import { normalizujSpec } from '../core/kompozicia/index.js';
+import { komponuj, normalizujSpec } from '../core/kompozicia/index.js';
 import {
-  bezFotiek, vytvorSablonu, serializujSablony, parsujSablony, pridajSablonu,
-  premenujSablonu, zmazSablonu, najdiSablonu, zhodujeSaSoSablonou,
+  NAZOV_NOVEJ_SABLONY, bezFotiek, sablonaJson, suboryIndexu, citajSablonu, zhodujeSaSoSablonou,
 } from '../ui/state/sablony.js';
+
+const SABLONY = new URL('../presets/sablony/', import.meta.url);
+const FIXTURY = new URL('./sablony/', import.meta.url);
+const MEDIA = JSON.parse(readFileSync(new URL('../presets/media.json', import.meta.url), 'utf8'));
 
 const FOTKA = 'data:image/png;base64,iVBORw0KGgo=';
 
-function plagat() {
-  return normalizujSpec({
-    format: { sirka: 210, vyska: 297, jednotka: 'mm', dpi: 300, spadavka: 3 },
-    grid: { stlpce: 20, okraj: 1 },
-    variant: '7',
-    inverzia: true,
-    zony: [
-      { typ: 'text', x: 2, y: 2, w: 10, h: 4, text: 'MILONGA', pismo: 'Nunito', riadok: 3, velkost: 90 },
-      { typ: 'fotka', x: 2, y: 8, w: 8, h: 6, okraj: 2, zdroj: FOTKA, rezim: 'maska', posun: [0.25, -0.5], zoom: 1.5 },
-    ],
+// What is wrong with one template file (its text), as messages; [] when
+// nothing is. The same check guards the repository's templates and is shown
+// to catch a bad one below.
+function chybySablony(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (err) {
+    return [`nie je JSON: ${err.message}`];
+  }
+  const chyby = [];
+  if (typeof data?.nazov !== 'string' || !data.nazov.trim()) chyby.push('chýba názov');
+  if (data?.medium !== null) {
+    const m = data?.medium;
+    const skupina = MEDIA.skupiny.find((s) => s.nazov === m?.skupina);
+    if (!skupina?.media.some((x) => x.nazov === m?.nazov)) chyby.push(`neznáme médium ${JSON.stringify(m)}`);
+  }
+  const zony = Array.isArray(data?.spec?.zony) ? data.spec.zony : [];
+  zony.forEach((z, i) => {
+    if (z && typeof z === 'object' && 'zdroj' in z) chyby.push(`zóna ${i + 1} nesie fotku (zdroj)`);
   });
+  if (!citajSablonu(data)) {
+    chyby.push('chýba spec');
+    return chyby;
+  }
+  try {
+    komponuj(normalizujSpec(structuredClone(data.spec)));
+  } catch (err) {
+    chyby.push(`spec neprešiel validáciou: ${err.message}`);
+  }
+  return chyby;
 }
 
-const MEDIUM = { skupina: 'Tlač A', nazov: 'A4' };
-
-test('uloženie zahodí zdroj fotky a nechá režim, posun, zoom a polohu', () => {
-  const spec = plagat();
-  const s = vytvorSablonu('  Plagát   test ', spec, MEDIUM);
-  assert.equal(s.nazov, 'Plagát test');
-  assert.deepEqual(s.medium, MEDIUM);
-  const f = s.spec.zony[1];
-  assert.equal('zdroj' in f, false);
-  const { zdroj, ...bezZdroja } = spec.zony[1];
-  assert.equal(zdroj, FOTKA);
-  assert.deepEqual(f, bezZdroja);
-  // everything else is untouched, and the current spec keeps its photo
-  assert.deepEqual(s.spec.zony[0], spec.zony[0]);
-  for (const k of ['format', 'grid', 'kresba', 'kompozicia', 'variant', 'inverzia']) {
-    assert.deepEqual(s.spec[k], spec[k], k);
+test('index.json je zoznam súborov šablón, každý raz', () => {
+  const index = JSON.parse(readFileSync(new URL('index.json', SABLONY), 'utf8'));
+  assert.ok(Array.isArray(index.sablony), 'index.json nemá pole sablony');
+  assert.deepEqual(Object.keys(index), ['sablony']);
+  for (const s of index.sablony) {
+    assert.match(s, /^[a-z0-9-]+\.json$/, `zlý názov súboru ${JSON.stringify(s)}`);
   }
-  assert.equal(spec.zony[1].zdroj, FOTKA);
+  assert.equal(new Set(index.sablony).size, index.sablony.length, 'súbor je v zozname dvakrát');
+  assert.deepEqual(suboryIndexu(index), index.sablony);
 });
 
-test('uloženie → text → načítanie vráti ten istý spec bez zdroja', () => {
-  const spec = plagat();
-  const text = serializujSablony([vytvorSablonu('Plagát test', spec, MEDIUM)]);
+test('každá šablóna v repozitári existuje, je bez fotky a jej spec prejde jadrom', () => {
+  const { sablony } = JSON.parse(readFileSync(new URL('index.json', SABLONY), 'utf8'));
+  for (const subor of sablony) {
+    const url = new URL(subor, SABLONY);
+    assert.ok(existsSync(url), `${subor} chýba v presets/sablony/`);
+    assert.deepEqual(chybySablony(readFileSync(url, 'utf8')), [], subor);
+  }
+});
+
+test('kontrola šablón zachytí zlú šablónu a pustí dobrú', () => {
+  assert.deepEqual(chybySablony(readFileSync(new URL('dobra.json', FIXTURY), 'utf8')), []);
+  const chyby = chybySablony(readFileSync(new URL('zla.json', FIXTURY), 'utf8'));
+  assert.ok(chyby.some((c) => /zóna 2 nesie fotku/.test(c)), chyby.join('; '));
+  assert.ok(chyby.some((c) => /spec neprešiel validáciou: .*okraja gridu/.test(c)), chyby.join('; '));
+  assert.ok(chybySablony('{').length > 0);
+  assert.deepEqual(chybySablony('{"nazov": "A", "medium": null}'), ['chýba spec']);
+  assert.ok(chybySablony('{"nazov": "", "medium": null, "spec": {}}').includes('chýba názov'));
+  assert.ok(chybySablony('{"nazov": "A", "medium": {"skupina": "Web", "nazov": "A0"}, "spec": {}}')
+    .some((c) => /neznáme médium/.test(c)));
+});
+
+test('JSON template zahodí zdroj fotky a načíta sa späť ako ten istý spec', () => {
+  const dobra = JSON.parse(readFileSync(new URL('dobra.json', FIXTURY), 'utf8'));
+  const spec = normalizujSpec(structuredClone(dobra.spec));
+  spec.zony[1].zdroj = FOTKA;
+
+  const text = sablonaJson(spec, dobra.medium);
   assert.equal(text.includes(FOTKA), false);
-  const [nacitana] = parsujSablony(text);
-  assert.equal(nacitana.nazov, 'Plagát test');
-  assert.deepEqual(nacitana.medium, MEDIUM);
-  // loaded through the same validation path as a saved spec
-  const nacitany = normalizujSpec(structuredClone(nacitana.spec));
-  // the core fills an absent source with its default (null): no photo
-  assert.equal(nacitany.zony[1].typ, 'fotka');
+  assert.equal(text, `${JSON.stringify(JSON.parse(text), null, 2)}\n`, 'odsadené dvoma medzerami');
+  assert.deepEqual(chybySablony(text), []);
+  // the current spec keeps its photo
+  assert.equal(spec.zony[1].zdroj, FOTKA);
+
+  const data = JSON.parse(text);
+  assert.deepEqual(Object.keys(data), ['nazov', 'medium', 'spec']);
+  assert.equal(data.nazov, NAZOV_NOVEJ_SABLONY);
+  assert.deepEqual(data.medium, dobra.medium);
+  assert.equal('zdroj' in data.spec.zony[1], false);
+  // rezim, posun, zoom and the place of the photo zone stay
+  const { zdroj, ...bezZdroja } = spec.zony[1];
+  assert.deepEqual(data.spec.zony[1], bezZdroja);
+
+  // loaded through the same validation path the page uses: same spec, no photo
+  const nacitany = normalizujSpec(structuredClone(citajSablonu(data).spec));
   assert.equal(nacitany.zony[1].zdroj ?? null, null);
   assert.deepEqual(bezFotiek(nacitany), bezFotiek(spec));
+  // the dobra fixture is itself such a file: renamed, it round-trips exactly
+  assert.equal(sablonaJson(normalizujSpec(structuredClone(dobra.spec)), dobra.medium),
+    readFileSync(new URL('dobra.json', FIXTURY), 'utf8').replace('"Milonga IG"', `"${NAZOV_NOVEJ_SABLONY}"`));
+});
+
+test('JSON template bez média nesie medium null', () => {
+  assert.equal(JSON.parse(sablonaJson({ zony: [] }, null)).medium, null);
+  assert.equal(JSON.parse(sablonaJson({ zony: [] }, { skupina: 'Web' })).medium, null);
+});
+
+test('index a súbor šablóny: nečitateľné položky sa vynechajú', () => {
+  assert.deepEqual(suboryIndexu(null), []);
+  assert.deepEqual(suboryIndexu({ sablony: 'a.json' }), []);
+  assert.deepEqual(suboryIndexu({ sablony: ['a.json', 'a.json', 7, '../b.json', 'c.txt', 'index.json', 'd.json'] }),
+    ['a.json', 'd.json']);
+  for (const zle of [null, 42, [], {}, { nazov: 'A' }, { nazov: '  ', spec: {} }, { nazov: 'A', spec: [1] }]) {
+    assert.equal(citajSablonu(zle), null, JSON.stringify(zle));
+  }
+  const s = citajSablonu({ nazov: ' A ', medium: { skupina: 'Web', nazov: 7 }, spec: { zony: [{ typ: 'fotka', zdroj: FOTKA }] } });
+  assert.equal(s.nazov, 'A');
+  assert.equal(s.medium, null);
+  assert.equal('zdroj' in s.spec.zony[0], false);
 });
 
 test('zhoda so šablónou nevníma zdroj fotky ani poradie polí', () => {
-  const spec = plagat();
-  const s = vytvorSablonu('A', spec, null);
-  assert.equal(zhodujeSaSoSablonou(spec, s.spec), true);
+  const dobra = JSON.parse(readFileSync(new URL('dobra.json', FIXTURY), 'utf8'));
+  const spec = normalizujSpec(structuredClone(dobra.spec));
+  const sablona = structuredClone(spec);
+  spec.zony[1].zdroj = FOTKA;
+  assert.equal(zhodujeSaSoSablonou(spec, sablona), true);
   const preusporiadany = Object.fromEntries(Object.entries(spec).reverse());
-  assert.equal(zhodujeSaSoSablonou(preusporiadany, s.spec), true);
+  assert.equal(zhodujeSaSoSablonou(preusporiadany, sablona), true);
   spec.grid.okraj = 2;
-  assert.equal(zhodujeSaSoSablonou(spec, s.spec), false);
-});
-
-test('poškodené uložené dáta sa ignorujú bez výnimky', () => {
-  for (const zle of [null, undefined, '', '{', 'null', '42', '"text"', '{"nazov":"A"}', '[1, "a", null]']) {
-    assert.deepEqual(parsujSablony(zle), [], String(zle));
-  }
-  const spec = { format: {}, zony: [{ typ: 'fotka', zdroj: FOTKA }] };
-  const zmes = JSON.stringify([
-    { nazov: 'Dobrá', spec, medium: { skupina: 'Web', nazov: 7 } },
-    { nazov: '', spec },
-    { nazov: '   ', spec },
-    { nazov: 'Bez specu' },
-    { nazov: 'Zlý spec', spec: [1, 2] },
-    { nazov: 'Dobrá', spec: { inverzia: true } },
-    { spec },
-  ]);
-  const vysledok = parsujSablony(zmes);
-  assert.equal(vysledok.length, 1);
-  assert.equal(vysledok[0].nazov, 'Dobrá');
-  assert.equal(vysledok[0].medium, null);
-  assert.equal('zdroj' in vysledok[0].spec.zony[0], false);
-});
-
-test('pridanie, prepísanie, premenovanie a zmazanie', () => {
-  const a = vytvorSablonu('A', { variant: '1' }, null);
-  const b = vytvorSablonu('B', { variant: '2' }, null);
-  let zoznam = pridajSablonu(pridajSablonu([], a), b);
-  assert.deepEqual(zoznam.map((s) => s.nazov), ['A', 'B']);
-  zoznam = pridajSablonu(zoznam, vytvorSablonu('A', { variant: '3' }, null));
-  assert.deepEqual(zoznam.map((s) => s.spec.variant), ['3', '2']);
-  // a taken or empty name leaves the list as it was
-  assert.equal(premenujSablonu(zoznam, 'A', 'B'), zoznam);
-  assert.equal(premenujSablonu(zoznam, 'A', '  '), zoznam);
-  zoznam = premenujSablonu(zoznam, 'A', ' C ');
-  assert.deepEqual(zoznam.map((s) => s.nazov), ['C', 'B']);
-  assert.equal(najdiSablonu(zoznam, 'C').spec.variant, '3');
-  zoznam = zmazSablonu(zoznam, 'C');
-  assert.deepEqual(zoznam.map((s) => s.nazov), ['B']);
+  assert.equal(zhodujeSaSoSablonou(spec, sablona), false);
 });

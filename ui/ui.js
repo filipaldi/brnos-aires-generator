@@ -11,10 +11,8 @@ import {
 import { maxVelkost } from '../core/kompozicia/velkost.js';
 import { createViewer } from './viewer.js';
 import {
-  vytvorSablonu, serializujSablony, parsujSablony, pridajSablonu, premenujSablonu,
-  zmazSablonu, najdiSablonu, upravNazov, zhodujeSaSoSablonou,
+  sablonaJson, suboryIndexu, citajSablonu, zhodujeSaSoSablonou,
 } from './state/sablony.js';
-import { ulozisko } from './app/ulozisko.js';
 import {
   exportSvgFile, exportPngFile, exportAvifFile, avifSupported,
   rasterDimensions, fontUrlsAbsolute,
@@ -25,7 +23,6 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const LS_KEY = 'brnosaires-generator-spec-v1';
 const LS_MEDIUM_KEY = 'brnosaires-generator-medium-v1';
-const LS_SABLONY_KEY = 'brnosaires-generator-sablony-v1';
 const MM_TO_PX = 96 / 25.4; // CSS px per mm at zoom 100 %
 const ZOOM_STEPS = [25, 33, 50, 67, 75, 90, 100, 125, 150, 200];
 
@@ -1499,15 +1496,18 @@ function sediMedium(medium) {
 // The one lit medium: the clicked one while the format fits it, otherwise
 // the first fitting one in list order; none (Custom) when nothing fits or
 // Custom was clicked.
-function aktivneMedium() {
+// The lit one with its group ({ skupina, medium }), or null.
+function aktivnaPolozkaMedia() {
   if (customZvolene) return null;
   const vsetky = (mediaSkupiny ?? []).flatMap(({ nazov: skupina, media }) =>
     (media ?? []).map((medium) => ({ skupina, medium })));
   const zvolene = zvoleneMedium && vsetky.find(({ skupina, medium }) =>
     skupina === zvoleneMedium.skupina && medium.nazov === zvoleneMedium.nazov);
-  if (zvolene && sediMedium(zvolene.medium)) return zvolene.medium;
-  return vsetky.find(({ medium }) => sediMedium(medium))?.medium ?? null;
+  if (zvolene && sediMedium(zvolene.medium)) return zvolene;
+  return vsetky.find(({ medium }) => sediMedium(medium)) ?? null;
 }
+
+const aktivneMedium = () => aktivnaPolozkaMedia()?.medium ?? null;
 
 function skupinaButtonov(nazov, buttony) {
   const group = document.createElement('div');
@@ -1640,30 +1640,46 @@ const formatPopover = attachPopover($('#btn-format'), (pop) => {
 
 // ----- šablóny popover -----
 
-// Templates: the whole spec and the chosen medium under a name, kept in the
-// browser through the adapter (ui/app/ulozisko.js). The rules (no photos,
-// the stored text, rename, overwrite) live in ui/state/sablony.js; this is
-// the panel. Everything is clicked; Enter and Escape in a name field are
-// only a shortcut for its buttons. No prompt() or confirm(): every question
-// is asked inline in the panel.
-const sablonyUlozisko = ulozisko(LS_SABLONY_KEY);
-let sablony = parsujSablony(sablonyUlozisko.citaj());
-// the template loaded (or saved) last and the spec it gave: it stays lit
-// while the spec still equals it
+// Templates are files in the repository (presets/sablony/<slug>.json, in the
+// order of presets/sablony/index.json), loaded at runtime as JSON like the
+// media — the ui never imports from presets/. A file that is missing or
+// unreadable is skipped. The rules (no photos, the file's shape, the match
+// with the spec) live in ui/state/sablony.js; this is the panel: the list,
+// and a click loads the template.
+let sablony = null; // [{ subor, nazov, medium, spec }] once loaded
+// the template loaded last and the spec it gave: it stays lit while the spec
+// still equals it
 let poslednaSablona = null;
-// the panel's one inline step at a time: saving (name, overwrite question),
-// renaming or deleting a template
-let sablonyKrok = null;
 
-function ulozSablony() {
-  if (!sablonyUlozisko.zapis(serializujSablony(sablony))) {
-    toast('Šablóny sa v prehliadači nepodarilo uložiť, ostanú len do zatvorenia stránky.', 5000);
-  }
+const SABLONY_URL = new URL('../presets/sablony/', import.meta.url);
+
+async function nacitajJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
 
-function svietiSablona(s) {
-  return poslednaSablona?.nazov === s.nazov && zhodujeSaSoSablonou(spec, poslednaSablona.spec);
-}
+nacitajJson(new URL('index.json', SABLONY_URL))
+  .then((index) => Promise.all(suboryIndexu(index).map((subor) =>
+    nacitajJson(new URL(subor, SABLONY_URL))
+      .then((data) => {
+        const s = citajSablonu(data);
+        if (!s) throw new Error('chýba názov alebo spec');
+        return { subor, ...s };
+      })
+      .catch((err) => {
+        console.warn(`Šablónu ${subor} sa nepodarilo načítať, vynechávam ju.`, err);
+        return null;
+      }))))
+  .then((zoznam) => zoznam.filter(Boolean))
+  .catch((err) => {
+    console.warn('Zoznam šablón sa nepodarilo načítať.', err);
+    return [];
+  })
+  .then((zoznam) => {
+    sablony = zoznam;
+    if (sablonyPopover.isOpen()) sablonyPopover.rebuild();
+  });
 
 // A template replaces the current spec through the same path as the saved
 // state; one that does not validate leaves the current spec as it is.
@@ -1682,8 +1698,7 @@ function nacitajSablonu(s) {
   customZvolene = false;
   zvoleneMedium = s.medium;
   ulozZvoleneMedium();
-  poslednaSablona = { nazov: s.nazov, spec: structuredClone(spec) };
-  sablonyKrok = null;
+  poslednaSablona = { subor: s.subor, spec: structuredClone(spec) };
   zoneBar.dataset.key = '';
   syncBar();
   drawOverlay();
@@ -1691,206 +1706,23 @@ function nacitajSablonu(s) {
   scheduleRender();
 }
 
-function ulozAkoSablonu(nazov) {
-  sablony = pridajSablonu(sablony, vytvorSablonu(nazov, spec, customZvolene ? null : zvoleneMedium));
-  ulozSablony();
-  poslednaSablona = { nazov, spec: structuredClone(spec) };
-  sablonyKrok = null;
-  sablonyPopover.rebuild();
-}
-
-function potvrdUlozenie() {
-  const nazov = upravNazov(sablonyKrok.nazov);
-  if (!nazov) {
-    sablonyKrok.chyba = 'Napíš názov šablóny.';
-  } else if (najdiSablonu(sablony, nazov) && sablonyKrok.prepisat !== nazov) {
-    // an existing name asks first; Prepísať confirms
-    sablonyKrok.prepisat = nazov;
-  } else {
-    ulozAkoSablonu(nazov);
+const sablonyPopover = attachPopover($('#btn-sablony'), (pop) => {
+  pop.classList.add('sablony');
+  if (!sablony?.length) {
+    pop.replaceChildren(Object.assign(document.createElement('p'), {
+      className: 'note', textContent: 'Zatiaľ žiadne šablóny.',
+    }));
     return;
   }
-  sablonyPopover.rebuild();
-}
-
-function potvrdPremenovanie() {
-  const { povodny } = sablonyKrok;
-  const nazov = upravNazov(sablonyKrok.nazov);
-  if (!nazov) {
-    sablonyKrok.chyba = 'Napíš názov šablóny.';
-  } else if (nazov !== povodny && najdiSablonu(sablony, nazov)) {
-    sablonyKrok.chyba = `Názov „${nazov}“ už má iná šablóna.`;
-  } else {
-    sablony = premenujSablonu(sablony, povodny, nazov);
-    ulozSablony();
-    if (poslednaSablona?.nazov === povodny) poslednaSablona.nazov = nazov;
-    sablonyKrok = null;
-  }
-  sablonyPopover.rebuild();
-}
-
-function zmazSablonuPotvrdene(nazov) {
-  sablony = zmazSablonu(sablony, nazov);
-  ulozSablony();
-  if (poslednaSablona?.nazov === nazov) poslednaSablona = null;
-  sablonyKrok = null;
-  sablonyPopover.rebuild();
-}
-
-const tlacidlo = (text, onClick, { title, className } = {}) => {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.textContent = text;
-  if (title) {
-    b.title = title;
-    b.setAttribute('aria-label', title);
-  }
-  if (className) b.className = className;
-  b.addEventListener('click', onClick);
-  return b;
-};
-
-const poznamka = (text, className = 'note') => Object.assign(document.createElement('p'), { className, textContent: text });
-
-// A name field of the panel: what is typed lives in the inline step, so a
-// rebuild keeps it; Enter confirms, Escape cancels.
-function poleNazvu(label, onEnter) {
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'nazov';
-  input.maxLength = 60;
-  input.spellcheck = false;
-  input.autocomplete = 'off';
-  input.value = sablonyKrok.nazov;
-  input.setAttribute('aria-label', label);
-  input.dataset.fokus = '';
-  input.addEventListener('input', () => {
-    sablonyKrok.nazov = input.value;
-    sablonyKrok.prepisat = null;
-    sablonyKrok.chyba = '';
-  });
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      onEnter();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      sablonyKrok = null;
-      sablonyPopover.rebuild();
-    }
-  });
-  return input;
-}
-
-function riadokSablony(s) {
-  const li = document.createElement('div');
-  li.className = 'sablona';
-  const krok = sablonyKrok?.sablona === s.nazov ? sablonyKrok : null;
-
-  if (krok?.druh === 'premenovat') {
-    const akcie = document.createElement('div');
-    akcie.className = 'presets';
-    akcie.append(
-      tlacidlo('Premenovať', potvrdPremenovanie),
-      tlacidlo('Zrušiť', () => { sablonyKrok = null; sablonyPopover.rebuild(); }),
-    );
-    li.append(poleNazvu(`Nový názov šablóny ${s.nazov}`, potvrdPremenovanie), akcie);
-    if (krok.chyba) li.append(poznamka(krok.chyba, 'note chyba'));
-    return li;
-  }
-
-  if (krok?.druh === 'zmazat') {
-    li.append(poznamka(`Zmazať šablónu „${s.nazov}“?`, 'otazka'));
-    const akcie = document.createElement('div');
-    akcie.className = 'presets';
-    akcie.append(
-      tlacidlo('Zmazať', () => zmazSablonuPotvrdene(s.nazov)),
-      tlacidlo('Nechať', () => { sablonyKrok = null; sablonyPopover.rebuild(); }),
-    );
-    li.append(akcie);
-    return li;
-  }
-
-  const hlavne = document.createElement('div');
-  hlavne.className = 'presets';
-  const svieti = svietiSablona(s);
-  const nacitat = tlacidlo(s.nazov, () => nacitajSablonu(s), { title: `Načítať šablónu ${s.nazov}`, className: 'meno' });
-  nacitat.classList.toggle('aktivny', svieti);
-  nacitat.setAttribute('aria-pressed', String(svieti));
-  hlavne.append(
-    nacitat,
-    tlacidlo('✎', () => {
-      sablonyKrok = { druh: 'premenovat', sablona: s.nazov, povodny: s.nazov, nazov: s.nazov, chyba: '' };
-      sablonyPopover.rebuild();
-    }, { title: `Premenovať šablónu ${s.nazov}`, className: 'maly' }),
-    tlacidlo('✕', () => {
-      sablonyKrok = { druh: 'zmazat', sablona: s.nazov };
-      sablonyPopover.rebuild();
-    }, { title: `Zmazať šablónu ${s.nazov}`, className: 'maly' }),
-  );
-  li.append(hlavne);
-  return li;
-}
-
-function castUlozenia() {
-  const wrap = document.createElement('div');
-  wrap.className = 'ulozenie';
-  if (sablonyKrok?.druh !== 'ulozit') {
-    const akcie = document.createElement('div');
-    akcie.className = 'presets';
-    akcie.append(tlacidlo('Uložiť ako šablónu', () => {
-      sablonyKrok = { druh: 'ulozit', nazov: '', prepisat: null, chyba: '' };
-      sablonyPopover.rebuild();
-    }));
-    wrap.append(akcie);
-    return wrap;
-  }
-  const krok = sablonyKrok;
-  wrap.append(poleNazvu('Názov šablóny', potvrdUlozenie));
-  const akcie = document.createElement('div');
-  akcie.className = 'presets';
-  if (krok.prepisat) {
-    wrap.append(poznamka(`Šablóna „${krok.prepisat}“ už existuje. Prepísať ju?`, 'otazka'));
-    akcie.append(
-      tlacidlo('Prepísať', potvrdUlozenie),
-      tlacidlo('Zrušiť', () => { krok.prepisat = null; sablonyPopover.rebuild(); }),
-    );
-  } else {
-    akcie.append(
-      tlacidlo('Uložiť', potvrdUlozenie),
-      tlacidlo('Zrušiť', () => { sablonyKrok = null; sablonyPopover.rebuild(); }),
-    );
-  }
-  wrap.append(akcie);
-  if (krok.chyba) wrap.append(poznamka(krok.chyba, 'note chyba'));
-  return wrap;
-}
-
-const sablonyPopover = attachPopover($('#btn-sablony'), (pop) => {
-  // a panel opened afresh starts without a half-done step
-  if (!sablonyPopover?.isOpen()) sablonyKrok = null;
-  pop.classList.add('sablony');
-  const mkH = (text) => Object.assign(document.createElement('h3'), { textContent: text });
   const zoznam = document.createElement('div');
-  zoznam.className = 'zoznam';
-  if (sablony.length) zoznam.append(...sablony.map(riadokSablony));
-  else zoznam.append(poznamka('Zatiaľ žiadna šablóna. Ulož aktuálny dokument ako prvú.'));
-  pop.replaceChildren(
-    mkH('Šablóny'),
-    zoznam,
-    castUlozenia(),
-    poznamka('Šablóna nesie formát, mriežku, parametre, variant a zóny, fotky nie: fotková zóna po načítaní čaká na novú fotku.'),
-  );
-  const fokus = pop.querySelector('[data-fokus]');
-  if (fokus) {
-    const zamer = () => {
-      fokus.focus();
-      fokus.setSelectionRange(fokus.value.length, fokus.value.length);
-    };
-    // a hidden popover (a fresh open) takes focus once it is shown
-    if (pop.hidden) requestAnimationFrame(zamer);
-    else zamer();
+  zoznam.className = 'presets zoznam';
+  for (const s of sablony) {
+    const svieti = poslednaSablona?.subor === s.subor && zhodujeSaSoSablonou(spec, poslednaSablona.spec);
+    const b = buttonMedia(s.nazov, svieti, () => nacitajSablonu(s));
+    b.title = `Načítať šablónu ${s.nazov}`;
+    zoznam.append(b);
   }
+  pop.replaceChildren(zoznam);
 });
 
 // ----- parametre popover -----
@@ -2044,12 +1876,47 @@ const exportPopover = attachPopover($('#btn-export'), (pop) => {
   const avifWrap = document.createElement('div');
   avifWrap.className = 'presets';
 
+  // JSON template: the current spec as a template file (photos left out) to
+  // the clipboard; where the clipboard refuses, the text waits selected in
+  // a read-only field below the buttons
+  const sablonaWrap = document.createElement('div');
+  sablonaWrap.className = 'sablona-json';
+  const sablonaBtn = document.createElement('button');
+  sablonaBtn.type = 'button';
+  sablonaBtn.textContent = 'JSON template';
+  sablonaBtn.addEventListener('click', () => {
+    const polozka = aktivnaPolozkaMedia();
+    const text = sablonaJson(spec, polozka && { skupina: polozka.skupina, nazov: polozka.medium.nazov });
+    const ukazText = () => {
+      const pole = document.createElement('textarea');
+      pole.readOnly = true;
+      pole.spellcheck = false;
+      pole.rows = 8;
+      pole.value = text;
+      pole.setAttribute('aria-label', 'JSON šablóny');
+      sablonaWrap.replaceChildren(pole);
+      pole.focus();
+      pole.select();
+      toast('Schránka nie je dostupná: text šablóny je označený, skopíruj ho.', 5000);
+    };
+    try {
+      navigator.clipboard.writeText(text).then(() => toast('Skopírované'), ukazText);
+    } catch {
+      ukazText(); // no clipboard at all (an insecure page)
+    }
+  });
+  const sablonaPresets = document.createElement('div');
+  sablonaPresets.className = 'presets sablona-tlacidlo';
+  sablonaPresets.append(sablonaBtn);
+
   pop.replaceChildren(
     mkH('Export'),
     wrap,
     pngDims,
     svgNote,
     avifWrap,
+    sablonaPresets,
+    sablonaWrap,
   );
 
   avifSupported().then((ok) => {

@@ -147,6 +147,7 @@ Fotková zóna:
 | Parameter | Hodnoty | Poznámka |
 |---|---|---|
 | Súbor | SVG / PNG / AVIF | |
+| JSON template | do schránky | Aktuálny dokument ako šablóna, bez fotiek (pozri Šablóny) |
 | Text | upraviteľný / krivky | Len SVG |
 
 SVG má vrstvy `pattern`, `text`, `fotky`, `spadavka` a pri nenulovom okraji `okraj`.
@@ -249,24 +250,24 @@ Zľava doprava v poradí, v akom sa pri práci používa:
 | Položka | Ako často | Obsah |
 |---|---|---|
 | `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba formátu (A2, A3, IG, web), rozmer a jednotka, DPI, spadávka, Grid, okraj, zvyšok výšky |
-| `Šablóny ▾` | na začiatku a na konci | Uložené šablóny ako tlačidlá (klik načíta), premenovanie, zmazanie, „Uložiť ako šablónu“ |
+| `Šablóny ▾` | na začiatku | Výber šablóny z repozitára: zoznam tlačidiel, klik načíta |
 | `Parametre ▾` | občas | Weight, Contrast, inverzia, veľkosť, rozloženie, typy, rozmiestnenie (voľné / dlaždice) |
 | `◀ Variant 42 ▶ ⟳` | neustále | Predchádzajúci, číslo variantu (dá sa prepísať), ďalší, náhodný |
 | `75 %` | podľa potreby | Zoom plátna |
-| `Export` | raz na konci | SVG / PNG / AVIF, text upraviteľný alebo v krivkách |
+| `Export` | raz na konci | SVG / PNG / AVIF, text upraviteľný alebo v krivkách; JSON template skopíruje šablónu |
 
 V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepoužíva, je to **Variant**.
 
 ### Šablóny
 
-Vlastné šablóny používateľa v paneli **Šablóny** (tlačidlo v hornej lište hneď za Dokumentom).
+Šablóny sú súbory v repozitári; panel **Šablóny** (tlačidlo v hornej lište hneď za Dokumentom) z nich len vyberá.
 
-- **Čo šablóna nesie:** celý aktuálny spec (formát, mriežka vrátane okraja, kresba, kompozícia, variant, inverzia a zóny so všetkými poľami) a zvolené médium, pod názvom, ktorý používateľ napíše.
-- **Fotky sa neukladajú.** Fotkovej zóne sa pri uložení zahodí `zdroj`; režim, posun, zoom, poloha a okraj ostanú. Po načítaní ukáže taká zóna v editore zástupný obrázok kreslený kódom (sivá plocha s uhlopriečnym krížom a nápisom „Fotka“), kým do nej používateľ nepretiahne vlastnú fotku; fotka potom preberie režim, posun aj zoom zóny. Zástupný obrázok je len v editore: exportované súbory nesú to, čo jadro kreslí pre fotkovú zónu bez fotky odjakživa — svetlosivý obdĺžnik.
-- **Panel:** uložené šablóny sú tlačidlá v štýle médií. Klik šablónu načíta: nahradí aktuálny spec (rovnakou cestou a validáciou ako stav uložený v prehliadači) a nastaví jej médium; panel ostane otvorený. Šablóna, ktorá validáciou neprejde, ukáže chybu a aktuálny spec nechá tak. Rozsvietená je naposledy načítaná (alebo uložená) šablóna, kým jej spec zodpovedá — fotka pretiahnutá do zástupného obrázka na tom nič nemení.
-- **Uložiť ako šablónu** otvorí v paneli textové pole na názov s tlačidlami Uložiť a Zrušiť (Enter uloží, Escape zruší). Existujúci názov sa najprv opýta priamo v paneli a prepíše až po kliknutí na Prepísať.
-- **Premenovať (✎) a zmazať (✕)** má každá šablóna vedľa svojho tlačidla. Premenovanie otvorí pole s názvom na mieste šablóny; zmazanie sa opýta v paneli („Zmazať šablónu …?“, Zmazať / Nechať). Rozhranie nepoužíva `prompt()` ani `confirm()`, v artefakte claude.ai nefungujú.
-- **Uloženie:** v prehliadači (`localStorage`, kľúč `brnosaires-generator-sablony-v1`, pole `{ nazov, spec, medium }`) cez adaptér `ui/app/ulozisko.js`; pravidlá (zahodenie fotiek, zápis, čítanie, premenovanie, prepísanie) sú v `ui/state/sablony.js` bez DOM a testujú sa v Node. Nečitateľné uložené dáta (zlý JSON, zlý tvar, položka bez názvu alebo specu) sa ticho vynechajú; bez `localStorage` stránka funguje ďalej a šablóny žijú len do zatvorenia.
+- **Čo šablóna nesie:** názov, médium (skupina a názov z `presets/media.json`, alebo `null`) a celý spec (formát, mriežka vrátane okraja, kresba, kompozícia, variant, inverzia a zóny so všetkými poľami). Jeden súbor `presets/sablony/<slug>.json` = `{ "nazov": "…", "medium": { "skupina": "…", "nazov": "…" } | null, "spec": { … } }`. Poradie v paneli určuje `presets/sablony/index.json` = `{ "sablony": ["<slug>.json", …] }`.
+- **Panel:** len zoznam šablón ako tlačidlá v štýle médií, nič iné; bez šablón jediný riadok „Zatiaľ žiadne šablóny.“ Klik šablónu načíta: nahradí aktuálny spec (rovnakou cestou a validáciou ako stav uložený v prehliadači) a nastaví jej médium; panel ostane otvorený. Šablóna, ktorá validáciou neprejde, ukáže chybu a aktuálny spec nechá tak. Rozsvietená je naposledy načítaná šablóna, kým jej spec zodpovedá — fotka pretiahnutá do zástupného obrázka na tom nič nemení.
+- **Fotky šablóna nenesie.** Fotková zóna nemá `zdroj`; režim, posun, zoom, poloha a okraj ostanú. Po načítaní ukáže taká zóna v editore zástupný obrázok kreslený kódom (sivá plocha s uhlopriečnym krížom a nápisom „Fotka“), kým do nej používateľ nepretiahne vlastnú fotku; fotka potom preberie režim, posun aj zoom zóny. Zástupný obrázok je len v editore: exportované súbory nesú to, čo jadro kreslí pre fotkovú zónu bez fotky odjakživa — svetlosivý obdĺžnik.
+- **Export → JSON template** skopíruje do schránky obsah jedného súboru šablóny z aktuálneho stavu (odsadený dvoma medzerami, fotky bez `zdroj`, médium to rozsvietené v paneli Dokument) s dočasným názvom „Nová šablóna“. Keď schránka nie je dostupná, ukáže sa text v paneli Export označený v poli len na čítanie.
+- **Ako pridať šablónu:** v generátore priprav dokument, klikni Export → JSON template, vlož text do nového súboru `presets/sablony/<slug>.json` (slug malými písmenami, číslicami a pomlčkami), prepíš `"nazov"`, pridaj `"<slug>.json"` do `presets/sablony/index.json` na miesto, kde sa má v paneli ukázať, a otvor PR. `npm test` overí, že každá šablóna v zozname existuje, je v ňom raz, nenesie fotku, jej médium existuje a spec prejde validáciou jadra.
+- **Načítanie:** rozhranie načítava `index.json` a súbory šablón za behu ako dáta (ako médiá); chýbajúci alebo nečitateľný súbor sa vynechá s varovaním v konzole. Pravidlá (zahodenie fotiek, text pre JSON template, tvar súboru, zhoda so specom) sú v `ui/state/sablony.js` bez DOM a testujú sa v Node.
 
 ### Plátno
 

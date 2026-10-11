@@ -4,8 +4,8 @@
 # pre vývoj), celé core/, fonts/ a JSON, ktoré jadro importuje —
 # proporcie.json (core/axes.js) a assets.json (core/primitives/krivka.js);
 # fonty hlási ui.css a ui/export.js. Médiá panelu Formát načítava ui/ui.js
-# z presets/media.json. Navyše CNAME, .nojekyll a index.html presmerujúci
-# koreň na ui/. Nič iné do _site nepatrí.
+# z presets/media.json, šablóny z presets/sablony/. Navyše CNAME, .nojekyll
+# a index.html presmerujúci koreň na ui/. Nič iné do _site nepatrí.
 #   scripts/zostav-web.sh <výstupný-adresár>
 # Exit 0 = zostavené, 1 = chýba kus, 2 = zlé použitie.
 
@@ -30,6 +30,7 @@ done
 cp -R "$ROOT"/core/. "$OUT/core/"
 cp "$ROOT"/fonts/* "$OUT/fonts/"
 cp "$ROOT"/presets/media.json "$OUT/presets/"
+cp -R "$ROOT"/presets/sablony "$OUT/presets/"
 cp "$ROOT/proporcie.json" "$ROOT/assets.json" "$OUT/"
 
 printf '%s\n' 'generator.brnosaires.com' >"$OUT/CNAME"
@@ -49,8 +50,8 @@ cat >"$OUT/index.html" <<'HTML'
 HTML
 
 # pojistka: kus, bez ktorého web nefunguje, nesmie v zostave chýbať
-for f in ui/index.html ui/ui.js ui/worker.js ui/state/sablony.js ui/app/ulozisko.js core/index.js core/kompozicia/index.js \
-         fonts/brnos-aires.woff2 fonts/nunito-variable.ttf presets/media.json \
+for f in ui/index.html ui/ui.js ui/worker.js ui/state/sablony.js core/index.js core/kompozicia/index.js \
+         fonts/brnos-aires.woff2 fonts/nunito-variable.ttf presets/media.json presets/sablony/index.json \
          proporcie.json assets.json; do
     [ -f "$OUT/$f" ] || { echo "zostav-web: v zostave chýba $f" >&2; exit 1; }
 done

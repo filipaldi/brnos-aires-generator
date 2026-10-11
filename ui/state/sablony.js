@@ -1,11 +1,15 @@
-// Šablóny (user-made templates): the whole spec plus the chosen medium, saved
-// under a name. Pure data rules only — no DOM, no storage: the page reads and
-// writes the serialized list through the browser adapter ui-app supplies, so
+// Šablóny (templates): files in the repository, presets/sablony/<slug>.json,
+// listed in display order by presets/sablony/index.json. Each one is the whole
+// spec plus the chosen medium under a name. Pure data rules only — no DOM, no
+// fetch: the page loads the files and hands their parsed JSON here, so
 // everything here runs (and is tested) in Node.
 //
 // A template never carries photos: every photo zone loses its `zdroj`
 // (rezim, posun, zoom and its place stay), and the editor shows a placeholder
 // in a photo zone without one until the user drops their own photo in.
+
+// The name a copied template carries until the owner names it in its file.
+export const NAZOV_NOVEJ_SABLONY = 'Nová šablóna';
 
 // A deep copy of the spec with the photo sources removed.
 export function bezFotiek(spec) {
@@ -18,11 +22,6 @@ export function bezFotiek(spec) {
   return kopia;
 }
 
-// A typed name, trimmed with inner whitespace collapsed; '' when nothing is left.
-export function upravNazov(nazov) {
-  return typeof nazov === 'string' ? nazov.trim().replace(/\s+/g, ' ') : '';
-}
-
 const jeObjekt = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 // A medium as the page remembers it ({ skupina, nazov }) or null.
@@ -32,61 +31,36 @@ function upravMedium(m) {
     : null;
 }
 
-// The template saved from the current spec and medium.
-export function vytvorSablonu(nazov, spec, medium) {
-  return { nazov: upravNazov(nazov), spec: bezFotiek(spec), medium: upravMedium(medium) };
+// The text of one template file made from the current spec and medium:
+// what "JSON template" copies, ready to be pasted into presets/sablony/.
+export function sablonaJson(spec, medium) {
+  const sablona = { nazov: NAZOV_NOVEJ_SABLONY, medium: upravMedium(medium), spec: bezFotiek(spec) };
+  return `${JSON.stringify(sablona, null, 2)}\n`;
 }
 
-// The stored list as text.
-export function serializujSablony(sablony) {
-  return JSON.stringify(sablony.map(({ nazov, spec, medium }) => ({ nazov, spec, medium })));
-}
-
-// The stored text back as a list. Anything unreadable — bad JSON, not an
-// array, an item without a name or a spec object, a repeated name — is left
-// out, never thrown: the page works with whatever survives. The spec itself
-// is only checked for its shape here; the page validates it on load through
-// the same path as a saved spec, and a photo source that slipped in is dropped.
-export function parsujSablony(text) {
-  if (typeof text !== 'string' || !text) return [];
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(data)) return [];
+// The file names of index.json in their order: strings naming a .json file
+// in the same directory, each once; anything else is left out.
+export function suboryIndexu(index) {
+  const zoznam = jeObjekt(index) && Array.isArray(index.sablony) ? index.sablony : [];
   const out = [];
-  const mena = new Set();
-  for (const item of data) {
-    if (!jeObjekt(item) || !jeObjekt(item.spec)) continue;
-    const nazov = upravNazov(item.nazov);
-    if (!nazov || mena.has(nazov)) continue;
-    mena.add(nazov);
-    out.push({ nazov, spec: bezFotiek(item.spec), medium: upravMedium(item.medium) });
+  for (const s of zoznam) {
+    if (typeof s === 'string' && /^[^/\\]+\.json$/.test(s) && s !== 'index.json' && !out.includes(s)) {
+      out.push(s);
+    }
   }
   return out;
 }
 
-export const najdiSablonu = (sablony, nazov) => sablony.find((s) => s.nazov === upravNazov(nazov));
-
-// The list with the template added at the end, or replacing the one of the
-// same name in its place (the page asks before overwriting).
-export function pridajSablonu(sablony, sablona) {
-  const i = sablony.findIndex((s) => s.nazov === sablona.nazov);
-  if (i < 0) return [...sablony, sablona];
-  return sablony.map((s, j) => (j === i ? sablona : s));
+// One parsed template file as { nazov, medium, spec }, or null when it lacks
+// a name or a spec object. The spec itself is only checked for its shape
+// here; the page validates it on load through the same path as a saved spec,
+// and a photo source that slipped in is dropped.
+export function citajSablonu(data) {
+  if (!jeObjekt(data) || !jeObjekt(data.spec)) return null;
+  const nazov = typeof data.nazov === 'string' ? data.nazov.trim() : '';
+  if (!nazov) return null;
+  return { nazov, medium: upravMedium(data.medium), spec: bezFotiek(data.spec) };
 }
-
-// The list with one template renamed in place; unchanged when the new name is
-// empty or taken by another template.
-export function premenujSablonu(sablony, stary, novy) {
-  const nazov = upravNazov(novy);
-  if (!nazov || sablony.some((s) => s.nazov === nazov && s.nazov !== stary)) return sablony;
-  return sablony.map((s) => (s.nazov === stary ? { ...s, nazov } : s));
-}
-
-export const zmazSablonu = (sablony, nazov) => sablony.filter((s) => s.nazov !== nazov);
 
 // JSON with object keys sorted, so two specs compare by content, not by the
 // order their fields were set in.
