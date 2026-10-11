@@ -1,6 +1,6 @@
 #!/bin/sh
 # Zostaví adresár s tým, čo generátor v prehliadači naozaj načítava
-# (GitHub Pages, lokálny test): ui/ bez serve.js a smoke.mjs (tie sú len
+# (GitHub Pages, lokálny test): ui/ s podadresármi, bez serve.js a smoke.mjs (tie sú len
 # pre vývoj), celé core/, fonts/ a JSON, ktoré jadro importuje —
 # proporcie.json (core/axes.js) a assets.json (core/primitives/krivka.js);
 # fonty hlási ui.css a ui/export.js. Médiá panelu Formát načítava ui/ui.js
@@ -25,7 +25,7 @@ mkdir -p "$OUT/ui" "$OUT/core" "$OUT/fonts" "$OUT/presets"
 # vývojové súbory ui/ servujú len lokálne, prehliadač ich nenačítava
 for f in "$ROOT"/ui/*; do
     case $f in */serve.js|*/smoke.mjs) continue ;; esac
-    cp "$f" "$OUT/ui/"
+    cp -R "$f" "$OUT/ui/"
 done
 cp -R "$ROOT"/core/. "$OUT/core/"
 cp "$ROOT"/fonts/* "$OUT/fonts/"
@@ -49,7 +49,7 @@ cat >"$OUT/index.html" <<'HTML'
 HTML
 
 # pojistka: kus, bez ktorého web nefunguje, nesmie v zostave chýbať
-for f in ui/index.html ui/ui.js ui/worker.js core/index.js core/kompozicia/index.js \
+for f in ui/index.html ui/ui.js ui/worker.js ui/state/sablony.js ui/app/ulozisko.js core/index.js core/kompozicia/index.js \
          fonts/brnos-aires.woff2 fonts/nunito-variable.ttf presets/media.json \
          proporcie.json assets.json; do
     [ -f "$OUT/$f" ] || { echo "zostav-web: v zostave chýba $f" >&2; exit 1; }

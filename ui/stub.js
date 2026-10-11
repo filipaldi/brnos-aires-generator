@@ -97,8 +97,10 @@ function validateZone(z, index) {
     if (z.features !== undefined) normalizujFeatures(z.features, z.pismo || 'Brnos Aires', kde);
   }
   if (z.typ === 'fotka') {
-    if (typeof z.zdroj !== 'string' || !z.zdroj) {
-      throw new ValidationError(`${kde}: chýba zdroj fotky.`);
+    // same contract as the core: a photo zone may wait for its photo (a
+    // loaded template keeps none), a given source is a string
+    if (z.zdroj != null && typeof z.zdroj !== 'string') {
+      throw new ValidationError(`${kde}: zdroj fotky musí byť reťazec.`);
     }
     enumv(z.rezim, `${kde}: režim`, ['ramik', 'maska', 'prekrytie']);
     if (z.posun !== undefined) {
@@ -359,6 +361,8 @@ function textZoneSvg(z, fill, dielikUnits) {
 }
 
 function photoZoneSvg(z, i, geom, fill) {
+  // no photo yet: nothing to draw, the editor shows its placeholder
+  if (!z.zdroj) return '';
   const hair = Math.max(geom.b, 0.02) * 0.35; // frame line, visible at any format
   const px = z.x, py = z.y, pw = z.w, ph = z.h;
   const cx = px + pw / 2, cy = py + ph / 2;

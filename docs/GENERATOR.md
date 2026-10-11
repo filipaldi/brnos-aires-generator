@@ -249,12 +249,24 @@ Zľava doprava v poradí, v akom sa pri práci používa:
 | Položka | Ako často | Obsah |
 |---|---|---|
 | `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba formátu (A2, A3, IG, web), rozmer a jednotka, DPI, spadávka, Grid, okraj, zvyšok výšky |
+| `Šablóny ▾` | na začiatku a na konci | Uložené šablóny ako tlačidlá (klik načíta), premenovanie, zmazanie, „Uložiť ako šablónu“ |
 | `Parametre ▾` | občas | Weight, Contrast, inverzia, veľkosť, rozloženie, typy, rozmiestnenie (voľné / dlaždice) |
 | `◀ Variant 42 ▶ ⟳` | neustále | Predchádzajúci, číslo variantu (dá sa prepísať), ďalší, náhodný |
 | `75 %` | podľa potreby | Zoom plátna |
 | `Export` | raz na konci | SVG / PNG / AVIF, text upraviteľný alebo v krivkách |
 
 V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepoužíva, je to **Variant**.
+
+### Šablóny
+
+Vlastné šablóny používateľa v paneli **Šablóny** (tlačidlo v hornej lište hneď za Dokumentom).
+
+- **Čo šablóna nesie:** celý aktuálny spec (formát, mriežka vrátane okraja, kresba, kompozícia, variant, inverzia a zóny so všetkými poľami) a zvolené médium, pod názvom, ktorý používateľ napíše.
+- **Fotky sa neukladajú.** Fotkovej zóne sa pri uložení zahodí `zdroj`; režim, posun, zoom, poloha a okraj ostanú. Po načítaní ukáže taká zóna v editore zástupný obrázok kreslený kódom (sivá plocha s uhlopriečnym krížom a nápisom „Fotka“), kým do nej používateľ nepretiahne vlastnú fotku; fotka potom preberie režim, posun aj zoom zóny. Zástupný obrázok je len v editore: exportované súbory nesú to, čo jadro kreslí pre fotkovú zónu bez fotky odjakživa — svetlosivý obdĺžnik.
+- **Panel:** uložené šablóny sú tlačidlá v štýle médií. Klik šablónu načíta: nahradí aktuálny spec (rovnakou cestou a validáciou ako stav uložený v prehliadači) a nastaví jej médium; panel ostane otvorený. Šablóna, ktorá validáciou neprejde, ukáže chybu a aktuálny spec nechá tak. Rozsvietená je naposledy načítaná (alebo uložená) šablóna, kým jej spec zodpovedá — fotka pretiahnutá do zástupného obrázka na tom nič nemení.
+- **Uložiť ako šablónu** otvorí v paneli textové pole na názov s tlačidlami Uložiť a Zrušiť (Enter uloží, Escape zruší). Existujúci názov sa najprv opýta priamo v paneli a prepíše až po kliknutí na Prepísať.
+- **Premenovať (✎) a zmazať (✕)** má každá šablóna vedľa svojho tlačidla. Premenovanie otvorí pole s názvom na mieste šablóny; zmazanie sa opýta v paneli („Zmazať šablónu …?“, Zmazať / Nechať). Rozhranie nepoužíva `prompt()` ani `confirm()`, v artefakte claude.ai nefungujú.
+- **Uloženie:** v prehliadači (`localStorage`, kľúč `brnosaires-generator-sablony-v1`, pole `{ nazov, spec, medium }`) cez adaptér `ui/app/ulozisko.js`; pravidlá (zahodenie fotiek, zápis, čítanie, premenovanie, prepísanie) sú v `ui/state/sablony.js` bez DOM a testujú sa v Node. Nečitateľné uložené dáta (zlý JSON, zlý tvar, položka bez názvu alebo specu) sa ticho vynechajú; bez `localStorage` stránka funguje ďalej a šablóny žijú len do zatvorenia.
 
 ### Plátno
 

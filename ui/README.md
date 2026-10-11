@@ -20,6 +20,8 @@ repozitára, takže jadro (`/core/`) aj fonty
 | `serve.js` | malý statický server (port 41235) |
 | `index.html`, `ui.css` | kostra stránky a štýl (čierno-biely) |
 | `ui.js` | lišta, popovery, plátno, zóny, ukladanie stavu |
+| `state/sablony.js` | pravidlá šablón bez DOM: zahodenie fotiek, zápis a čítanie zoznamu, premenovanie, prepísanie, zhoda so specom |
+| `app/ulozisko.js` | adaptér prehliadača: jedna hodnota v `localStorage`, každý prístup v try/catch |
 | `engine.js` | adapter: natiahne `core/kompozicia`, kým neexistuje, použije `stub.js`; skladanie posiela do workera, pri zlyhaní kreslí na hlavnom vlákne |
 | `worker.js` | web worker so skladaním (`komponuj` jadra mimo hlavné vlákno) |
 | `stub.js` | náhradný engine (rovnaké API, náhodné rozmiestnenie so seedom) |
@@ -49,6 +51,10 @@ repozitára, takže jadro (`/core/`) aj fonty
   Parametroch počas ťahania menia len číslo (a spec); list sa prekreslí až
   po pustení alebo kliknutí.
 - **Čísla** v ponukách sú celé, desatinné sa zaokrúhlia.
+
+- **Šablóny:** panel Šablóny v lište uloží celý dokument a médium pod
+  názvom (bez fotiek), klikom ho načíta; premenovanie a zmazanie sú
+  priamo v paneli.
 
 Stav sa automaticky ukladá do `localStorage`; náhodný variant tlačidlom `⟳`
 je jediné miesto, kde rozhranie ťahá náhodu (engine zostáva deterministický).

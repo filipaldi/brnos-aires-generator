@@ -11,6 +11,11 @@ import {
 import { maxVelkost } from '../core/kompozicia/velkost.js';
 import { createViewer } from './viewer.js';
 import {
+  vytvorSablonu, serializujSablony, parsujSablony, pridajSablonu, premenujSablonu,
+  zmazSablonu, najdiSablonu, upravNazov, zhodujeSaSoSablonou,
+} from './state/sablony.js';
+import { ulozisko } from './app/ulozisko.js';
+import {
   exportSvgFile, exportPngFile, exportAvifFile, avifSupported,
   rasterDimensions, fontUrlsAbsolute,
 } from './export.js';
@@ -20,6 +25,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const LS_KEY = 'brnosaires-generator-spec-v1';
 const LS_MEDIUM_KEY = 'brnosaires-generator-medium-v1';
+const LS_SABLONY_KEY = 'brnosaires-generator-sablony-v1';
 const MM_TO_PX = 96 / 25.4; // CSS px per mm at zoom 100 %
 const ZOOM_STEPS = [25, 33, 50, 67, 75, 90, 100, 125, 150, 200];
 
@@ -58,19 +64,23 @@ const zoneBar = $('#zone-bar');
   document.head.append(style);
 }
 
+// A spec saved earlier (the state, a template) made current: settings the
+// generator dropped are removed, then the engine validates and normalises
+// it. Throws the engine's error when the spec is not valid.
+function pripravSpec(saved) {
+  // types and settings dropped from the set (koleno, bod, retazenie,
+  // rozlozenie) must not discard the saved state
+  if (saved?.kompozicia) zahodZastarane(saved.kompozicia);
+  // the margin moved from the format (its unit) to the grid (dieliky):
+  // a format.okraj saved by the earlier preview is dropped, not converted
+  if (saved?.format && typeof saved.format === 'object') delete saved.format.okraj;
+  return engine.normalizujSpec(saved);
+}
+
 function loadSpec() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) {
-      const saved = JSON.parse(raw);
-      // types and settings dropped from the set (koleno, bod, retazenie,
-      // rozlozenie) must not discard the saved state
-      if (saved?.kompozicia) zahodZastarane(saved.kompozicia);
-      // the margin moved from the format (its unit) to the grid (dieliky):
-      // a format.okraj saved by the earlier preview is dropped, not converted
-      if (saved?.format && typeof saved.format === 'object') delete saved.format.okraj;
-      return engine.normalizujSpec(saved);
-    }
+    if (raw) return pripravSpec(JSON.parse(raw));
   } catch (err) {
     console.warn('Uložený stav sa nepodarilo načítať, začínam odznova.', err);
   }
@@ -260,6 +270,7 @@ function drawOverlay() {
       hint.textContent = 'Dvojklik pre text alebo pretiahni fotku';
       div.append(hint);
     }
+    if (z.typ === 'fotka' && !z.zdroj) div.append(nahradaFotky());
     if (i === selected) {
       for (const corner of ['tl', 'tr', 'bl', 'br']) {
         const handle = document.createElement('div');
@@ -273,6 +284,24 @@ function drawOverlay() {
 
   drawZoneBar();
   positionEditor();
+}
+
+// A photo zone without its photo (a loaded template keeps no photos): a
+// placeholder drawn here, a grey wash with a diagonal cross and the word
+// Fotka, until a photo is dropped in. It lives in the overlay only, so the
+// exported files keep what the core writes for such a zone (a plain light
+// grey rectangle). Translucent: in maska and prekrytie the pattern shows.
+function nahradaFotky() {
+  const wrap = document.createElement('div');
+  wrap.className = 'foto-nahrada';
+  wrap.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">'
+    + '<path d="M0 0L100 100M100 0L0 100" vector-effect="non-scaling-stroke"/></svg>';
+  const popis = document.createElement('span');
+  popis.className = 'hint';
+  popis.textContent = 'Fotka';
+  popis.title = 'Pretiahni sem fotku';
+  wrap.append(popis);
+  return wrap;
 }
 
 function styleRect(r) {
@@ -972,7 +1001,13 @@ overlay.addEventListener('drop', async (e) => {
     const zdroj = await readImageFile(file);
     if (hit >= 0) {
       const z = spec.zony[hit];
-      Object.assign(z, { typ: 'fotka', zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1 });
+      if (z.typ === 'fotka' && !z.zdroj) {
+        // the placeholder of a template: the photo takes the zone's own
+        // rezim, posun and zoom, saved with the template
+        z.zdroj = zdroj;
+      } else {
+        Object.assign(z, { typ: 'fotka', zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1 });
+      }
       selected = hit;
     } else {
       // a 4 × 3 frame centred on the cursor, edges on the nearest lines,
@@ -1601,6 +1636,261 @@ const formatPopover = attachPopover($('#btn-format'), (pop) => {
       [['okraje', 'okraje'], ['natiahnutie', 'natiahnutie'], ['orez', 'presah a orez']],
       g.zvysok, (v) => { spec.grid.zvysok = v; })),
   );
+});
+
+// ----- šablóny popover -----
+
+// Templates: the whole spec and the chosen medium under a name, kept in the
+// browser through the adapter (ui/app/ulozisko.js). The rules (no photos,
+// the stored text, rename, overwrite) live in ui/state/sablony.js; this is
+// the panel. Everything is clicked; Enter and Escape in a name field are
+// only a shortcut for its buttons. No prompt() or confirm(): every question
+// is asked inline in the panel.
+const sablonyUlozisko = ulozisko(LS_SABLONY_KEY);
+let sablony = parsujSablony(sablonyUlozisko.citaj());
+// the template loaded (or saved) last and the spec it gave: it stays lit
+// while the spec still equals it
+let poslednaSablona = null;
+// the panel's one inline step at a time: saving (name, overwrite question),
+// renaming or deleting a template
+let sablonyKrok = null;
+
+function ulozSablony() {
+  if (!sablonyUlozisko.zapis(serializujSablony(sablony))) {
+    toast('Šablóny sa v prehliadači nepodarilo uložiť, ostanú len do zatvorenia stránky.', 5000);
+  }
+}
+
+function svietiSablona(s) {
+  return poslednaSablona?.nazov === s.nazov && zhodujeSaSoSablonou(spec, poslednaSablona.spec);
+}
+
+// A template replaces the current spec through the same path as the saved
+// state; one that does not validate leaves the current spec as it is.
+function nacitajSablonu(s) {
+  let novy;
+  try {
+    novy = pripravSpec(structuredClone(s.spec));
+  } catch (err) {
+    toast(`Šablónu „${s.nazov}“ sa nepodarilo načítať: ${err.message}`, 5000);
+    return;
+  }
+  closeEditor();
+  selected = -1;
+  photoPan = false;
+  spec = novy;
+  customZvolene = false;
+  zvoleneMedium = s.medium;
+  ulozZvoleneMedium();
+  poslednaSablona = { nazov: s.nazov, spec: structuredClone(spec) };
+  sablonyKrok = null;
+  zoneBar.dataset.key = '';
+  syncBar();
+  drawOverlay();
+  sablonyPopover.rebuild();
+  scheduleRender();
+}
+
+function ulozAkoSablonu(nazov) {
+  sablony = pridajSablonu(sablony, vytvorSablonu(nazov, spec, customZvolene ? null : zvoleneMedium));
+  ulozSablony();
+  poslednaSablona = { nazov, spec: structuredClone(spec) };
+  sablonyKrok = null;
+  sablonyPopover.rebuild();
+}
+
+function potvrdUlozenie() {
+  const nazov = upravNazov(sablonyKrok.nazov);
+  if (!nazov) {
+    sablonyKrok.chyba = 'Napíš názov šablóny.';
+  } else if (najdiSablonu(sablony, nazov) && sablonyKrok.prepisat !== nazov) {
+    // an existing name asks first; Prepísať confirms
+    sablonyKrok.prepisat = nazov;
+  } else {
+    ulozAkoSablonu(nazov);
+    return;
+  }
+  sablonyPopover.rebuild();
+}
+
+function potvrdPremenovanie() {
+  const { povodny } = sablonyKrok;
+  const nazov = upravNazov(sablonyKrok.nazov);
+  if (!nazov) {
+    sablonyKrok.chyba = 'Napíš názov šablóny.';
+  } else if (nazov !== povodny && najdiSablonu(sablony, nazov)) {
+    sablonyKrok.chyba = `Názov „${nazov}“ už má iná šablóna.`;
+  } else {
+    sablony = premenujSablonu(sablony, povodny, nazov);
+    ulozSablony();
+    if (poslednaSablona?.nazov === povodny) poslednaSablona.nazov = nazov;
+    sablonyKrok = null;
+  }
+  sablonyPopover.rebuild();
+}
+
+function zmazSablonuPotvrdene(nazov) {
+  sablony = zmazSablonu(sablony, nazov);
+  ulozSablony();
+  if (poslednaSablona?.nazov === nazov) poslednaSablona = null;
+  sablonyKrok = null;
+  sablonyPopover.rebuild();
+}
+
+const tlacidlo = (text, onClick, { title, className } = {}) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = text;
+  if (title) {
+    b.title = title;
+    b.setAttribute('aria-label', title);
+  }
+  if (className) b.className = className;
+  b.addEventListener('click', onClick);
+  return b;
+};
+
+const poznamka = (text, className = 'note') => Object.assign(document.createElement('p'), { className, textContent: text });
+
+// A name field of the panel: what is typed lives in the inline step, so a
+// rebuild keeps it; Enter confirms, Escape cancels.
+function poleNazvu(label, onEnter) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'nazov';
+  input.maxLength = 60;
+  input.spellcheck = false;
+  input.autocomplete = 'off';
+  input.value = sablonyKrok.nazov;
+  input.setAttribute('aria-label', label);
+  input.dataset.fokus = '';
+  input.addEventListener('input', () => {
+    sablonyKrok.nazov = input.value;
+    sablonyKrok.prepisat = null;
+    sablonyKrok.chyba = '';
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onEnter();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      sablonyKrok = null;
+      sablonyPopover.rebuild();
+    }
+  });
+  return input;
+}
+
+function riadokSablony(s) {
+  const li = document.createElement('div');
+  li.className = 'sablona';
+  const krok = sablonyKrok?.sablona === s.nazov ? sablonyKrok : null;
+
+  if (krok?.druh === 'premenovat') {
+    const akcie = document.createElement('div');
+    akcie.className = 'presets';
+    akcie.append(
+      tlacidlo('Premenovať', potvrdPremenovanie),
+      tlacidlo('Zrušiť', () => { sablonyKrok = null; sablonyPopover.rebuild(); }),
+    );
+    li.append(poleNazvu(`Nový názov šablóny ${s.nazov}`, potvrdPremenovanie), akcie);
+    if (krok.chyba) li.append(poznamka(krok.chyba, 'note chyba'));
+    return li;
+  }
+
+  if (krok?.druh === 'zmazat') {
+    li.append(poznamka(`Zmazať šablónu „${s.nazov}“?`, 'otazka'));
+    const akcie = document.createElement('div');
+    akcie.className = 'presets';
+    akcie.append(
+      tlacidlo('Zmazať', () => zmazSablonuPotvrdene(s.nazov)),
+      tlacidlo('Nechať', () => { sablonyKrok = null; sablonyPopover.rebuild(); }),
+    );
+    li.append(akcie);
+    return li;
+  }
+
+  const hlavne = document.createElement('div');
+  hlavne.className = 'presets';
+  const svieti = svietiSablona(s);
+  const nacitat = tlacidlo(s.nazov, () => nacitajSablonu(s), { title: `Načítať šablónu ${s.nazov}`, className: 'meno' });
+  nacitat.classList.toggle('aktivny', svieti);
+  nacitat.setAttribute('aria-pressed', String(svieti));
+  hlavne.append(
+    nacitat,
+    tlacidlo('✎', () => {
+      sablonyKrok = { druh: 'premenovat', sablona: s.nazov, povodny: s.nazov, nazov: s.nazov, chyba: '' };
+      sablonyPopover.rebuild();
+    }, { title: `Premenovať šablónu ${s.nazov}`, className: 'maly' }),
+    tlacidlo('✕', () => {
+      sablonyKrok = { druh: 'zmazat', sablona: s.nazov };
+      sablonyPopover.rebuild();
+    }, { title: `Zmazať šablónu ${s.nazov}`, className: 'maly' }),
+  );
+  li.append(hlavne);
+  return li;
+}
+
+function castUlozenia() {
+  const wrap = document.createElement('div');
+  wrap.className = 'ulozenie';
+  if (sablonyKrok?.druh !== 'ulozit') {
+    const akcie = document.createElement('div');
+    akcie.className = 'presets';
+    akcie.append(tlacidlo('Uložiť ako šablónu', () => {
+      sablonyKrok = { druh: 'ulozit', nazov: '', prepisat: null, chyba: '' };
+      sablonyPopover.rebuild();
+    }));
+    wrap.append(akcie);
+    return wrap;
+  }
+  const krok = sablonyKrok;
+  wrap.append(poleNazvu('Názov šablóny', potvrdUlozenie));
+  const akcie = document.createElement('div');
+  akcie.className = 'presets';
+  if (krok.prepisat) {
+    wrap.append(poznamka(`Šablóna „${krok.prepisat}“ už existuje. Prepísať ju?`, 'otazka'));
+    akcie.append(
+      tlacidlo('Prepísať', potvrdUlozenie),
+      tlacidlo('Zrušiť', () => { krok.prepisat = null; sablonyPopover.rebuild(); }),
+    );
+  } else {
+    akcie.append(
+      tlacidlo('Uložiť', potvrdUlozenie),
+      tlacidlo('Zrušiť', () => { sablonyKrok = null; sablonyPopover.rebuild(); }),
+    );
+  }
+  wrap.append(akcie);
+  if (krok.chyba) wrap.append(poznamka(krok.chyba, 'note chyba'));
+  return wrap;
+}
+
+const sablonyPopover = attachPopover($('#btn-sablony'), (pop) => {
+  // a panel opened afresh starts without a half-done step
+  if (!sablonyPopover?.isOpen()) sablonyKrok = null;
+  pop.classList.add('sablony');
+  const mkH = (text) => Object.assign(document.createElement('h3'), { textContent: text });
+  const zoznam = document.createElement('div');
+  zoznam.className = 'zoznam';
+  if (sablony.length) zoznam.append(...sablony.map(riadokSablony));
+  else zoznam.append(poznamka('Zatiaľ žiadna šablóna. Ulož aktuálny dokument ako prvú.'));
+  pop.replaceChildren(
+    mkH('Šablóny'),
+    zoznam,
+    castUlozenia(),
+    poznamka('Šablóna nesie formát, mriežku, parametre, variant a zóny, fotky nie: fotková zóna po načítaní čaká na novú fotku.'),
+  );
+  const fokus = pop.querySelector('[data-fokus]');
+  if (fokus) {
+    const zamer = () => {
+      fokus.focus();
+      fokus.setSelectionRange(fokus.value.length, fokus.value.length);
+    };
+    // a hidden popover (a fresh open) takes focus once it is shown
+    if (pop.hidden) requestAnimationFrame(zamer);
+    else zamer();
+  }
 });
 
 // ----- parametre popover -----

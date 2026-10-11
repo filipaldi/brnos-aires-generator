@@ -202,6 +202,42 @@ button, input, select { font: inherit; color: inherit; }
 /* media of the format panel: a small group heading over its medium buttons */
 .media-group { margin: 8px 0 10px; }
 
+/* ----- šablóny: a list of name buttons (the media button look) with small
+   rename and delete buttons, and the inline steps that replace a row ----- */
+
+.popover.sablony .zoznam { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+
+.popover.sablony .sablona { display: flex; flex-direction: column; gap: 6px; }
+
+.popover.sablony .sablona > .presets { flex-wrap: nowrap; }
+
+.popover.sablony .presets button.meno {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popover.sablony .presets button.maly { flex: none; padding: 4px 8px; }
+
+.popover.sablony .ulozenie { display: flex; flex-direction: column; gap: 6px; }
+
+.popover.sablony input.nazov {
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  padding: 4px 6px;
+  border-radius: 2px;
+  width: 100%;
+}
+
+.popover.sablony .otazka { font-size: 13px; }
+
+.popover.sablony .zoznam .note, .popover.sablony .ulozenie .note { margin-top: 0; }
+
+.popover .note.chyba { color: var(--ink); }
+
 .media-group .cap { margin-bottom: 4px; font-size: 11px; color: var(--dim); }
 
 .popover .types { display: grid; grid-template-columns: 1fr; gap: 6px; }
@@ -399,6 +435,39 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 .zone.sel.prazdna { border: 1px dashed var(--ink); }
+
+/* a photo zone without its photo (a loaded template keeps none): grey wash,
+   diagonal cross and the word Fotka, in the editor only — the export keeps
+   the core's plain grey rectangle; translucent, so a pattern over it shows */
+.zone .foto-nahrada {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(128, 128, 128, 0.22);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.zone .foto-nahrada svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 1;
+}
+
+.zone .foto-nahrada .hint {
+  position: relative;
+  padding: 2px 8px;
+  background: var(--paper);
+  color: var(--dim);
+  font-size: 12px;
+  user-select: none;
+}
 
 .zone.photo-pan { cursor: grab; }
 .zone.photo-pan.dragging-photo { cursor: grabbing; }
