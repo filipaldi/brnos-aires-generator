@@ -35,7 +35,7 @@ V rozhraní pod `420 × 594 mm · Grid 8 ▾`, spolu s mriežkou a médiami.
 
 **Médiá** sú pevné formáty s názvom v `presets/media.json` (skupiny Tlač A, Tlač B, Ostatná tlač, Instagram, Facebook, LinkedIn, Web). Každé médium nesie `nazov`, `sirka`, `vyska`, `jednotka`, `dpi`, `spadavka` a `okraj`, všetko celé čísla. Tlač má 300 DPI a spadávku 3 mm (Billboard 50 DPI), digitál 72 DPI a spadávku 0. Nové médium je nová položka v JSON, žiadny kód.
 
-V paneli Formát sú médiá tlačidlá pod malými nadpismi skupín. Klik nastaví celý formát média (aj okraj) a prekreslí list. Posledná skupina je **Custom**: ponechá aktuálne hodnoty, ktoré sa menia v riadkoch Rozmer, DPI, Spadávka a Okraj pod tlačidlami. Rozsvietené je médium, ktorému formát presne zodpovedá, inak Custom. Rozhranie načítava `presets/media.json` za behu ako dáta; vlastný formát sa ukladá v prehliadači s celým stavom.
+Formát sa nastavuje v paneli **Dokument** (tlačidlo v hornej lište, rozmer a grid ukáže pri prejdení myšou). Médiá sú tlačidlá pod malými nadpismi skupín. Klik nastaví celý formát média (aj okraj) a prekreslí list; panel ostane otvorený, takže sa dajú hneď upraviť ďalšie polia. Posledná skupina je **Custom**: ponechá aktuálne hodnoty, ktoré sa menia v riadkoch Rozmer, DPI, Spadávka a Okraj pod tlačidlami. Rozsvietené je médium, ktorému formát presne zodpovedá, inak Custom. Rozhranie načítava `presets/media.json` za behu ako dáta; vlastný formát sa ukladá v prehliadači s celým stavom.
 
 V CLI `node cli.js kompozicia --spec <súbor.json> --format "<médium>" --out <súbor.svg>` prepíše formát specu médiom podľa názvu (napr. `A3` alebo `IG story / reels`); neznámy názov vypíše zoznam médií.
 

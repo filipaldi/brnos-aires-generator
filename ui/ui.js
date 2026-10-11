@@ -1123,7 +1123,9 @@ function closeEditor() {
 
 function syncBar() {
   const f = spec.format, g = spec.grid;
-  $('#btn-format').textContent = `${f.sirka} × ${f.vyska} ${f.jednotka} · Grid ${g.stlpce} ▾`;
+  const btn = $('#btn-format');
+  btn.textContent = 'Dokument ▾';
+  btn.title = `${f.sirka} × ${f.vyska} ${f.jednotka} · Grid ${g.stlpce}`;
   const input = $('#variant-input');
   if (document.activeElement !== input) input.value = spec.variant;
 }
@@ -1485,7 +1487,7 @@ const formatPopover = attachPopover($('#btn-format'), (pop) => {
   nakresliMedia(media);
 
   const h3a = document.createElement('h3');
-  h3a.textContent = 'Formát';
+  h3a.textContent = 'Dokument';
   const h3b = document.createElement('h3');
   h3b.textContent = 'Mriežka';
 
