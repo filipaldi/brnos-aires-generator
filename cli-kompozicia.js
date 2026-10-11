@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 // CLI for compositions (phase 2).
 //
-//   node cli-kompozicia.js kompozicia --spec <file.json> --out <file.svg> [--variant <text>] [--png]
+//   node cli-kompozicia.js kompozicia --spec <file.json> --out <file.svg> [--variant <text>] [--format <médium>] [--png]
 //
 // The same command also runs through the shared entry:
 //   node cli.js kompozicia --spec ...
 //
-// --variant overrides the spec's variant. Fonts are referenced by relative
-// URLs from the output SVG to fonts/; the PNG export inlines
-// them as base64 data URLs in a temporary SVG so text renders in Chromium.
+// --variant overrides the spec's variant, --format the spec's format with a
+// medium named in presets/media.json (the grid, its okraj included, stays
+// the spec's). Fonts are referenced by relative URLs from the output SVG to
+// fonts/; the PNG export inlines them as base64 data URLs in a temporary SVG
+// so text renders in Chromium.
 
 import { parseArgs } from 'node:util';
 import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
@@ -32,8 +34,10 @@ function usage() {
   console.log(`Kompozícia Brnos Aires — fáza 2
 
 Použitie:
-  ${SCRIPT} kompozicia --spec <súbor.json> --out <súbor.svg> [--variant <text>] [--png]
+  ${SCRIPT} kompozicia --spec <súbor.json> --out <súbor.svg> [--variant <text>] [--format <médium>] [--png]
 
+--format nastaví formát specu podľa média zo presets/media.json (napr. "A3"
+alebo "IG story / reels"); neznáme meno vypíše celý zoznam.
 Formát specu: priklady/plagat-a2.json a priklady/nahlad-akcie.json.`);
 }
 
@@ -86,6 +90,25 @@ function fontyInline(spec) {
   return urls;
 }
 
+// A medium by name from presets/media.json, as the format fields a spec
+// carries (everything but the name). Adding a medium there needs no code here.
+function mediumPodlaNazvu(hladane) {
+  const subor = path.join(ROOT, 'presets', 'media.json');
+  let data;
+  try {
+    data = JSON.parse(readFileSync(subor, 'utf8'));
+  } catch {
+    die(`Súbor médií „${subor}“ sa nedá prečítať.`);
+  }
+  const media = (data.skupiny ?? []).flatMap((s) => s.media ?? []);
+  const medium = media.find((m) => m.nazov === hladane);
+  if (!medium) {
+    die(`Neznáme médium „${hladane}“. Platné médiá: ${media.map((m) => m.nazov).join(', ')}.`);
+  }
+  const { nazov, ...format } = medium;
+  return format;
+}
+
 // --- kompozicia -------------------------------------------------------------
 
 export async function cmdKompozicia(args) {
@@ -93,6 +116,7 @@ export async function cmdKompozicia(args) {
     spec: { type: 'string' },
     out: { type: 'string' },
     variant: { type: 'string' },
+    format: { type: 'string' },
     png: { type: 'boolean', default: false },
   });
   if (!opts.spec) die('Chýba --spec <súbor.json> s definíciou kompozície.');
@@ -100,6 +124,7 @@ export async function cmdKompozicia(args) {
 
   const spec = nacitajSpec(opts.spec);
   if (opts.variant !== undefined) spec.variant = opts.variant;
+  if (opts.format !== undefined) spec.format = { ...spec.format, ...mediumPodlaNazvu(opts.format) };
 
   const vysledok = komponuj(spec, { fontUrls: fontyRelativne(opts.out, spec) });
   for (const v of vysledok.varovania) console.error(`Pozor: ${v}`);

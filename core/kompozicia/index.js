@@ -64,6 +64,11 @@ function vyskaVDielikoch(format, grid) {
   return (format.vyska * grid.stlpce) / format.sirka;
 }
 
+// Whole rows of the grid: the last grid line a zone edge may sit on.
+function celeRiadky(format, grid) {
+  return Math.floor(vyskaVDielikoch(format, grid) + 1e-6);
+}
+
 function normalizujFormat(raw) {
   const d = KOMP.predvolene.format;
   const format = { ...d, ...raw };
@@ -76,12 +81,25 @@ function normalizujFormat(raw) {
   return format;
 }
 
-function normalizujGrid(raw) {
+function normalizujGrid(raw, format) {
   const d = KOMP.predvolene.grid;
   const grid = { ...d, ...raw };
   if (raw) polia(raw, Object.keys(d), 'grid');
   cislo(grid.stlpce, 'grid.stlpce', { min: 1, max: 100, cele: true });
   moznosti(grid.zvysok, 'grid.zvysok', ZVYSOK);
+  // the margin (okraj) is part of the grid: whole dieliky inset from the
+  // trimmed format, leaving at least one column and one whole row inside;
+  // older specs carry no field → 0
+  cislo(grid.okraj, 'grid.okraj', { min: 0, cele: true });
+  if (2 * grid.okraj >= grid.stlpce) {
+    throw new ValidationError(
+      `grid.okraj musí byť menší ako polovica stĺpcov gridu (${grid.stlpce}, dostal som ${grid.okraj}).`);
+  }
+  const riadky = celeRiadky(format, grid);
+  if (2 * grid.okraj >= riadky) {
+    throw new ValidationError(
+      `grid.okraj musí byť menší ako polovica celých riadkov gridu (${riadky}, dostal som ${grid.okraj}).`);
+  }
   return grid;
 }
 
@@ -282,6 +300,21 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
   return zona;
 }
 
+// A zone stays inside the grid's margin like the pattern does: okraj whole
+// dieliky in from the left, top and right edge and from the last whole row.
+// A grid without a margin leaves the format's own bounds above.
+function zonaVOkraji(zona, index, format, grid) {
+  const ok = grid.okraj;
+  if (ok <= 0) return;
+  const name = `zóna ${index + 1}`;
+  const x1 = grid.stlpce - ok;
+  const y1 = celeRiadky(format, grid) - ok;
+  if (zona.x < ok - 1e-6 || zona.y < ok - 1e-6 || zona.x + zona.w > x1 + 1e-6 || zona.y + zona.h > y1 + 1e-6) {
+    throw new ValidationError(
+      `${name} zasahuje do okraja gridu (${ok} dielikov): musí ležať v stĺpcoch ${ok}–${x1} a riadkoch ${ok}–${y1}.`);
+  }
+}
+
 // --- public API -------------------------------------------------------------
 
 export function normalizujSpec(input) {
@@ -292,7 +325,7 @@ export function normalizujSpec(input) {
   const spec = structuredClone(input);
 
   spec.format = normalizujFormat(spec.format);
-  spec.grid = normalizujGrid(spec.grid);
+  spec.grid = normalizujGrid(spec.grid, spec.format);
   spec.kresba = normalizujKresba(spec.kresba);
   spec.kompozicia = normalizujKompozicia(spec.kompozicia);
   if (spec.variant !== undefined && typeof spec.variant !== 'string' && typeof spec.variant !== 'number') {
@@ -311,6 +344,7 @@ export function normalizujSpec(input) {
     throw new ValidationError('zony musí byť pole zón.');
   }
   spec.zony = zony.map((z, i) => normalizujZonu(z ?? {}, i, spec.grid.stlpce, vyskaD));
+  spec.zony.forEach((z, i) => zonaVOkraji(z, i, spec.format, spec.grid));
   return spec;
 }
 
@@ -329,6 +363,7 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
   const dielik = format.sirka / grid.stlpce;
   const vyskaD = format.vyska / dielik;
   const bleedD = format.spadavka / dielik;
+  const riadkyD = celeRiadky(format, grid);
 
   // The usable band for shapes depends on how the leftover height is handled.
   // Zones always live in absolute dieliks from the top of the trimmed format.
@@ -340,6 +375,18 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
     bandY = (vyskaD - rows) / 2;
   } else if (grid.zvysok === 'orez') {
     bandH = Math.ceil(vyskaD - 1e-9); // the partial row is filled and cropped by the viewBox
+  }
+  // The margin (grid.okraj) keeps the pattern off the edges: shapes stay
+  // inside its guide, okraj whole dieliky in from the trimmed format's left,
+  // top and right edge and from the last whole row, whatever the leftover
+  // height does. A grid without a margin keeps the band above.
+  let bandX = 0;
+  let bandW = grid.stlpce;
+  if (grid.okraj > 0) {
+    bandX = grid.okraj;
+    bandW = grid.stlpce - 2 * grid.okraj;
+    bandY = grid.okraj;
+    bandH = riadkyD - 2 * grid.okraj;
   }
 
   const axes = computeAxes(kresba.weight, kresba.contrast, loadProporcie(), kresba.zaoblenie);
@@ -407,6 +454,8 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
     vahyTvaru: KOMP.vahyTvaru,
     velkosti: komp.velkosti,
     stlpce: grid.stlpce,
+    bandX,
+    bandW,
     bandY,
     bandH,
     zony: zonyVzor,
@@ -444,6 +493,8 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
     stlpce: grid.stlpce,
     vyskaD,
     bleedD,
+    okrajD: grid.okraj,
+    riadkyD,
     jednotka: format.jednotka,
     sirka: format.sirka,
     vyska: format.vyska,

@@ -33,7 +33,7 @@ Použitie:
             --out <súbor.svg> [--png]
   ${SCRIPT} vzorkovnik [--typ <id|all>] [--weight 20,40,60,80] [--contrast 70] [--zaoblenie <0-100>]
             [--spoje] [--primitivy] --out <súbor.svg> [--png]
-  ${SCRIPT} kompozicia --spec <súbor.json> [--variant <text>] --out <súbor.svg> [--png]
+  ${SCRIPT} kompozicia --spec <súbor.json> [--variant <text>] [--format <médium>] --out <súbor.svg> [--png]
 
 Zoznam typov a ich parametrov: ${SCRIPT} typy`);
 }

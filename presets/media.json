@@ -1,0 +1,73 @@
+{
+  "_comment": "Médiá panelu Formát: pevné formáty s názvom, zoskupené ako v issue. Tlač má 300 DPI a spadávku 3 mm (Billboard 50 DPI), digitál 72 DPI a spadávku 0. Nové médium je nová položka, žiadny kód.",
+  "skupiny": [
+    {
+      "nazov": "Tlač A",
+      "media": [
+        { "nazov": "A0", "sirka": 841, "vyska": 1189, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "A1", "sirka": 594, "vyska": 841, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "A2", "sirka": 420, "vyska": 594, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "A3", "sirka": 297, "vyska": 420, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "A4", "sirka": 210, "vyska": 297, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "A5", "sirka": 148, "vyska": 210, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "A6", "sirka": 105, "vyska": 148, "jednotka": "mm", "dpi": 300, "spadavka": 3 }
+      ]
+    },
+    {
+      "nazov": "Tlač B",
+      "media": [
+        { "nazov": "B0", "sirka": 1000, "vyska": 1414, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "B1", "sirka": 707, "vyska": 1000, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "B2", "sirka": 500, "vyska": 707, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "B3", "sirka": 353, "vyska": 500, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "B4", "sirka": 250, "vyska": 353, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "B5", "sirka": 176, "vyska": 250, "jednotka": "mm", "dpi": 300, "spadavka": 3 },
+        { "nazov": "B6", "sirka": 125, "vyska": 176, "jednotka": "mm", "dpi": 300, "spadavka": 3 }
+      ]
+    },
+    {
+      "nazov": "Ostatná tlač",
+      "media": [
+        { "nazov": "Billboard", "sirka": 5100, "vyska": 2400, "jednotka": "mm", "dpi": 50, "spadavka": 3 },
+        { "nazov": "Vizitka", "sirka": 90, "vyska": 50, "jednotka": "mm", "dpi": 300, "spadavka": 3 }
+      ]
+    },
+    {
+      "nazov": "Instagram",
+      "media": [
+        { "nazov": "IG post štvorec", "sirka": 1080, "vyska": 1080, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "IG post na výšku 4:5", "sirka": 1080, "vyska": 1350, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "IG post 3:4 (mriežka profilu)", "sirka": 1080, "vyska": 1440, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "IG story / reels", "sirka": 1080, "vyska": 1920, "jednotka": "px", "dpi": 72, "spadavka": 0 }
+      ]
+    },
+    {
+      "nazov": "Facebook",
+      "media": [
+        { "nazov": "FB post štvorec", "sirka": 1080, "vyska": 1080, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "FB post na výšku", "sirka": 1080, "vyska": 1350, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "FB story", "sirka": 1080, "vyska": 1920, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "FB titulka stránky", "sirka": 1640, "vyska": 624, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "FB titulka udalosti", "sirka": 1920, "vyska": 1005, "jednotka": "px", "dpi": 72, "spadavka": 0 }
+      ]
+    },
+    {
+      "nazov": "LinkedIn",
+      "media": [
+        { "nazov": "LI post štvorec", "sirka": 1200, "vyska": 1200, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "LI post na výšku", "sirka": 1080, "vyska": 1350, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "LI post na šírku", "sirka": 1200, "vyska": 627, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "LI banner profilu", "sirka": 1584, "vyska": 396, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "LI titulka firmy", "sirka": 1128, "vyska": 191, "jednotka": "px", "dpi": 72, "spadavka": 0 }
+      ]
+    },
+    {
+      "nazov": "Web",
+      "media": [
+        { "nazov": "OG obrázok", "sirka": 1200, "vyska": 630, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "Karta udalosti 16:9", "sirka": 1200, "vyska": 675, "jednotka": "px", "dpi": 72, "spadavka": 0 },
+        { "nazov": "Karta udalosti 1:1", "sirka": 1200, "vyska": 1200, "jednotka": "px", "dpi": 72, "spadavka": 0 }
+      ]
+    }
+  ]
+}

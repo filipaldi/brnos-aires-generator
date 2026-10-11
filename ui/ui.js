@@ -19,20 +19,18 @@ const $ = (sel) => document.querySelector(sel);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const LS_KEY = 'brnosaires-generator-spec-v1';
+const LS_MEDIUM_KEY = 'brnosaires-generator-medium-v1';
 const MM_TO_PX = 96 / 25.4; // CSS px per mm at zoom 100 %
 const ZOOM_STEPS = [25, 33, 50, 67, 75, 90, 100, 125, 150, 200];
 
-const FORMAT_PRESETS = {
-  A2: { sirka: 420, vyska: 594, jednotka: 'mm', dpi: 300, spadavka: 3 },
-  A3: { sirka: 297, vyska: 420, jednotka: 'mm', dpi: 300, spadavka: 3 },
-  IG: { sirka: 1080, vyska: 1350, jednotka: 'px', dpi: 72, spadavka: 0 },
-  web: { sirka: 1200, vyska: 630, jednotka: 'px', dpi: 72, spadavka: 0 },
-};
+// The five fields a medium of presets/media.json sets on spec.format; the
+// margin (grid.okraj) belongs to the grid, so a medium never touches it
+const POLIA_FORMATU = ['sirka', 'vyska', 'jednotka', 'dpi', 'spadavka'];
 
 // ---------- state ----------
 
 let spec = loadSpec();
-let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, cols: 8, rowsD: 0 };
+let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, okrajD: 0, cols: 8, rowsD: 0 };
 let zoomPct = 75;
 let selected = -1;
 let editorOpen = false;
@@ -44,6 +42,7 @@ const svgHost = $('#svg-host');
 const zonesHost = $('#zones');
 const gridLines = $('#grid-lines');
 const bleedMark = $('#bleed-mark');
+const okrajMark = $('#okraj-mark');
 const zoneBar = $('#zone-bar');
 
 // The static fonts' rezy (Brnos Aires) are declared here, not in ui.css: the
@@ -67,6 +66,9 @@ function loadSpec() {
       // types and settings dropped from the set (koleno, bod, retazenie,
       // rozlozenie) must not discard the saved state
       if (saved?.kompozicia) zahodZastarane(saved.kompozicia);
+      // the margin moved from the format (its unit) to the grid (dieliky):
+      // a format.okraj saved by the earlier preview is dropped, not converted
+      if (saved?.format && typeof saved.format === 'object') delete saved.format.okraj;
       return engine.normalizujSpec(saved);
     }
   } catch (err) {
@@ -104,16 +106,29 @@ function scheduleRender() {
   renderTimer = setTimeout(render, 50);
 }
 
-// Keeps every zone inside the format (a smaller format or grid would leave
-// it hanging over the edge, which the engine rejects).
-function vmestiZony() {
+// The grid lines a zone edge may sit on: the format's columns and whole
+// rows, or, with a margin (grid.okraj), only those inside its guide — okraj
+// whole dieliky in from the left, top and right edge and from the last whole
+// row. Zones stay out of the margin like the pattern does.
+function oblastZon() {
   const f = spec.format, cols = spec.grid.stlpce;
   const rows = Math.max(1, Math.floor((f.vyska * cols) / f.sirka + 1e-6));
+  const ok = spec.grid.okraj ?? 0;
+  return { x0: ok, y0: ok, x1: cols - ok, y1: rows - ok };
+}
+
+// Keeps every zone inside the format and its margin (a smaller format or
+// grid, or a wider margin, would leave it hanging over the edge, which the
+// engine rejects): a zone is shrunk to fit and pushed inside.
+function vmestiZony() {
+  // the margin first: a medium with fewer rows must not leave it too wide
+  spec.grid.okraj = clamp(spec.grid.okraj ?? 0, 0, maxOkraj());
+  const o = oblastZon();
   for (const z of spec.zony) {
-    z.w = clamp(z.w, 1, cols);
-    z.h = clamp(z.h, 1, rows);
-    z.x = clamp(z.x, 0, cols - z.w);
-    z.y = clamp(z.y, 0, rows - z.h);
+    z.w = clamp(z.w, 1, o.x1 - o.x0);
+    z.h = clamp(z.h, 1, o.y1 - o.y0);
+    z.x = clamp(z.x, o.x0, o.x1 - z.w);
+    z.y = clamp(z.y, o.y0, o.y1 - z.h);
   }
 }
 
@@ -161,6 +176,7 @@ function layoutSheet(svgEl) {
   view = {
     s, vbX: vb.x, vbY: vb.y,
     bleedD: f.spadavka / dielikUnits,
+    okrajD: g.okraj ?? 0,
     cols: g.stlpce,
     rowsD: f.vyska / dielikUnits,
   };
@@ -192,19 +208,14 @@ function zoneRectPx(z) {
 
 // The one snapping rule of the canvas: every zone edge lies on a grid line,
 // the one nearest to the cursor (the threshold sits in the middle of a cell).
-// `max` is the last line — the column count, or the floor of the sheet height.
-function naCiaru(v, max) {
-  return clamp(Math.round(v), 0, max);
+// `min` and `max` are the first and last line a zone may use (oblastZon).
+function naCiaru(v, max, min = 0) {
+  return clamp(Math.round(v), min, max);
 }
 
 // The height need not divide into whole rows; the last whole line counts.
 function maxRiadok() {
   return Math.floor(view.rowsD);
-}
-
-// The bottom-most top edge of a zone h dieliks tall.
-function maxCellY(h) {
-  return Math.max(0, maxRiadok() - h);
 }
 
 
@@ -222,6 +233,19 @@ function drawOverlay() {
   bleedMark.style.top = `${bi}px`;
   bleedMark.style.right = `${bi}px`;
   bleedMark.style.bottom = `${bi}px`;
+
+  // Margin (okraj): a guide on grid lines, okraj whole dieliky in from the
+  // trimmed format's left, top and right edge and from the last whole row,
+  // shown only when the grid has one. Like the bleed mark it is an overlay;
+  // the composed SVG carries its own thin line, as for the bleed.
+  const ok = view.okrajD;
+  okrajMark.hidden = ok <= 0;
+  Object.assign(okrajMark.style, styleRect({
+    left: (ok - view.vbX) * view.s,
+    top: (ok - view.vbY) * view.s,
+    width: (view.cols - 2 * ok) * view.s,
+    height: (maxRiadok() - 2 * ok) * view.s,
+  }));
 
   zonesHost.replaceChildren();
   spec.zony.forEach((z, i) => {
@@ -688,13 +712,12 @@ function duplicateZone() {
 // inside the format (whole dieliks); it is selected, drawn and saved exactly
 // like a zone dragged out on the canvas.
 function pasteZone(vzor) {
-  const f = spec.format, g = spec.grid;
-  const rows = Math.max(1, Math.floor((f.vyska * g.stlpce) / f.sirka + 1e-6));
+  const o = oblastZon();
   const z = structuredClone(vzor);
-  z.w = clamp(Math.round(z.w), 1, g.stlpce);
-  z.h = clamp(Math.round(z.h), 1, rows);
-  z.x = clamp(Math.round(z.x) + 1, 0, g.stlpce - z.w);
-  z.y = clamp(Math.round(z.y) + 1, 0, rows - z.h);
+  z.w = clamp(Math.round(z.w), 1, o.x1 - o.x0);
+  z.h = clamp(Math.round(z.h), 1, o.y1 - o.y0);
+  z.x = clamp(Math.round(z.x) + 1, o.x0, o.x1 - z.w);
+  z.y = clamp(Math.round(z.y) + 1, o.y0, o.y1 - z.h);
   spec.zony.push(z);
   selected = spec.zony.length - 1;
   photoPan = false;
@@ -787,17 +810,19 @@ overlay.addEventListener('pointermove', (e) => {
   if (dragging.kind === 'move') {
     dragging.moved = true;
     // the top-left corner snaps to the line nearest to (cursor − grab)
-    z.x = naCiaru(pos.x - dragging.grabX, view.cols - z.w);
-    z.y = naCiaru(pos.y - dragging.grabY, maxCellY(z.h));
+    const o = oblastZon();
+    z.x = naCiaru(pos.x - dragging.grabX, o.x1 - z.w, o.x0);
+    z.y = naCiaru(pos.y - dragging.grabY, o.y1 - z.h, o.y0);
   } else if (dragging.kind === 'resize') {
     // the dragged edge snaps to the nearest line, the opposite one stays put
+    const o = oblastZon();
     const l = { x: z.x, y: z.y };
     const r = { x: z.x + z.w, y: z.y + z.h };
     const c = dragging.corner;
-    if (c.includes('l')) l.x = naCiaru(pos.x, r.x - 1);
-    if (c.includes('r')) r.x = Math.max(l.x + 1, naCiaru(pos.x, view.cols));
-    if (c.includes('t')) l.y = naCiaru(pos.y, r.y - 1);
-    if (c.includes('b')) r.y = Math.max(l.y + 1, naCiaru(pos.y, maxRiadok()));
+    if (c.includes('l')) l.x = naCiaru(pos.x, r.x - 1, o.x0);
+    if (c.includes('r')) r.x = Math.max(l.x + 1, naCiaru(pos.x, o.x1, o.x0));
+    if (c.includes('t')) l.y = naCiaru(pos.y, r.y - 1, o.y0);
+    if (c.includes('b')) r.y = Math.max(l.y + 1, naCiaru(pos.y, o.y1, o.y0));
     z.x = l.x; z.y = l.y; z.w = r.x - l.x; z.h = r.y - l.y;
     if (editorOpen) positionEditor();
   } else if (dragging.kind === 'photo-pan') {
@@ -816,24 +841,26 @@ overlay.addEventListener('pointermove', (e) => {
 // nearest to its point (the press, the cursor), so the drag works in every
 // direction. An axis whose corners share a line grows by one dielik towards
 // the drag; with no movement at all the rect stays empty and a plain click
-// keeps only deselecting, as before. Everything is clamped into the format.
+// keeps only deselecting, as before. Everything is clamped into the format
+// and its margin.
 function rectZTvorania(press, pos) {
-  const a = { x: naCiaru(press.x, view.cols), y: naCiaru(press.y, maxRiadok()) };
-  const b = { x: naCiaru(pos.x, view.cols), y: naCiaru(pos.y, maxRiadok()) };
+  const o = oblastZon();
+  const a = { x: naCiaru(press.x, o.x1, o.x0), y: naCiaru(press.y, o.y1, o.y0) };
+  const b = { x: naCiaru(pos.x, o.x1, o.x0), y: naCiaru(pos.y, o.y1, o.y0) };
   const rect = {
     x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
     w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y),
   };
   if (!rect.w && pos.x !== press.x) {
-    rect.x = pos.x < press.x ? Math.max(0, a.x - 1) : a.x;
+    rect.x = pos.x < press.x ? Math.max(o.x0, a.x - 1) : a.x;
     rect.w = 1;
   }
   if (!rect.h && pos.y !== press.y) {
-    rect.y = pos.y < press.y ? Math.max(0, a.y - 1) : a.y;
+    rect.y = pos.y < press.y ? Math.max(o.y0, a.y - 1) : a.y;
     rect.h = 1;
   }
-  rect.w = Math.min(rect.w, view.cols - rect.x);
-  rect.h = Math.min(rect.h, maxRiadok() - rect.y);
+  rect.w = Math.min(rect.w, o.x1 - rect.x);
+  rect.h = Math.min(rect.h, o.y1 - rect.y);
   return rect;
 }
 
@@ -948,14 +975,15 @@ overlay.addEventListener('drop', async (e) => {
       Object.assign(z, { typ: 'fotka', zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1 });
       selected = hit;
     } else {
-      // a 4 × 3 frame centred on the cursor, edges on the nearest lines
-      const rows = Math.max(1, maxRiadok());
-      const w = Math.min(4, view.cols);
-      const h = Math.min(3, rows);
+      // a 4 × 3 frame centred on the cursor, edges on the nearest lines,
+      // inside the margin
+      const o = oblastZon();
+      const w = Math.min(4, o.x1 - o.x0);
+      const h = Math.min(3, Math.max(1, o.y1 - o.y0));
       spec.zony.push({
         typ: 'fotka',
-        x: naCiaru(pos.x - w / 2, view.cols - w),
-        y: naCiaru(pos.y - h / 2, rows - h),
+        x: naCiaru(pos.x - w / 2, o.x1 - w, o.x0),
+        y: naCiaru(pos.y - h / 2, o.y1 - h, o.y0),
         w, h, okraj: 0,
         zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1,
       });
@@ -1114,7 +1142,9 @@ function closeEditor() {
 
 function syncBar() {
   const f = spec.format, g = spec.grid;
-  $('#btn-format').textContent = `${f.sirka} × ${f.vyska} ${f.jednotka} · Grid ${g.stlpce} ▾`;
+  const btn = $('#btn-format');
+  btn.textContent = 'Dokument ▾';
+  btn.title = `${f.sirka} × ${f.vyska} ${f.jednotka} · Grid ${g.stlpce}`;
   const input = $('#variant-input');
   if (document.activeElement !== input) input.value = spec.variant;
 }
@@ -1173,6 +1203,12 @@ function attachPopover(btn, buildContent) {
         pop.style.maxHeight = `${window.innerHeight - top - 8}px`;
         pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 12))}px`;
       }
+    },
+    // Rebuild the open popover in place, keeping its scroll position.
+    rebuild() {
+      const y = pop.scrollTop;
+      buildContent(pop);
+      pop.scrollTop = y;
     },
     isOpen: () => !pop.hidden,
     btn,
@@ -1377,43 +1413,173 @@ function rangeSlider(value, { min, max }, onChange) {
 
 // ----- format popover -----
 
-attachPopover($('#btn-format'), (pop) => {
-  const f = spec.format, g = spec.grid;
+// Media (named formats) are data in presets/media.json, loaded at runtime as
+// JSON — the ui never imports from presets/. Until they arrive the panel
+// shows Custom alone; an open panel fills up in place, a closed one builds
+// with them on open.
+let mediaSkupiny = null;
+let mediaHost = null; // the groups container of the format panel on screen
+let customZvolene = false; // Custom clicked: it stays lit even on a medium's values
+// The medium last clicked (group + name), kept in the browser beside the
+// spec: several media share the same values (1080 × 1350 px), so the one
+// clicked is the one lit while the format still matches it.
+let zvoleneMedium = nacitajZvoleneMedium();
 
+function nacitajZvoleneMedium() {
+  try {
+    const m = JSON.parse(localStorage.getItem(LS_MEDIUM_KEY));
+    return typeof m?.skupina === 'string' && typeof m?.nazov === 'string' ? m : null;
+  } catch {
+    return null;
+  }
+}
+
+function ulozZvoleneMedium() {
+  try {
+    localStorage.setItem(LS_MEDIUM_KEY, JSON.stringify(zvoleneMedium));
+  } catch {
+    // private mode or full storage: the choice lives for this visit only
+  }
+}
+let custom1Pole = null; // the first editable field of Custom (the width)
+
+fetch(new URL('../presets/media.json', import.meta.url))
+  .then((r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  })
+  .then(({ skupiny }) => {
+    mediaSkupiny = Array.isArray(skupiny) ? skupiny : null;
+    if (mediaHost?.isConnected) nakresliMedia(mediaHost);
+  })
+  .catch((err) => {
+    console.warn('Médiá sa nepodarilo načítať, panel Formát ukáže len Custom.', err);
+  });
+
+// A medium fits when the format equals it in every field it sets.
+function sediMedium(medium) {
+  return POLIA_FORMATU.every((k) => spec.format[k] === medium[k]);
+}
+
+// The one lit medium: the clicked one while the format fits it, otherwise
+// the first fitting one in list order; none (Custom) when nothing fits or
+// Custom was clicked.
+function aktivneMedium() {
+  if (customZvolene) return null;
+  const vsetky = (mediaSkupiny ?? []).flatMap(({ nazov: skupina, media }) =>
+    (media ?? []).map((medium) => ({ skupina, medium })));
+  const zvolene = zvoleneMedium && vsetky.find(({ skupina, medium }) =>
+    skupina === zvoleneMedium.skupina && medium.nazov === zvoleneMedium.nazov);
+  if (zvolene && sediMedium(zvolene.medium)) return zvolene.medium;
+  return vsetky.find(({ medium }) => sediMedium(medium))?.medium ?? null;
+}
+
+function skupinaButtonov(nazov, buttony) {
+  const group = document.createElement('div');
+  group.className = 'media-group';
+  const cap = document.createElement('div');
+  cap.className = 'cap';
+  cap.textContent = nazov;
   const presets = document.createElement('div');
   presets.className = 'presets';
-  for (const name of Object.keys(FORMAT_PRESETS)) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = name;
-    b.addEventListener('click', () => {
-      Object.assign(spec.format, FORMAT_PRESETS[name]);
-      closePopovers();
-      scheduleRender();
+  presets.append(...buttony);
+  group.append(cap, presets);
+  return group;
+}
+
+function buttonMedia(text, aktivny, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = text;
+  b.classList.toggle('aktivny', aktivny);
+  b.setAttribute('aria-pressed', String(aktivny));
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function nakresliMedia(host) {
+  host.replaceChildren();
+  const aktivne = aktivneMedium();
+  for (const { nazov, media } of mediaSkupiny ?? []) {
+    const buttony = (media ?? []).map((medium) => {
+      const aktivny = medium === aktivne;
+      // a click applies the whole format of the medium; the grid stays
+      return buttonMedia(medium.nazov, aktivny, () => {
+        for (const k of POLIA_FORMATU) spec.format[k] = medium[k];
+        customZvolene = false;
+        zvoleneMedium = { skupina: nazov, nazov: medium.nazov };
+        ulozZvoleneMedium();
+        // the panel stays open, so the fields below show the new medium
+        formatPopover.rebuild();
+        scheduleRender();
+      });
     });
-    presets.append(b);
+    host.append(skupinaButtonov(nazov, buttony));
   }
+  // Custom keeps the current values: the editable rows below the groups are it
+  host.append(skupinaButtonov('Custom', [buttonMedia('Custom', !aktivne, () => {
+    customZvolene = true;
+    nakresliMedia(host);
+    custom1Pole?.focus();
+  })]));
+}
+
+// A typed format field: the value goes to the spec and the lit medium follows.
+function poleFormatu(k, attrs) {
+  return numberInput(spec.format[k], attrs, (v) => {
+    spec.format[k] = v;
+    if (mediaHost?.isConnected) nakresliMedia(mediaHost);
+  });
+}
+
+// The widest margin (grid.okraj, in dieliky) the grid takes: twice the
+// margin stays below both the columns and the whole rows.
+function maxOkraj() {
+  const f = spec.format, cols = spec.grid.stlpce;
+  const rows = Math.floor((f.vyska * cols) / f.sirka + 1e-6);
+  return Math.max(0, Math.floor((Math.min(cols, rows) - 1) / 2));
+}
+
+const formatPopover = attachPopover($('#btn-format'), (pop) => {
+  const f = spec.format, g = spec.grid;
+
+  const media = document.createElement('div');
+  media.className = 'media';
+  mediaHost = media;
+  nakresliMedia(media);
 
   const h3a = document.createElement('h3');
-  h3a.textContent = 'Formát';
+  h3a.textContent = 'Dokument';
   const h3b = document.createElement('h3');
   h3b.textContent = 'Mriežka';
+
+  // the margin in whole dieliky of the grid, at most what leaves a column
+  // and a whole row inside
+  // a wider margin pushes the zones inside it at once
+  const okrajPole = numberInput(g.okraj, { min: 0, max: maxOkraj(), step: 1 }, (v) => {
+    spec.grid.okraj = clamp(v, 0, maxOkraj());
+    vmestiZony();
+    drawOverlay();
+  });
 
   const sizeWrap = document.createElement('div');
   sizeWrap.className = 'grow';
   sizeWrap.append(
-    numberInput(f.sirka, { min: 10, max: 20000, step: 1 }, (v) => { spec.format.sirka = v; }),
+    custom1Pole = poleFormatu('sirka', { min: 10, max: 20000, step: 1 }),
     Object.assign(document.createElement('span'), { textContent: '×' }),
-    numberInput(f.vyska, { min: 10, max: 20000, step: 1 }, (v) => { spec.format.vyska = v; }),
-    selectInput([['mm', 'mm'], ['px', 'px']], f.jednotka, (v) => { spec.format.jednotka = v; }),
+    poleFormatu('vyska', { min: 10, max: 20000, step: 1 }),
+    selectInput([['mm', 'mm'], ['px', 'px']], f.jednotka, (v) => {
+      spec.format.jednotka = v;
+      if (mediaHost?.isConnected) nakresliMedia(mediaHost);
+    }),
   );
 
   pop.replaceChildren(
     h3a,
-    row('Predvoľba', presets),
+    media,
     row('Rozmer', sizeWrap),
-    row('DPI', numberInput(f.dpi, { min: 18, max: 2400, step: 1 }, (v) => { spec.format.dpi = v; })),
-    row('Spadávka', numberInput(f.spadavka, { min: 0, max: 50, step: 1 }, (v) => { spec.format.spadavka = v; })),
+    row('DPI', poleFormatu('dpi', { min: 18, max: 2400, step: 1 })),
+    row('Spadávka', poleFormatu('spadavka', { min: 0, max: 50, step: 1 })),
     h3b,
     row('Grid', numberInput(g.stlpce, { min: 1, max: 100, step: 1 }, (v) => {
       const pomer = clamp(v, 1, 100) / spec.grid.stlpce;
@@ -1425,7 +1591,12 @@ attachPopover($('#btn-format'), (pop) => {
         z.w = Math.max(1, Math.round(z.w * pomer));
         z.h = Math.max(1, Math.round(z.h * pomer));
       }
+      // the margin stays in dieliky; a smaller grid clamps it to what fits
+      spec.grid.okraj = clamp(spec.grid.okraj, 0, maxOkraj());
+      okrajPole.value = String(spec.grid.okraj);
+      okrajPole.max = String(maxOkraj());
     })),
+    row('Okraj', okrajPole),
     row('Zvyšok výšky', selectInput(
       [['okraje', 'okraje'], ['natiahnutie', 'natiahnutie'], ['orez', 'presah a orez']],
       g.zvysok, (v) => { spec.grid.zvysok = v; })),

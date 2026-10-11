@@ -1,5 +1,5 @@
 // SVG assembly for compositions. One standalone document with layers
-// fotky → pattern → text → spadavka (photos sit under the pattern so the
+// fotky → pattern → text → spadavka → okraj (photos sit under the pattern so the
 // `prekrytie` mode shows shapes over the image; clipped modes are unaffected
 // because zones keep shapes away anyway). All numbers rounded to 4 decimals,
 // output byte-deterministic.
@@ -247,7 +247,7 @@ function textLayer(zony, fg, cfg, zmerajText) {
 // --- document ---------------------------------------------------------------
 
 export function renderSvg({
-  stlpce, vyskaD, bleedD, jednotka, sirka, vyska, spadavka,
+  stlpce, vyskaD, bleedD, okrajD = 0, riadkyD = vyskaD, jednotka, sirka, vyska, spadavka,
   placed, zony, inverzia, fontUrls, zmerajText, cfg,
 }) {
   const fg = inverzia ? '#fff' : '#000';
@@ -275,6 +275,13 @@ export function renderSvg({
     `<g id="spadavka">${spadavka > 0
       ? `<rect x="0" y="0" width="${f(stlpce)}" height="${f(vyskaD)}" fill="none" stroke="${cfg.spadavkaFarba}" stroke-width="${f(cfg.spadavkaHrubka)}"/>`
       : ''}</g>`,
+    // the margin guide (okraj) is drawn like the trim line of the bleed, but
+    // dashed, on grid lines: okraj whole dieliky in from the trimmed format's
+    // left, top and right edge and from the last whole row; a grid without a
+    // margin keeps the document as it was
+    okrajD > 0
+      ? `<g id="okraj"><rect x="${f(okrajD)}" y="${f(okrajD)}" width="${f(stlpce - 2 * okrajD)}" height="${f(riadkyD - 2 * okrajD)}" fill="none" stroke="${cfg.spadavkaFarba}" stroke-width="${f(cfg.spadavkaHrubka)}" stroke-dasharray="${f(cfg.spadavkaHrubka * 6)}"/></g>`
+      : '',
     '</svg>',
   ];
   return { svg: `${out.filter(Boolean).join('\n')}\n`, varovania: varovaniaTextu };

@@ -43,13 +43,16 @@ function vZone(box, zone) {
   return zone.glyfy ? zone.glyfy.some((g) => blizsieAko(box, g, zone.okraj)) : true;
 }
 
-function voFormate(box, { stlpce, bandY, bandH }) {
-  return box.x >= -1e-9 && box.y >= bandY - 1e-9
-    && box.x + box.w <= stlpce + 1e-9 && box.y + box.h <= bandY + bandH + 1e-9;
+// The band shapes are laid out in: bandX … bandX + bandW across, bandY …
+// bandY + bandH down (the whole format width, or the inside of the grid's
+// margin).
+function voFormate(box, { bandX, bandW, bandY, bandH }) {
+  return box.x >= bandX - 1e-9 && box.y >= bandY - 1e-9
+    && box.x + box.w <= bandX + bandW + 1e-9 && box.y + box.h <= bandY + bandH + 1e-9;
 }
 
-function nahodnaPozicia(rng, box, { stlpce, bandY, bandH, zony, placed, medzera, skok }) {
-  const stepsX = Math.floor((stlpce - box.w) / skok + 1e-9);
+function nahodnaPozicia(rng, box, { bandX, bandW, bandY, bandH, zony, placed, medzera, skok }) {
+  const stepsX = Math.floor((bandW - box.w) / skok + 1e-9);
   const stepsY = Math.floor((bandH - box.h) / skok + 1e-9);
   if (stepsX < 0 || stepsY < 0) return null;
 
@@ -66,7 +69,7 @@ function nahodnaPozicia(rng, box, { stlpce, bandY, bandH, zony, placed, medzera,
   }
 
   for (const [i, j] of cells) {
-    const candidate = { x: i * skok, y: bandY + j * skok, w: box.w, h: box.h };
+    const candidate = { x: bandX + i * skok, y: bandY + j * skok, w: box.w, h: box.h };
     if (zony.some((z) => vZone(candidate, z))) continue;
     if (placed.some((p) => blizsieAko(candidate, p.bbox, medzera))) continue;
     return candidate;
@@ -250,11 +253,11 @@ function prirast(rng, chain, ctx, pokusy, minDlzka = 1, { koniec = null, typy = 
 export function placeShapes(rng, {
   build, axes, defaultsOf, typy, velkostTvaru, vahyTvaru,
   velkosti,
-  stlpce, bandY, bandH, zony, medzera, hustota, maxPokusov, skok,
+  stlpce, bandX = 0, bandW = stlpce, bandY, bandH, zony, medzera, hustota, maxPokusov, skok,
   retazenieDlzka, retazeniePokusy, dotyk, neuspechov, spojky = [], spojkyMinKontrast = 0.8, spojkaPomer = 30, zakazanePary = [], pomery = {}, kvapka,
 }) {
   const zoneArea = zony.reduce((a, z) => a + (z.plocha ?? z.rect.w * z.rect.h), 0);
-  const freeArea = Math.max(stlpce * bandH - zoneArea, 0);
+  const freeArea = Math.max(bandW * bandH - zoneArea, 0);
   // Ink-weighted coverage: a bare bbox area counts empty space, so sparse
   // shapes (kvapka, polkruh) would hit the target while the canvas stays empty.
   const pokrytie = (typ, box) => box.w * box.h * (vahyTvaru[typ] ?? 1);
@@ -281,7 +284,7 @@ export function placeShapes(rng, {
 
   const ctx = {
     build, axes, defaultsOf, velkostTvaru, velkosti,
-    stlpce, bandY, bandH, zony, medzera, dotyk, pokusov: 0, maxPokusov,
+    bandX, bandW, bandY, bandH, zony, medzera, dotyk, pokusov: 0, maxPokusov,
     typyRetezi, placed: null, kvapka, bezPatiek, zakazanePary, spojky, spojkaPomer,
   };
 
@@ -352,8 +355,8 @@ export function placeShapes(rng, {
     if (!typ) return false;
     const k = potiahni(rng, typ, ctx);
     const bb = k.shape.bbox;
-    if (bb.w > stlpce + 1e-9 || bb.h > bandH + 1e-9) return false;
-    const box = nahodnaPozicia(rng, bb, { stlpce, bandY, bandH, zony, placed, medzera, skok });
+    if (bb.w > bandW + 1e-9 || bb.h > bandH + 1e-9) return false;
+    const box = nahodnaPozicia(rng, bb, { bandX, bandW, bandY, bandH, zony, placed, medzera, skok });
     if (!box) return false;
     const entry = umiestni(k, box);
     placed.push(entry);

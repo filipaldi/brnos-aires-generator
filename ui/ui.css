@@ -196,6 +196,14 @@ button, input, select { font: inherit; color: inherit; }
 
 .popover .presets button:hover { background: var(--ink); color: var(--paper); }
 
+/* the chosen medium stays inverted after the click */
+.popover .presets button.aktivny { background: var(--ink); color: var(--paper); }
+
+/* media of the format panel: a small group heading over its medium buttons */
+.media-group { margin: 8px 0 10px; }
+
+.media-group .cap { margin-bottom: 4px; font-size: 11px; color: var(--dim); }
+
 .popover .types { display: grid; grid-template-columns: 1fr; gap: 6px; }
 
 .popover .types label {
@@ -328,6 +336,15 @@ button, input, select { font: inherit; color: inherit; }
   position: absolute;
   pointer-events: none;
   border: 1px dashed rgba(0, 0, 0, 0.38);
+}
+
+/* the format's margin (okraj): a guide like the bleed mark, but dotted to
+   tell it from the dashed bleed — it sits inside the trim edge, the bleed
+   mark outside it; hidden while okraj is 0 */
+#okraj-mark {
+  position: absolute;
+  pointer-events: none;
+  border: 1px dotted rgba(0, 0, 0, 0.55);
 }
 
 #grid-lines {

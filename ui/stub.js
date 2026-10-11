@@ -12,7 +12,7 @@ const ALL_TYPES = TYPES.map((t) => t.id);
 
 const DEFAULTS = {
   format: { sirka: 420, vyska: 594, jednotka: 'mm', dpi: 300, spadavka: 3 },
-  grid: { stlpce: 8, zvysok: 'okraje' },
+  grid: { stlpce: 8, zvysok: 'okraje', okraj: 0 },
   kresba: { weight: 60, contrast: 70, zaoblenie: 30 },
   kompozicia: {
     velkost: [1, 6],
@@ -126,6 +126,15 @@ export function normalizujSpec(input) {
   num(f.spadavka, 'Spadávka', { min: 0, max: 50 });
   num(g.stlpce, 'Grid', { min: 1, max: 64, integer: true });
   enumv(g.zvysok, 'Zvyšok výšky', ['okraje', 'natiahnutie', 'orez']);
+  // okraj in whole dieliky; at least one column and one whole row stay inside
+  num(g.okraj, 'Okraj', { min: 0, integer: true });
+  if (2 * g.okraj >= g.stlpce) {
+    throw new ValidationError(`Okraj musí byť menší ako polovica stĺpcov gridu (${g.stlpce}, je ${g.okraj}).`);
+  }
+  const riadky = Math.floor((f.vyska * g.stlpce) / f.sirka + 1e-6);
+  if (2 * g.okraj >= riadky) {
+    throw new ValidationError(`Okraj musí byť menší ako polovica celých riadkov gridu (${riadky}, je ${g.okraj}).`);
+  }
   num(k.weight, 'Weight', { min: 0, max: 100 });
   num(k.contrast, 'Contrast', { min: 0, max: 100 });
   num(k.zaoblenie, 'Zaoblenie', { min: 0, max: 100 });
@@ -189,6 +198,17 @@ export function normalizujSpec(input) {
       }
       return base;
     });
+    // zones stay inside the grid's margin, as in the core
+    if (g.okraj > 0) {
+      const x1 = g.stlpce - g.okraj;
+      const y1 = riadky - g.okraj;
+      out.zony.forEach((z, i) => {
+        if (z.x < g.okraj || z.y < g.okraj || z.x + z.w > x1 || z.y + z.h > y1) {
+          throw new ValidationError(
+            `Zóna č. ${i + 1} zasahuje do okraja gridu (${g.okraj} dielikov): musí ležať v stĺpcoch ${g.okraj}–${x1} a riadkoch ${g.okraj}–${y1}.`);
+        }
+      });
+    }
   }
   return out;
 }
@@ -256,7 +276,10 @@ function zoneBlockers(zony) {
 
 function placeShapes(spec, geom, rng, axes) {
   const c = spec.kompozicia;
-  const { W, H } = geom;
+  // the pattern's band: the whole format, or the inside of the grid's margin
+  // (okraj whole dieliky in from the left, top and right edge and from the
+  // last whole row), as in the core
+  const { X0, Y0, W, H } = geom.pas;
   const blockers = zoneBlockers(spec.zony);
   const placed = [];
   const avg = (c.velkost[0] + c.velkost[1]) / 2;
@@ -278,8 +301,8 @@ function placeShapes(spec, geom, rng, axes) {
     const h = shape.bbox.h * s;
     let rect = null;
     for (let attempt = 0; attempt < 120; attempt++) {
-      const x = rng() * (W - w);
-      const y = rng() * (H - h);
+      const x = X0 + rng() * (W - w);
+      const y = Y0 + rng() * (H - h);
       const candidate = { x, y, w, h };
       if (blockers.some((b) => rectsIntersect(candidate, b, 0.05))) continue;
       if (placed.some((p) => rectsIntersect(candidate, p.rect, 0.12))) continue;
@@ -388,7 +411,12 @@ export function komponuj(spec, { fontUrls = {} } = {}) {
   const W = g.stlpce;
   const H = f.vyska / dielikUnits;
   const b = f.spadavka / dielikUnits; // bleed in dieliks
-  const geom = { W, H, b, dielikUnits, axes };
+  const ok = g.okraj;
+  const riadky = Math.floor((f.vyska * g.stlpce) / f.sirka + 1e-6);
+  const pas = ok > 0
+    ? { X0: ok, Y0: ok, W: W - 2 * ok, H: riadky - 2 * ok }
+    : { X0: 0, Y0: 0, W, H };
+  const geom = { W, H, b, dielikUnits, axes, pas };
 
   const rng = mulberry32(hashString(spec.variant));
   const placed = placeShapes(spec, geom, rng, axes);

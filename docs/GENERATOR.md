@@ -24,13 +24,19 @@ Jednotka **dielik** = šírka formátu / počet stĺpcov.
 
 ### Formát
 
-V rozhraní pod `420 × 594 mm · Grid 8 ▾`, spolu s mriežkou a predvoľbou.
+V rozhraní pod `420 × 594 mm · Grid 8 ▾`, spolu s mriežkou a médiami.
 
 | Parameter | Hodnoty | Poznámka |
 |---|---|---|
-| Šírka × výška | číslo + jednotka (mm / px) | Predvoľby A2, A3, IG, web sú len skratky |
-| DPI | číslo | Len pri mm, pre PNG |
-| Spadávka | mm | Technická, pre tlač. Na plátne je vždy jemne vyznačená. |
+| Šírka × výška | celé číslo + jednotka (mm / px) | Médiá sú len skratky, hodnoty sa dajú ďalej meniť |
+| DPI | celé číslo | Len pri mm, pre PNG |
+| Spadávka | celé číslo v jednotke formátu | Technická, pre tlač. Na plátne je vždy jemne vyznačená. |
+
+**Médiá** sú pevné formáty s názvom v `presets/media.json` (skupiny Tlač A, Tlač B, Ostatná tlač, Instagram, Facebook, LinkedIn, Web). Každé médium nesie `nazov`, `sirka`, `vyska`, `jednotka`, `dpi` a `spadavka`, všetky čísla celé. Okraj médium nenastavuje, patrí mriežke. Tlač má 300 DPI a spadávku 3 mm (Billboard 50 DPI), digitál 72 DPI a spadávku 0. Nové médium je nová položka v JSON, žiadny kód.
+
+Formát sa nastavuje v paneli **Dokument** (tlačidlo v hornej lište, rozmer a grid ukáže pri prejdení myšou). Médiá sú tlačidlá pod malými nadpismi skupín. Klik nastaví celý formát média (mriežku vrátane okraja nechá) a prekreslí list; panel ostane otvorený, takže sa dajú hneď upraviť ďalšie polia. Posledná skupina je **Custom**: ponechá aktuálne hodnoty, ktoré sa menia v riadkoch Rozmer, DPI a Spadávka pod tlačidlami. Rozsvietené je vždy len jedno tlačidlo: kliknuté médium, kým mu formát zodpovedá; inak prvé zodpovedajúce médium v poradí zoznamu (niekoľko médií má rovnaké hodnoty, napr. 1080 × 1350 px), a keď nezodpovedá žiadne, Custom. Kliknuté médium (skupina a názov) si prehliadač pamätá spolu so stavom. Rozhranie načítava `presets/media.json` za behu ako dáta; vlastný formát sa ukladá v prehliadači s celým stavom.
+
+V CLI `node cli.js kompozicia --spec <súbor.json> --format "<médium>" --out <súbor.svg>` prepíše formát specu médiom podľa názvu (napr. `A3` alebo `IG story / reels`); neznámy názov vypíše zoznam médií.
 
 ### Mriežka
 
@@ -38,6 +44,7 @@ V rozhraní pod `420 × 594 mm · Grid 8 ▾`, spolu s mriežkou a predvoľbou.
 |---|---|---|
 | Grid (N stĺpcov) | celé číslo | Dielik = šírka / N, štvorcový |
 | Zvyšok výšky | okraje / natiahnutie / presah a orez | Keď výška nie je násobkom dielika. Volí sa podľa potreby. |
+| Okraj | celé číslo v dielikoch, predvolene 0 | Vnútorný okraj ako súčasť gridu (`grid.okraj`): plocha pri okrajoch listu, do ktorej nejde grafika ani zóny. Vzor sa pri okraji väčšom ako 0 kladie len vnútri vodiacej čiary (pri okraji 0 ide ako doteraz po hranu orezu, list je bajt po bajte rovnaký) a zóny musia ležať vnútri nej, inak jadro spec odmietne. Rozhranie zóny pri ťahaní, zmene veľkosti, vkladaní aj pri zväčšení okraja či zmenšení formátu zatlačí dovnútra, v prípade potreby ich zmenší. Dvojnásobok okraja musí byť menší ako počet stĺpcov aj počet celých riadkov; menší grid okraj zmenší na najväčší možný. Leží na čiarach gridu: okraj dielikov od ľavého, horného a pravého okraja orezu a od poslednej celej čiary riadkov. Na plátne bodkovaná vodiaca čiara, v SVG tenká prerušovaná čiara ako pri spadávke. Médium okraj nemení. Starší spec bez okraja má okraj 0; `format.okraj` z predošlej verzie rozhranie pri načítaní zahodí. |
 
 ### Kresba
 
@@ -80,7 +87,7 @@ Spoločné pre každú zónu:
 | Parameter | Hodnoty | Poznámka |
 |---|---|---|
 | Typ | text / fotka | Určí sa obsahom: začneš písať = text, pretiahneš fotku = fotka |
-| Poloha a veľkosť | v dielikoch | Prichytené na mriežku |
+| Poloha a veľkosť | v dielikoch | Prichytené na mriežku, vnútri okraja gridu |
 | Okraj | celé číslo −20 až 20 (dieliky) | Pri textovej zóne s textom a obtekaní písmen je okraj vzdialenosť od písmen, nie od rámika (viď Obtekanie nižšie). Kladný = N dielikov voľna od písmen, 0 = tesne k písmenám, záporný = tvary smú zasiahnuť do písmen až \|N\| dielikov; písmeno, ktoré tým zanikne, sa pre vzor ignoruje. Pri zóne bez textu (a pri obtekaní rámika) platí rámik: kladný = okolo zóny ostane N dielikov voľna, 0 = tvary idú tesne k hrane zóny, dovnútra nie, záporný = tvary smú zasiahnuť do zóny až \|N\| dielikov od hrany; zóna, ktorá tým zanikne, sa pre vzor ignoruje. |
 
 Textová zóna:
@@ -142,7 +149,7 @@ Fotková zóna:
 | Súbor | SVG / PNG / AVIF | |
 | Text | upraviteľný / krivky | Len SVG |
 
-SVG má vrstvy `pattern`, `text`, `fotky`, `spadavka`.
+SVG má vrstvy `pattern`, `text`, `fotky`, `spadavka` a pri nenulovom okraji `okraj`.
 
 ### Technická poistka
 
@@ -241,7 +248,7 @@ Zľava doprava v poradí, v akom sa pri práci používa:
 
 | Položka | Ako často | Obsah |
 |---|---|---|
-| `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba formátu (A2, A3, IG, web), rozmer a jednotka, DPI, spadávka, Grid, zvyšok výšky |
+| `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba formátu (A2, A3, IG, web), rozmer a jednotka, DPI, spadávka, Grid, okraj, zvyšok výšky |
 | `Parametre ▾` | občas | Weight, Contrast, inverzia, veľkosť, rozloženie, typy, rozmiestnenie (voľné / dlaždice) |
 | `◀ Variant 42 ▶ ⟳` | neustále | Predchádzajúci, číslo variantu (dá sa prepísať), ďalší, náhodný |
 | `75 %` | podľa potreby | Zoom plátna |
@@ -261,6 +268,7 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
 - **Typografické funkcie** (tlačidlo s ligatúrou fi) otvoria popover so zaškrtávacími prepínačmi funkcií aktuálneho písma; klik prepína a list aj editor sa prekreslia hneď. Zmena písma zachová spoločné tagy a zvyšok nastaví na predvolené hodnoty nového písma.
 - **Čiary gridu** sa ukážu samy, keď ťaháš zónu. Inak sú skryté, prepínač netreba.
 - **Spadávka** je vždy jemne vyznačená.
+- **Okraj** formátu je vyznačený bodkovanou čiarou, keď je väčší ako 0.
 
 ### Klik a klávesy
 

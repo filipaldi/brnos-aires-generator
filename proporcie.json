@@ -50,7 +50,8 @@
       },
       "grid": {
         "stlpce": 30,
-        "zvysok": "okraje"
+        "zvysok": "okraje",
+        "okraj": 0
       },
       "kresba": {
         "weight": 20,
