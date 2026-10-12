@@ -1,0 +1,61 @@
+{
+  "nazov": "Instagram square",
+  "medium": {
+    "skupina": "Instagram",
+    "nazov": "IG post štvorec"
+  },
+  "spec": {
+    "format": {
+      "sirka": 1080,
+      "vyska": 1080,
+      "jednotka": "px",
+      "dpi": 72,
+      "spadavka": 0
+    },
+    "grid": {
+      "stlpce": 60,
+      "zvysok": "okraje",
+      "okraj": 1
+    },
+    "kresba": {
+      "weight": 5,
+      "contrast": 0,
+      "zaoblenie": 30
+    },
+    "kompozicia": {
+      "velkosti": {
+        "noha": [4, 13],
+        "stvrtoblouk": [1, 6],
+        "polkruh": [1, 2],
+        "stvrtkruh": [1, 2],
+        "kvapka": [1, 1],
+        "kruh": [1, 1]
+      },
+      "pomery": {
+        "noha": 46,
+        "polkruh": 22,
+        "stvrtkruh": 4,
+        "kvapka": 24,
+        "kruh": 4
+      },
+      "rozmiestnenie": "volne",
+      "retazenieDlzka": [5, 21],
+      "typy": ["noha", "polkruh", "stvrtkruh", "kvapka", "kruh"]
+    },
+    "variant": "779",
+    "inverzia": false,
+    "zony": [
+      {
+        "typ": "fotka",
+        "okraj": 1,
+        "x": 8,
+        "y": 8,
+        "w": 42,
+        "h": 44,
+        "rezim": "ramik",
+        "posun": [0, 0],
+        "zoom": 1
+      }
+    ]
+  }
+}

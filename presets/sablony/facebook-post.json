@@ -1,0 +1,83 @@
+{
+  "nazov": "Facebook post",
+  "medium": {
+    "skupina": "Facebook",
+    "nazov": "FB titulka udalosti"
+  },
+  "spec": {
+    "format": {
+      "sirka": 1920,
+      "vyska": 1005,
+      "jednotka": "px",
+      "dpi": 72,
+      "spadavka": 0
+    },
+    "grid": {
+      "stlpce": 80,
+      "zvysok": "okraje",
+      "okraj": 1
+    },
+    "kresba": {
+      "weight": 5,
+      "contrast": 0,
+      "zaoblenie": 30
+    },
+    "kompozicia": {
+      "velkosti": {
+        "noha": [4, 13],
+        "stvrtoblouk": [1, 6],
+        "polkruh": [1, 2],
+        "stvrtkruh": [1, 2],
+        "kvapka": [1, 1],
+        "kruh": [1, 1]
+      },
+      "pomery": {
+        "noha": 46,
+        "polkruh": 22,
+        "stvrtkruh": 4,
+        "kvapka": 24,
+        "kruh": 4
+      },
+      "rozmiestnenie": "volne",
+      "retazenieDlzka": [5, 21],
+      "typy": ["noha", "polkruh", "stvrtkruh", "kvapka", "kruh"]
+    },
+    "variant": "873",
+    "inverzia": false,
+    "zony": [
+      {
+        "typ": "fotka",
+        "okraj": 0,
+        "x": 34,
+        "y": 4,
+        "w": 41,
+        "h": 33,
+        "rezim": "ramik",
+        "posun": [0, 0],
+        "zoom": 1
+      },
+      {
+        "typ": "text",
+        "okraj": 1,
+        "x": 4,
+        "y": 7,
+        "w": 26,
+        "h": 28,
+        "text": "Neaký text",
+        "pismo": "Brnos Aires",
+        "riadok": 3,
+        "velkost": 80,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      }
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 {
   "sablony": [
-    "a2-plagat.json"
+    "instagram-square.json",
+    "facebook-post.json"
   ]
 }
