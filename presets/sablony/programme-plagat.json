@@ -1,0 +1,596 @@
+{
+  "nazov": "Programme plagát",
+  "medium": null,
+  "spec": {
+    "format": {
+      "sirka": 841,
+      "vyska": 1189,
+      "jednotka": "mm",
+      "dpi": 300,
+      "spadavka": 5
+    },
+    "grid": {
+      "stlpce": 70,
+      "zvysok": "okraje",
+      "okraj": 1
+    },
+    "kresba": {
+      "weight": 4,
+      "contrast": 0,
+      "zaoblenie": 30
+    },
+    "kompozicia": {
+      "velkosti": {
+        "noha": [
+          5,
+          25
+        ],
+        "stvrtoblouk": [
+          1,
+          6
+        ],
+        "polkruh": [
+          1,
+          3
+        ],
+        "stvrtkruh": [
+          1,
+          2
+        ],
+        "kvapka": [
+          1,
+          1
+        ],
+        "kruh": [
+          1,
+          1
+        ]
+      },
+      "pomery": {
+        "noha": 29,
+        "polkruh": 34,
+        "stvrtkruh": 7,
+        "kvapka": 26,
+        "kruh": 4
+      },
+      "rozmiestnenie": "volne",
+      "retazenieDlzka": [
+        4,
+        47
+      ],
+      "typy": [
+        "noha",
+        "polkruh",
+        "stvrtkruh",
+        "kvapka",
+        "kruh"
+      ]
+    },
+    "variant": "320",
+    "inverzia": false,
+    "zony": [
+      {
+        "typ": "text",
+        "okraj": 1,
+        "text": "Programme",
+        "pismo": "Brnos Aires",
+        "riadok": 11,
+        "velkost": 90,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 2,
+        "y": 8,
+        "w": 67,
+        "h": 11,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 3,
+        "text": "Friday",
+        "pismo": "Brnos Aires",
+        "riadok": 4,
+        "velkost": 100,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 2,
+        "y": 41,
+        "w": 17,
+        "h": 4,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 3,
+        "text": "Saturday",
+        "pismo": "Brnos Aires",
+        "riadok": 4,
+        "velkost": 100,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 23,
+        "y": 27,
+        "w": 20,
+        "h": 4,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "Sunday",
+        "pismo": "Brnos Aires",
+        "riadok": 4,
+        "velkost": 100,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 51,
+        "y": 43,
+        "w": 18,
+        "h": 3,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 3,
+        "text": "Veronika \nKim",
+        "pismo": "Brnos Aires",
+        "riadok": 3,
+        "velkost": 95,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 2,
+        "y": 50,
+        "w": 15,
+        "h": 6,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 1,
+        "text": "Vincent \nvan´t Laar",
+        "pismo": "Brnos Aires",
+        "riadok": 3,
+        "velkost": 95,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 51,
+        "y": 52,
+        "w": 18,
+        "h": 6,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "Balázs \nGyenis",
+        "pismo": "Brnos Aires",
+        "riadok": 3,
+        "velkost": 95,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 23,
+        "y": 36,
+        "w": 18,
+        "h": 6,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 3,
+        "text": "Francesco\nCieschi",
+        "pismo": "Brnos Aires",
+        "riadok": 3,
+        "velkost": 95,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 23,
+        "y": 61,
+        "w": 18,
+        "h": 6,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 3,
+        "text": "Mačka\nSivá",
+        "pismo": "Brnos Aires",
+        "riadok": 3,
+        "velkost": 95,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 51,
+        "y": 72,
+        "w": 18,
+        "h": 6,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "13:00 — 19:00",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 100,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 23,
+        "y": 33,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 600
+      },
+      {
+        "typ": "text",
+        "okraj": 1,
+        "text": "Czechia",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 70,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 2,
+        "y": 56,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 600
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "19:00 — 01:00",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 100,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 23,
+        "y": 58,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 600
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "13:00 — 19:00",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 100,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 51,
+        "y": 49,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 600
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "19:00 — 22:00",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 100,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 51,
+        "y": 69,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 600
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "19:00 — 01:00",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 100,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 2,
+        "y": 47,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 600
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "Slovakia",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 70,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 51,
+        "y": 78,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 600
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "Hungary",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 70,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 23,
+        "y": 42,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 600
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "Netherlands",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 70,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 51,
+        "y": 58,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 600
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "Germany",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 70,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 23,
+        "y": 67,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 600
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "No pauses...",
+        "pismo": "Brnos Aires",
+        "riadok": 3,
+        "velkost": 95,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 3,
+        "y": 18,
+        "w": 20,
+        "h": 3,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 2,
+        "text": "...civilised hours",
+        "pismo": "Brnos Aires",
+        "riadok": 3,
+        "velkost": 95,
+        "zarovnanie": "vpravo",
+        "obtekanie": "text",
+        "x": 42,
+        "y": 91,
+        "w": 24,
+        "h": 3,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      }
+    ]
+  }
+}
