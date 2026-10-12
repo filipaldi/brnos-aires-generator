@@ -267,7 +267,7 @@ function drawOverlay() {
       hint.textContent = 'Dvojklik pre text alebo pretiahni fotku';
       div.append(hint);
     }
-    if (z.typ === 'fotka' && !z.zdroj) div.append(nahradaFotky());
+    if (z.typ === 'fotka' && !z.zdroj) div.append(nahradaFotky(i));
     if (i === selected) {
       for (const corner of ['tl', 'tr', 'bl', 'br']) {
         const handle = document.createElement('div');
@@ -284,21 +284,52 @@ function drawOverlay() {
 }
 
 // A photo zone without its photo (a loaded template keeps no photos): a
-// placeholder drawn here, a grey wash with a diagonal cross and the word
-// Fotka, until a photo is dropped in. It lives in the overlay only, so the
-// exported files keep what the core writes for such a zone (a plain light
-// grey rectangle). Translucent: in maska and prekrytie the pattern shows.
-function nahradaFotky() {
+// placeholder drawn here, a grey wash with a diagonal cross and a
+// "Nahrať fotku" button that opens the file picker, until a photo is
+// uploaded or dropped in. It lives in the overlay only, so the exported
+// files keep what the core writes for such a zone (a plain light grey
+// rectangle). Translucent: in maska and prekrytie the pattern shows.
+function nahradaFotky(i) {
   const wrap = document.createElement('div');
   wrap.className = 'foto-nahrada';
   wrap.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">'
     + '<path d="M0 0L100 100M100 0L0 100" vector-effect="non-scaling-stroke"/></svg>';
+  const cta = document.createElement('div');
+  cta.className = 'foto-cta';
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = 'Nahrať fotku';
+  b.addEventListener('click', () => vyberFotku(i));
   const popis = document.createElement('span');
-  popis.className = 'hint';
-  popis.textContent = 'Fotka';
-  popis.title = 'Pretiahni sem fotku';
-  wrap.append(popis);
+  popis.textContent = 'alebo ju sem pretiahni';
+  cta.append(b, popis);
+  wrap.append(cta);
   return wrap;
+}
+
+// Opens the file picker and puts the chosen image into photo zone i,
+// keeping the zone's own rezim, posun and zoom (as a drop does).
+function vyberFotku(i) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    const z = spec.zony[i];
+    if (!file || !z || z.typ !== 'fotka') return;
+    if (!file.type.startsWith('image/')) {
+      toast('Vyber obrázkový súbor (JPG, PNG, WebP…).');
+      return;
+    }
+    try {
+      z.zdroj = await readImageFile(file);
+      selected = i;
+      scheduleRender();
+    } catch (err) {
+      toast(err.message);
+    }
+  });
+  input.click();
 }
 
 function styleRect(r) {
@@ -755,7 +786,7 @@ function pasteZone(vzor) {
 
 overlay.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
-  if (e.target.closest('#zone-bar, #text-editor')) return;
+  if (e.target.closest('#zone-bar, #text-editor, .foto-cta')) return;
   const handle = e.target.closest('.handle');
   const zoneDiv = e.target.closest('.zone');
   const pos = cursorDieliks(e);

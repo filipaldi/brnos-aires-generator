@@ -138,7 +138,7 @@ Fotková zóna:
 
 | Parameter | Hodnoty | Poznámka |
 |---|---|---|
-| Fotka | súbor (pretiahnutím) | |
+| Fotka | súbor (tlačidlo „Nahrať fotku“ alebo pretiahnutím) | |
 | Režim | rámik / maska / prekrytie | Maska = fotka v plnej hmote veľkého tvaru |
 | Posun, zoom | čísla | Poloha fotky v ráme alebo maske |
 
@@ -264,7 +264,7 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
 
 - **Čo šablóna nesie:** názov, médium (skupina a názov z `presets/media.json`, alebo `null`) a celý spec (formát, mriežka vrátane okraja, kresba, kompozícia, variant, inverzia a zóny so všetkými poľami). Jeden súbor `presets/sablony/<slug>.json` = `{ "nazov": "…", "medium": { "skupina": "…", "nazov": "…" } | null, "spec": { … } }`. Poradie v paneli určuje `presets/sablony/index.json` = `{ "sablony": ["<slug>.json", …] }`.
 - **Panel:** len zoznam šablón ako tlačidlá v štýle médií, nič iné; bez šablón jediný riadok „Zatiaľ žiadne šablóny.“ Klik šablónu načíta: nahradí aktuálny spec (rovnakou cestou a validáciou ako stav uložený v prehliadači) a nastaví jej médium; panel ostane otvorený. Šablóna, ktorá validáciou neprejde, ukáže chybu a aktuálny spec nechá tak. Rozsvietená je naposledy načítaná šablóna, kým jej spec zodpovedá — fotka pretiahnutá do zástupného obrázka na tom nič nemení.
-- **Fotky šablóna nenesie.** Fotková zóna nemá `zdroj`; režim, posun, zoom, poloha a okraj ostanú. Po načítaní ukáže taká zóna v editore zástupný obrázok kreslený kódom (sivá plocha s uhlopriečnym krížom a nápisom „Fotka“), kým do nej používateľ nepretiahne vlastnú fotku; fotka potom preberie režim, posun aj zoom zóny. Zástupný obrázok je len v editore: exportované súbory nesú to, čo jadro kreslí pre fotkovú zónu bez fotky odjakživa — svetlosivý obdĺžnik.
+- **Fotky šablóna nenesie.** Fotková zóna nemá `zdroj`; režim, posun, zoom, poloha a okraj ostanú. Po načítaní ukáže taká zóna v editore zástupný obrázok kreslený kódom (sivá plocha s uhlopriečnym krížom a tlačidlom **Nahrať fotku**, pod ním „alebo ju sem pretiahni“), kým do nej používateľ fotku nenahrá tlačidlom (otvorí výber súboru) alebo nepretiahne; fotka potom preberie režim, posun aj zoom zóny. Zástupný obrázok je len v editore: exportované súbory nesú to, čo jadro kreslí pre fotkovú zónu bez fotky odjakživa — svetlosivý obdĺžnik.
 - **Export → JSON template** skopíruje do schránky obsah jedného súboru šablóny z aktuálneho stavu (odsadený dvoma medzerami, fotky bez `zdroj`, médium to rozsvietené v paneli Dokument) s dočasným názvom „Nová šablóna“. Keď schránka nie je dostupná, ukáže sa text v paneli Export označený v poli len na čítanie.
 - **Ako pridať šablónu:** v generátore priprav dokument, klikni Export → JSON template, vlož text do nového súboru `presets/sablony/<slug>.json` (slug malými písmenami, číslicami a pomlčkami), prepíš `"nazov"`, pridaj `"<slug>.json"` do `presets/sablony/index.json` na miesto, kde sa má v paneli ukázať, a otvor PR. `npm test` overí, že každá šablóna v zozname existuje, je v ňom raz, nenesie fotku, jej médium existuje a spec prejde validáciou jadra.
 - **Načítanie:** rozhranie načítava `index.json` a súbory šablón za behu ako dáta (ako médiá); chýbajúci alebo nečitateľný súbor sa vynechá s varovaním v konzole. Pravidlá (zahodenie fotiek, text pre JSON template, tvar súboru, zhoda so specom) sú v `ui/state/sablony.js` bez DOM a testujú sa v Node.
