@@ -24,7 +24,7 @@ repozitára, takže jadro (`/core/`) aj fonty
 | `engine.js` | adapter: natiahne `core/kompozicia`, kým neexistuje, použije `stub.js`; skladanie posiela do workera, pri zlyhaní kreslí na hlavnom vlákne |
 | `worker.js` | web worker so skladaním (`komponuj` jadra mimo hlavné vlákno) |
 | `stub.js` | náhradný engine (rovnaké API, náhodné rozmiestnenie so seedom) |
-| `viewer.js` | prehliadač tvarov (tlačidlo Tvary) |
+| `viewer.js` | prehliadač tvarov (odkaz Prehliadač tvarov… na spodku Parametrov) |
 | `meranie.js` | meranie šírky textu cez canvas (fonty a rezy ako v SVG) pre zalomenie do zóny a tesných obdĺžnikov písmen (`zmerajGlyfy`) pre obtekanie textu vzorom; funguje aj vo workeri |
 | `export.js` | SVG priamo, PNG/AVIF cez canvas s vloženými fontmi; v claude.ai artefakte ukladá cez hostiteľa (downloads, bez AVIF) |
 | `smoke.mjs` | smoke test cez Playwright so štyrmi screenshotmi |
@@ -44,7 +44,8 @@ repozitára, takže jadro (`/core/`) aj fonty
   kopíruje, Cmd/Ctrl+V prilepí kópiu o dielik vpravo dole, Cmd/Ctrl+D
   duplikuje, Escape ruší výber. V poliach (textový editor, čísla, ponuky)
   klávesy fungujú normálne a všetko sa dá aj vyklikať — zónu duplikuje
-  tlačidlo v jej lište, maže ✕. Prehliadač tvarov otvára tlačidlo Tvary.
+  tlačidlo v jej lište, maže ✕. Prehliadač tvarov otvára odkaz
+  „Prehliadač tvarov…“ na spodku popovera Parametre (klik popover zavrie).
 - **Skladanie beží vo web workeri:** pri zmene ostáva na plátne stará kresba
   a v hornom paneli svieti „skladám…“, kým nová nie je hotová. Posuvníky v
   Parametroch počas ťahania menia len číslo (a spec); list sa prekreslí až

@@ -268,9 +268,15 @@ try {
   // the zones from the drags must compose like any other spec
   await cakajNaSkladanie();
 
-  // (d) the shape viewer, opened by the Tvary button
-  await page.click('#btn-tvary');
+  // (d) the shape viewer, opened from the bottom of the Parametre popover;
+  // the click closes the popover on the way
+  await page.click('#btn-parametre');
+  await page.waitForSelector('.popover:not([hidden]) #btn-prehliadac', { timeout: 5000 });
+  await page.click('.popover:not([hidden]) #btn-prehliadac');
   await page.waitForSelector('#viewer:not([hidden])', { timeout: 5000 });
+  if (await page.evaluate(() => [...document.querySelectorAll('.popover')].some((p) => !p.hidden))) {
+    errors.push('popover Parametre ostal otvorený po otvorení prehliadača tvarov');
+  }
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(OUT_DIR, SHOTS[3]) });
 } catch (err) {
