@@ -1,5 +1,5 @@
 {
-  "nazov": "Programme plagát",
+  "nazov": "Schedule Poster",
   "medium": null,
   "spec": {
     "format": {
@@ -11,8 +11,8 @@
     },
     "grid": {
       "stlpce": 70,
-      "zvysok": "okraje",
-      "okraj": 1
+      "zvysok": "orez",
+      "okraj": 3
     },
     "kresba": {
       "weight": 2,
@@ -66,19 +66,19 @@
         "kruh"
       ]
     },
-    "variant": "204",
+    "variant": "515",
     "inverzia": false,
     "zony": [
       {
         "typ": "text",
         "okraj": 3,
-        "text": "Programme",
+        "text": "Schedule",
         "pismo": "Brnos Aires",
         "riadok": 10,
         "velkost": 90,
         "zarovnanie": "vlavo",
         "obtekanie": "text",
-        "x": 2,
+        "x": 3,
         "y": 8,
         "w": 58,
         "h": 10,
@@ -93,14 +93,14 @@
       },
       {
         "typ": "text",
-        "okraj": 5,
+        "okraj": 3,
         "text": "Friday",
         "pismo": "Brnos Aires",
         "riadok": 4,
         "velkost": 90,
         "zarovnanie": "vlavo",
         "obtekanie": "text",
-        "x": 2,
+        "x": 3,
         "y": 41,
         "w": 17,
         "h": 4,
@@ -115,7 +115,7 @@
       },
       {
         "typ": "text",
-        "okraj": 4,
+        "okraj": 3,
         "text": "Saturday",
         "pismo": "Brnos Aires",
         "riadok": 4,
@@ -123,7 +123,7 @@
         "zarovnanie": "vlavo",
         "obtekanie": "text",
         "x": 24,
-        "y": 27,
+        "y": 29,
         "w": 20,
         "h": 4,
         "features": {
@@ -137,7 +137,7 @@
       },
       {
         "typ": "text",
-        "okraj": 4,
+        "okraj": 3,
         "text": "Sunday",
         "pismo": "Brnos Aires",
         "riadok": 4,
@@ -145,7 +145,7 @@
         "zarovnanie": "vlavo",
         "obtekanie": "text",
         "x": 49,
-        "y": 46,
+        "y": 42,
         "w": 18,
         "h": 3,
         "features": {
@@ -166,7 +166,7 @@
         "velkost": 80,
         "zarovnanie": "vlavo",
         "obtekanie": "text",
-        "x": 2,
+        "x": 3,
         "y": 51,
         "w": 15,
         "h": 7,
@@ -189,7 +189,7 @@
         "zarovnanie": "vlavo",
         "obtekanie": "text",
         "x": 49,
-        "y": 56,
+        "y": 51,
         "w": 18,
         "h": 7,
         "features": {
@@ -211,7 +211,7 @@
         "zarovnanie": "vlavo",
         "obtekanie": "text",
         "x": 24,
-        "y": 37,
+        "y": 38,
         "w": 15,
         "h": 7,
         "features": {
@@ -233,7 +233,7 @@
         "zarovnanie": "vlavo",
         "obtekanie": "text",
         "x": 24,
-        "y": 56,
+        "y": 58,
         "w": 18,
         "h": 7,
         "features": {
@@ -250,14 +250,14 @@
         "okraj": 4,
         "text": "Mačka\nSivá",
         "pismo": "Brnos Aires",
-        "riadok": 3,
+        "riadok": 4,
         "velkost": 88,
         "zarovnanie": "vlavo",
         "obtekanie": "text",
         "x": 49,
-        "y": 73,
-        "w": 11,
-        "h": 6,
+        "y": 70,
+        "w": 12,
+        "h": 7,
         "features": {
           "liga": true,
           "dlig": false,
@@ -277,7 +277,7 @@
         "zarovnanie": "vlavo",
         "obtekanie": "text",
         "x": 24,
-        "y": 34,
+        "y": 35,
         "w": 15,
         "h": 2,
         "features": {
@@ -305,7 +305,7 @@
         "zarovnanie": "vlavo",
         "obtekanie": "text",
         "x": 24,
-        "y": 53,
+        "y": 54,
         "w": 15,
         "h": 2,
         "features": {
@@ -333,7 +333,7 @@
         "zarovnanie": "vlavo",
         "obtekanie": "text",
         "x": 49,
-        "y": 53,
+        "y": 48,
         "w": 15,
         "h": 2,
         "features": {
@@ -361,7 +361,7 @@
         "zarovnanie": "vlavo",
         "obtekanie": "text",
         "x": 49,
-        "y": 70,
+        "y": 67,
         "w": 15,
         "h": 2,
         "features": {
@@ -388,7 +388,7 @@
         "velkost": 100,
         "zarovnanie": "vlavo",
         "obtekanie": "text",
-        "x": 2,
+        "x": 3,
         "y": 48,
         "w": 15,
         "h": 2,
@@ -442,6 +442,106 @@
         "y": 92,
         "w": 24,
         "h": 3,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 5,
+        "text": "Night\nSoup",
+        "pismo": "Brnos Aires",
+        "riadok": 4,
+        "velkost": 80,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 3,
+        "y": 70,
+        "w": 18,
+        "h": 7,
+        "features": {
+          "liga": true,
+          "dlig": false,
+          "ss01": false,
+          "ss03": false,
+          "case": false
+        },
+        "rez": "regular"
+      },
+      {
+        "typ": "text",
+        "okraj": 4,
+        "text": "23:00",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 100,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 3,
+        "y": 67,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 400
+      },
+      {
+        "typ": "text",
+        "okraj": 4,
+        "text": "23:00",
+        "pismo": "Nunito",
+        "riadok": 2,
+        "velkost": 100,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 24,
+        "y": 74,
+        "w": 15,
+        "h": 2,
+        "features": {
+          "liga": true,
+          "calt": true,
+          "ss01": false,
+          "ss02": false,
+          "salt": false,
+          "case": false,
+          "onum": false,
+          "frac": false,
+          "sups": false,
+          "subs": false,
+          "ordn": false
+        },
+        "hrubka": 400
+      },
+      {
+        "typ": "text",
+        "okraj": 5,
+        "text": "Night\nSoup",
+        "pismo": "Brnos Aires",
+        "riadok": 4,
+        "velkost": 88,
+        "zarovnanie": "vlavo",
+        "obtekanie": "text",
+        "x": 24,
+        "y": 78,
+        "w": 18,
+        "h": 7,
         "features": {
           "liga": true,
           "dlig": false,
