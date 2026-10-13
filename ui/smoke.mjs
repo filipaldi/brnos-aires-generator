@@ -1,8 +1,10 @@
 // Smoke test for the generator UI. Starts serve.js when nothing listens on
 // the port, drives the page with Playwright (global node_modules, browser in
-// PLAYWRIGHT_BROWSERS_PATH) and saves four screenshots. Fails when the
-// browser console reports errors. Also checks the grid snapping: every zone
-// edge lands on the grid line nearest to the cursor, threshold mid-cell.
+// PLAYWRIGHT_BROWSERS_PATH) and saves five screenshots. Fails when the
+// browser console reports errors. Checks the start screen first (the clean
+// canvas, then the repository's templates in index order; Pokračovať after a
+// reload with saved work) and the grid snapping: every zone edge lands on the
+// grid line nearest to the cursor, threshold mid-cell.
 //
 //   node ui/smoke.mjs [output-dir]
 //
@@ -12,7 +14,7 @@
 
 import { createRequire } from 'node:module';
 import { execSync, spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +23,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = process.argv[2]
   ?? '/tmp/brnos-ui-smoke';
 const SHOTS = [
+  'ui-uvod.png',
   'ui-initial.png',
   'ui-zona-milonga.png',
   'ui-parametre.png',
@@ -126,10 +129,41 @@ try {
     await page.waitForSelector('#compose-note[hidden]', { state: 'attached', timeout: 15000 });
   };
 
+  // (a) the start screen: tiles instead of the canvas — the clean canvas
+  // first, no Pokračovať in a fresh browser, then every template of
+  // presets/sablony/index.json in its order
+  const sablonyDir = path.join(ROOT, 'presets/sablony');
+  const nazvySablon = JSON.parse(readFileSync(path.join(sablonyDir, 'index.json'), 'utf8')).sablony
+    .map((subor) => JSON.parse(readFileSync(path.join(sablonyDir, subor), 'utf8')).nazov);
   await page.goto(URL, { waitUntil: 'networkidle' });
+  await page.waitForSelector('#uvod:not([hidden])', { timeout: 5000 });
+  await page.waitForFunction((n) => document.querySelectorAll('.dlazdica[data-druh="sablona"]').length === n,
+    nazvySablon.length, { timeout: 5000 }).catch(() => {});
+  const dlazdice = await page.locator('.dlazdica').evaluateAll((bs) => bs.map((b) => ({
+    druh: b.dataset.druh,
+    nazov: b.querySelector('.nazov')?.textContent,
+    rozmer: b.querySelector('.rozmer')?.textContent ?? '',
+  })));
+  const ocakavane = ['cisty', ...nazvySablon.map(() => 'sablona')];
+  if (JSON.stringify(dlazdice.map((d) => d.druh)) !== JSON.stringify(ocakavane)) {
+    errors.push(`dlaždice ${JSON.stringify(dlazdice.map((d) => d.druh))}, majú byť ${JSON.stringify(ocakavane)}`);
+  }
+  const nazvy = dlazdice.filter((d) => d.druh === 'sablona').map((d) => d.nazov);
+  if (JSON.stringify(nazvy) !== JSON.stringify(nazvySablon)) {
+    errors.push(`šablóny na dlaždiciach ${JSON.stringify(nazvy)}, majú byť ${JSON.stringify(nazvySablon)}`);
+  }
+  for (const d of dlazdice) {
+    if (!/^\d+ × \d+ (px|mm)$/.test(d.rozmer)) errors.push(`dlaždica ${d.nazov} má rozmer „${d.rozmer}“`);
+  }
+  if (await page.locator('#sheet svg').count()) errors.push('list sa skladá už pod dlaždicami');
+  await page.screenshot({ path: path.join(OUT_DIR, SHOTS[0]) });
+
+  // a click on the clean canvas opens the editor
+  await page.click('.dlazdica[data-druh="cisty"]');
+  await page.waitForSelector('#uvod', { state: 'hidden', timeout: 5000 });
   // the first svg lands only after the first (async) compose finishes
   await page.waitForSelector('#sheet svg', { timeout: 15000 });
-  await page.screenshot({ path: path.join(OUT_DIR, SHOTS[0]) });
+  await page.screenshot({ path: path.join(OUT_DIR, SHOTS[1]) });
   // the real engine must be up: a core/ file missing from the site would
   // silently fall back to the stub
   if (await page.locator('#stub-note:not([hidden])').count()) {
@@ -166,7 +200,7 @@ try {
   const typed = await page.locator('#text-editor').inputValue().catch(() => null);
   if (typed !== 'MILONGA') errors.push(`editor neobsahuje MILONGA, ale „${typed}“`);
   await cakajNaSkladanie();
-  await page.screenshot({ path: path.join(OUT_DIR, SHOTS[1]) });
+  await page.screenshot({ path: path.join(OUT_DIR, SHOTS[2]) });
 
   // (c) the Parametre popover. A dragged slider moves its number (and the
   // spec) live; the sheet is recomposed only after the thumb is released.
@@ -189,7 +223,7 @@ try {
   if (cisloPo === cisloPred) errors.push(`číslo pri slideri sa počas ťahania nezmenilo (${cisloPred} → ${cisloPo})`);
   if (skladaloPocasTahu) errors.push('skladanie bežalo už počas ťahania sliderom');
   await cakajNaSkladanie();
-  await page.screenshot({ path: path.join(OUT_DIR, SHOTS[2]) });
+  await page.screenshot({ path: path.join(OUT_DIR, SHOTS[3]) });
   // the button closes its own popover (Escape is not a popover shortcut)
   await page.click('#btn-parametre');
 
@@ -292,11 +326,29 @@ try {
   if (!okrajSGridom) errors.push('čiara okraja sa neukázala so zapnutým gridom');
   if (await page.locator('#okraj-mark').isVisible()) errors.push('čiara okraja ostala po skrytí gridu');
 
-  // (d) the shape viewer, opened by the Tvary button
-  await page.click('#btn-tvary');
+  // (d) the shape viewer, opened from the bottom of the Parametre popover;
+  // the click closes the popover on the way
+  await page.click('#btn-parametre');
+  await page.waitForSelector('.popover:not([hidden]) #btn-prehliadac', { timeout: 5000 });
+  await page.click('.popover:not([hidden]) #btn-prehliadac');
   await page.waitForSelector('#viewer:not([hidden])', { timeout: 5000 });
+  if (await page.evaluate(() => [...document.querySelectorAll('.popover')].some((p) => !p.hidden))) {
+    errors.push('popover Parametre ostal otvorený po otvorení prehliadača tvarov');
+  }
   await page.waitForTimeout(250);
-  await page.screenshot({ path: path.join(OUT_DIR, SHOTS[3]) });
+  await page.screenshot({ path: path.join(OUT_DIR, SHOTS[4]) });
+
+  // (e) after a reload the work saved above comes back through Pokračovať,
+  // the second tile, with its zones
+  const zonyPred = await page.locator('.zone').count();
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForSelector('#uvod:not([hidden])', { timeout: 5000 });
+  const druhy = await page.locator('.dlazdica').evaluateAll((bs) => bs.map((b) => b.dataset.druh));
+  if (druhy[1] !== 'pokracovat') errors.push(`po reloade nie je Pokračovať druhá dlaždica: ${JSON.stringify(druhy)}`);
+  await page.click('.dlazdica[data-druh="pokracovat"]');
+  await page.waitForSelector('#sheet svg', { timeout: 15000 });
+  const zonyPo = await page.locator('.zone').count();
+  if (zonyPo !== zonyPred) errors.push(`Pokračovať načítalo ${zonyPo} zón, uložených bolo ${zonyPred}`);
 } catch (err) {
   errors.push(`beh: ${err.message}`);
 } finally {

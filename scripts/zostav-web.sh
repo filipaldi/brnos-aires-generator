@@ -50,7 +50,8 @@ cat >"$OUT/index.html" <<'HTML'
 HTML
 
 # pojistka: kus, bez ktorého web nefunguje, nesmie v zostave chýbať
-for f in ui/index.html ui/ui.js ui/worker.js ui/state/sablony.js core/index.js core/kompozicia/index.js \
+for f in ui/index.html ui/ui.js ui/worker.js ui/state/sablony.js ui/state/uvod.js \
+         core/index.js core/kompozicia/index.js \
          fonts/brnos-aires.woff2 fonts/nunito-variable.ttf presets/media.json presets/sablony/index.json \
          proporcie.json assets.json; do
     [ -f "$OUT/$f" ] || { echo "zostav-web: v zostave chýba $f" >&2; exit 1; }

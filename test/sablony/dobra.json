@@ -1,5 +1,6 @@
 {
   "nazov": "Milonga IG",
+  "popis": "",
   "medium": {
     "skupina": "Instagram",
     "nazov": "IG post na výšku 4:5"
@@ -56,6 +57,8 @@
           -0.5
         ],
         "zoom": 1.5,
+        "zaoblenie": 0,
+        "border": 0,
         "x": 2,
         "y": 8,
         "w": 8,

@@ -67,15 +67,44 @@ export function styleForFonts(fontUrls) {
 
 // --- layers -----------------------------------------------------------------
 
-function photoLayer(zony, placed, cfg, uid) {
+// The zone rect of a ramik photo zone, with its corners rounded: zaoblenie is
+// a whole % of half the shorter side, so 100 turns the shorter side into a
+// semicircle (a square into a circle). No rx at 0 keeps old sheets byte-identical.
+function rectRamika(r, zaoblenie = 0) {
+  const rx = (Math.min(r.w, r.h) / 2) * (zaoblenie / 100);
+  return `x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}"${rx > 0 ? ` rx="${f(rx)}"` : ''}`;
+}
+
+// The border of a ramik photo zone, a whole % of one dielik thick, in the
+// pattern colour (so it flips with inverzia). The stroke runs centred on the
+// zone's (rounded) edge at twice the thickness and is clipped by the zone
+// shape, so only its inner half shows: it follows the corners and never
+// leaves the zone rect.
+function borderRamika(z, fg, clipId) {
+  if (!(z.border > 0)) return '';
+  const sirka = (2 * z.border) / 100;
+  return `<rect ${rectRamika(z.rect, z.zaoblenie)} fill="none" stroke="${fg}" stroke-width="${f(sirka)}" clip-path="url(#${clipId})"/>`;
+}
+
+function photoLayer(zony, placed, cfg, uid, fg) {
   const parts = [];
   const defs = [];
   for (const z of zony) {
     if (z.typ !== 'fotka') continue;
     const r = z.rect;
     if (!z.zdroj) {
-      // empty photo zone — a light grey placeholder keeps the frame visible
-      parts.push(`<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="${cfg.placeholderFarba}"/>`);
+      // empty photo zone — a light grey placeholder keeps the frame visible;
+      // in ramik it already takes the zone's rounded corners and border
+      if (z.rezim !== 'ramik') {
+        parts.push(`<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="${cfg.placeholderFarba}"/>`);
+        continue;
+      }
+      parts.push(`<rect ${rectRamika(r, z.zaoblenie)} fill="${cfg.placeholderFarba}"/>`);
+      if (z.border > 0) {
+        const id = `ramik-${uid()}`;
+        defs.push(`<clipPath id="${id}"><rect ${rectRamika(r, z.zaoblenie)}/></clipPath>`);
+        parts.push(borderRamika(z, fg, id));
+      }
       continue;
     }
     const href = esc(z.zdroj);
@@ -104,10 +133,11 @@ function photoLayer(zony, placed, cfg, uid) {
       parts.push(`<image href="${href}" x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" preserveAspectRatio="xMidYMid slice"/>`);
       continue;
     }
-    // ramik — clipped to the zone rect
+    // ramik — clipped to the zone rect with its rounded corners, the border on top
     const id = `ramik-${uid()}`;
-    defs.push(`<clipPath id="${id}"><rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}"/></clipPath>`);
+    defs.push(`<clipPath id="${id}"><rect ${rectRamika(r, z.zaoblenie)}/></clipPath>`);
     parts.push(`<image href="${href}" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>`);
+    parts.push(borderRamika(z, fg, id));
   }
   return { parts, defs };
 }
@@ -271,7 +301,7 @@ export function renderSvg({
   const uid = () => String(uidN++);
 
   const patternD = placed.map((p) => p.d).join(' ');
-  const { parts: fotoParts, defs: fotoDefs } = photoLayer(zony, placed, cfg, uid);
+  const { parts: fotoParts, defs: fotoDefs } = photoLayer(zony, placed, cfg, uid, fg);
   const { parts: textParts, varovania: varovaniaTextu } = textLayer(zony, fg, cfg, zmerajText);
   const style = styleForFonts(fontUrls);
 

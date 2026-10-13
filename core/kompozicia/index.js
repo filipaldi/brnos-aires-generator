@@ -11,7 +11,7 @@
 import { buildShape, computeAxes, defaultParams, loadProporcie, paramSpec, TYPES } from '../index.js';
 import { ValidationError } from '../errors.js';
 import { createRng } from './rng.js';
-import { placeShapes } from './rozmiestnenie.js';
+import { pasyZaoblenia, placeShapes } from './rozmiestnenie.js';
 import { prekazkyTextu, renderSvg, translatePathD } from './svg.js';
 import { FONTY, normalizujFeatures } from './features.js';
 import { normalizujRezZony } from './pisma.js';
@@ -248,7 +248,7 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
   polia(raw, [
     'typ', 'x', 'y', 'w', 'h', 'okraj',
     'text', 'pismo', 'rez', 'hrubka', 'velkost', 'zarovnanie', 'riadok', 'features', 'obtekanie',
-    'zdroj', 'rezim', 'posun', 'zoom',
+    'zdroj', 'rezim', 'posun', 'zoom', 'zaoblenie', 'border',
   ], name);
   const d = KOMP.zona[typ] || {};
   const zona = { typ, okraj: 0, ...d, ...raw };
@@ -297,6 +297,11 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
       throw new ValidationError(`${name}.posun musí byť pole [x, y] čísel.`);
     }
     cislo(zona.zoom, `${name}.zoom`, { min: 0.05, max: 10 });
+    // rounded corners (whole % of half the zone's shorter side) and an inner
+    // border (whole % of one dielik); a missing field (old specs, templates)
+    // is 0 from KOMP.zona.fotka in proporcie.json
+    cislo(zona.zaoblenie, `${name}.zaoblenie`, { min: 0, max: 100, cele: true });
+    cislo(zona.border, `${name}.border`, { min: 0, max: 100, cele: true });
   }
   return zona;
 }
@@ -406,9 +411,10 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
   // tight boxes of the glyphs (measured, or one box per line without a
   // measure) and okraj is the pattern's distance from the letters; a
   // negative okraj shrinks every glyph box by |okraj| per side and a box
-  // shrunk out of existence is ignored. Every other zone — a text zone set
-  // to obtekanie 'ram', a text zone whose text has no ink, foto and empty
-  // zones — stays a frame: a negative okraj lets shapes into the zone by
+  // shrunk out of existence is ignored. A ramik photo zone with zaoblenie
+  // blocks its rounded shape as strips (below). Every other zone — a text
+  // zone set to obtekanie 'ram', a text zone whose text has no ink, foto and
+  // empty zones — stays a frame: a negative okraj lets shapes into the zone by
   // |okraj| from each edge, so the zone shrinks accordingly; one shrunk out
   // of existence (w or h ≤ 0) is ignored entirely.
   const zonyVzor = zony.flatMap((z) => {
@@ -437,6 +443,23 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
         okraj,
         glyfy: prekazky,
         plocha: prekazky.reduce((a, b) => a + b.w * b.h, 0),
+      }];
+    }
+    if (z.typ === 'fotka' && z.rezim === 'ramik' && z.zaoblenie > 0) {
+      // A rounded ramik photo zone blocks its rounded shape, not the frame,
+      // so the pattern may fill the corners the rounding cuts off. The
+      // radius is the drawn one (rectRamika in svg.js); a negative okraj
+      // shrinks the shape by |okraj| per side, its radius with it.
+      const n = Math.max(-z.okraj, 0);
+      const r = { x: z.rect.x + n, y: z.rect.y + n, w: z.rect.w - 2 * n, h: z.rect.h - 2 * n };
+      if (!(r.w > 0 && r.h > 0)) return [];
+      const rx = (Math.min(z.rect.w, z.rect.h) / 2) * (z.zaoblenie / 100) - n;
+      const pasy = pasyZaoblenia(r, rx);
+      return [{
+        rect: r,
+        okraj: Math.max(z.okraj, 0),
+        glyfy: pasy,
+        plocha: pasy.reduce((a, b) => a + b.w * b.h, 0),
       }];
     }
     if (z.okraj >= 0) return [{ rect: z.rect, okraj: z.okraj }];

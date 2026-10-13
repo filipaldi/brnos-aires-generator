@@ -14,6 +14,7 @@ import { createViewer } from './viewer.js';
 import {
   sablonaJson, suboryIndexu, citajSablonu, zhodujeSaSoSablonou,
 } from './state/sablony.js';
+import { dlazdiceUvodu } from './state/uvod.js';
 import {
   exportSvgFile, exportPngFile, exportAvifFile, avifSupported,
   rasterDimensions, fontUrlsAbsolute,
@@ -33,7 +34,10 @@ const POLIA_FORMATU = ['sirka', 'vyska', 'jednotka', 'dpi', 'spadavka'];
 
 // ---------- state ----------
 
-let spec = loadSpec();
+// The saved work (or null) is kept apart from the current spec: the start
+// screen offers it as Pokračovať and the clean canvas as the first tile.
+const ulozenySpec = nacitajUlozeny();
+let spec = ulozenySpec ?? cistySpec();
 let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, znackyD: 0, okrajD: 0, cols: 8, rowsD: 0 };
 let zoomPct = 75;
 let selected = -1;
@@ -75,13 +79,20 @@ function pripravSpec(saved) {
   return engine.normalizujSpec(saved);
 }
 
-function loadSpec() {
+// The work saved in the browser, validated, or null when there is none or
+// it no longer loads.
+function nacitajUlozeny() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) return pripravSpec(JSON.parse(raw));
   } catch (err) {
     console.warn('Uložený stav sa nepodarilo načítať, začínam odznova.', err);
   }
+  return null;
+}
+
+// A clean spec: the engine's default.
+function cistySpec() {
   try {
     return engine.normalizujSpec({});
   } catch (err) {
@@ -90,9 +101,18 @@ function loadSpec() {
   }
 }
 
+// The spec a start-screen tile opened (as JSON) while it is still untouched:
+// a clean canvas or a template that nobody edited yet does not overwrite the
+// saved work, so a wrong click on a tile loses nothing before a real edit.
+let neupravenyJson = null;
+
 let saveTimer = 0;
 function saveLocal() {
   clearTimeout(saveTimer);
+  if (neupravenyJson !== null) {
+    if (JSON.stringify(spec) === neupravenyJson) return;
+    neupravenyJson = null;
+  }
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(spec));
@@ -287,7 +307,7 @@ function drawOverlay() {
       hint.textContent = 'Dvojklik pre text alebo pretiahni fotku';
       div.append(hint);
     }
-    if (z.typ === 'fotka' && !z.zdroj) div.append(nahradaFotky(i));
+    if (z.typ === 'fotka' && !z.zdroj) div.append(tvarNahrady(nahradaFotky(i), z));
     if (i === selected) {
       for (const corner of ['tl', 'tr', 'bl', 'br']) {
         const handle = document.createElement('div');
@@ -325,6 +345,19 @@ function nahradaFotky(i) {
   cta.append(b, popis);
   wrap.append(cta);
   return wrap;
+}
+
+// The placeholder takes the shape the sheet gives a ramik photo zone: its
+// rounded corners (zaoblenie, % of half the shorter side) and its border
+// (% of a dielik, the pattern colour from the stylesheet), drawn inside the
+// zone like the core draws it. Maska and prekrytie keep the plain rect.
+function tvarNahrady(el, z) {
+  const ramik = z.rezim === 'ramik';
+  const rx = ramik ? (Math.min(z.w, z.h) / 2) * ((z.zaoblenie ?? 0) / 100) : 0;
+  const b = ramik ? (z.border ?? 0) / 100 : 0;
+  el.style.borderRadius = `${rx * view.s}px`;
+  el.style.borderWidth = `${b * view.s}px`;
+  return el;
 }
 
 // Opens the file picker and puts the chosen image into photo zone i,
@@ -368,7 +401,8 @@ function drawZoneBar() {
   zoneBar.hidden = false;
   // rebuilding the bar while one of its fields has focus (every render
   // redraws the overlay) would throw away what the designer is typing
-  const key = `${selected}:${z.typ}:${photoPan}`;
+  // the photo mode belongs to the key: only rámik carries zaoblenie and border
+  const key = `${selected}:${z.typ}:${photoPan}:${z.rezim}`;
   if (zoneBar.dataset.key === key && zoneBar.contains(document.activeElement)) {
     placeZoneBar(z);
     return;
@@ -400,6 +434,37 @@ function drawZoneBar() {
 
   const makeNumber = (ico, label, value, attrs, onInput) =>
     makeField(ico, label, numberInput(value, attrs, onInput));
+
+  // Whole-number slider 0–100 with its value beside it: a drag moves the
+  // number and the spec (onInput may preview), the sheet is recomposed when
+  // the slider is released (change fires on release and on a track click).
+  const makeSlider = (ico, label, value, onInput) => {
+    const range = document.createElement('input');
+    range.type = 'range';
+    range.min = '0';
+    range.max = '100';
+    range.step = '1';
+    range.value = String(value);
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = String(value);
+    range.addEventListener('input', () => {
+      num.textContent = range.value;
+      onInput(Number(range.value));
+    });
+    range.addEventListener('change', scheduleRender);
+    const field = makeField(ico, label, range);
+    field.classList.add('z-slider');
+    field.append(num);
+    return field;
+  };
+
+  // the selected zone's placeholder follows a slider drag before the sheet
+  // is recomposed
+  const nahradaVybranej = (z) => {
+    const el = zonesHost.querySelector(`.zone[data-i="${selected}"] .foto-nahrada`);
+    if (el) tvarNahrady(el, z);
+  };
 
   // Icon toggle group (alignment, photo mode, obtekanie). The buttons keep
   // their own active look — the bar is not rebuilt while one of its fields
@@ -521,6 +586,16 @@ function drawZoneBar() {
       ], () => z.rezim, (v) => { z.rezim = v; }),
       makeNumber('okraj', 'Okraj', z.okraj, { min: -20, max: 20, step: 1 }, (v) => { z.okraj = v; }),
     );
+    if (z.rezim === 'ramik') {
+      zoneBar.append(
+        // whole % of half the zone's shorter side: 100 = a semicircle
+        makeSlider('zaoblenie', 'Zaoblenie % polovice kratšej strany', z.zaoblenie ?? 0,
+          (v) => { z.zaoblenie = v; nahradaVybranej(z); }),
+        // whole % of one dielik, drawn inside the zone in the pattern colour
+        makeSlider('border', 'Border % dielika', z.border ?? 0,
+          (v) => { z.border = v; nahradaVybranej(z); }),
+      );
+    }
     if (photoPan) {
       const note = document.createElement('span');
       note.textContent = 'Posun fotky: ťahaj, kolieskom zoom';
@@ -675,6 +750,11 @@ const IKONY = {
   'rezim-ramik': '<rect x="2" y="3" width="12" height="10"/><path d="M2 10.5 5.8 7l3 3 2-2L14 11"/>',
   'rezim-maska': '<circle cx="5.4" cy="10.6" r="3.9" fill="currentColor" stroke="none"/>'
     + '<rect x="8.1" y="2.5" width="6" height="6"/>',
+  // a corner turning round: the photo zone's zaoblenie
+  zaoblenie: '<path d="M2.5 13.5V8.5a6 6 0 0 1 6-6h5"/>',
+  // a frame with a thick inner edge: the photo zone's border
+  border: '<rect x="2" y="2" width="12" height="12"/>'
+    + '<rect x="4.2" y="4.2" width="7.6" height="7.6" stroke-width="2.6"/>',
   'rezim-prekrytie': '<rect x="2" y="2.5" width="9.5" height="9.5"/>'
     + '<rect x="4.5" y="4.5" width="9" height="9" fill="currentColor" stroke="none"/>',
   // duplicate: a rect in front, the square behind it by its top and left edges
@@ -1730,17 +1810,19 @@ nacitajJson(new URL('index.json', SABLONY_URL))
   .then((zoznam) => {
     sablony = zoznam;
     if (sablonyPopover.isOpen()) sablonyPopover.rebuild();
+    if (!uvod.hidden) nakresliUvod();
   });
 
 // A template replaces the current spec through the same path as the saved
 // state; one that does not validate leaves the current spec as it is.
+// Returns whether the template was loaded.
 function nacitajSablonu(s) {
   let novy;
   try {
     novy = pripravSpec(structuredClone(s.spec));
   } catch (err) {
     toast(`Šablónu „${s.nazov}“ sa nepodarilo načítať: ${err.message}`, 5000);
-    return;
+    return false;
   }
   closeEditor();
   selected = -1;
@@ -1755,6 +1837,7 @@ function nacitajSablonu(s) {
   drawOverlay();
   sablonyPopover.rebuild();
   scheduleRender();
+  return true;
 }
 
 const sablonyPopover = attachPopover($('#btn-sablony'), (pop) => {
@@ -1775,6 +1858,66 @@ const sablonyPopover = attachPopover($('#btn-sablony'), (pop) => {
   }
   pop.replaceChildren(zoznam);
 });
+
+// ----- start screen -----
+
+// On every load the page opens on tiles (ui/state/uvod.js decides which, in
+// what order): the clean canvas, Pokračovať with the saved work, then the
+// templates as they arrive. A click opens the editor with that spec; the
+// tiles are buttons, so Tab and Enter work too. There is no way back — the
+// templates stay in the Šablóny panel and the tiles return on the next load.
+const uvod = $('#uvod');
+const uvodDlazdice = $('#uvod-dlazdice');
+
+function nakresliUvod() {
+  // the tile under the keyboard focus keeps it while templates arrive
+  const fokus = document.activeElement?.closest?.('.dlazdica');
+  const kluc = fokus ? `${fokus.dataset.druh}:${fokus.dataset.subor ?? ''}` : null;
+  const buttony = dlazdiceUvodu({ cisty: cistySpec(), ulozeny: ulozenySpec, sablony: sablony ?? [] })
+    .map((d) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dlazdica';
+      b.dataset.druh = d.druh;
+      if (d.sablona) b.dataset.subor = d.sablona.subor;
+      const casti = [['nazov', d.nazov], ['rozmer', d.rozmer], ['popis', d.popis]]
+        .filter(([, text]) => text)
+        .map(([className, textContent]) => Object.assign(document.createElement('span'), { className, textContent }));
+      b.append(...casti);
+      b.addEventListener('click', () => otvorDlazdicu(d));
+      return b;
+    });
+  uvodDlazdice.replaceChildren(...buttony);
+  const znova = kluc && buttony.find((b) => `${b.dataset.druh}:${b.dataset.subor ?? ''}` === kluc);
+  if (znova) znova.focus();
+}
+
+function otvorDlazdicu(d) {
+  if (d.druh === 'sablona') {
+    // a template that does not validate shows its error and keeps the tiles
+    if (!nacitajSablonu(d.sablona)) return;
+  } else {
+    const novy = d.druh === 'pokracovat' ? ulozenySpec : cistySpec();
+    if (!novy) return;
+    spec = novy;
+    if (d.druh === 'cisty') {
+      // kept in memory only: the saved work keeps its medium until an edit
+      customZvolene = false;
+      zvoleneMedium = null;
+    }
+    syncBar();
+    drawOverlay();
+    scheduleRender();
+  }
+  neupravenyJson = d.druh === 'pokracovat' ? null : JSON.stringify(spec);
+  uvod.hidden = true;
+  zamkniEditor(false);
+}
+
+// While the tiles are up, the editor behind them takes no focus or clicks.
+function zamkniEditor(zamknuty) {
+  for (const el of [$('#topbar'), $('#stage')]) el.inert = zamknuty;
+}
 
 // ----- parametre popover -----
 
@@ -1874,6 +2017,21 @@ attachPopover($('#btn-parametre'), (pop) => {
     return h;
   };
 
+  // the shape viewer is a debugging tool, so it sits at the bottom as a quiet
+  // link rather than in the top bar; its changes never reach the poster
+  const prehliadac = document.createElement('button');
+  prehliadac.type = 'button';
+  prehliadac.id = 'btn-prehliadac';
+  prehliadac.className = 'link-btn';
+  prehliadac.textContent = 'Prehliadač tvarov…';
+  prehliadac.addEventListener('click', () => {
+    closePopovers();
+    viewer.open();
+  });
+  const prehliadacWrap = document.createElement('div');
+  prehliadacWrap.className = 'pop-foot';
+  prehliadacWrap.append(prehliadac);
+
   pop.replaceChildren(
     mkH('Kresba'),
     sliderRow('Weight', k.weight, (v) => { spec.kresba.weight = v; }),
@@ -1888,6 +2046,7 @@ attachPopover($('#btn-parametre'), (pop) => {
     note,
     mkH('Typy'),
     typesGrid,
+    prehliadacWrap,
   );
 });
 
@@ -2049,8 +2208,8 @@ function toast(message, ms = 3200) {
   toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
 
+// opened from the Parametre popover (Prehliadač tvarov…)
 const viewer = createViewer(() => spec.kresba);
-$('#btn-tvary').addEventListener('click', () => viewer.toggle());
 
 // ---------- boot ----------
 
@@ -2058,4 +2217,6 @@ if (engine.isStubEngine) $('#stub-note').hidden = false;
 
 setZoomOptions();
 zoomSelect.value = 'fit';
-render();
+// the sheet is composed once a tile is clicked
+zamkniEditor(true);
+nakresliUvod();
