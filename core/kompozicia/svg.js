@@ -1,12 +1,12 @@
 // SVG assembly for compositions. One standalone document with layers
-// fotky → pattern → text → spadavka (photos sit under the pattern so the
-// `prekrytie` mode shows shapes over the image; clipped modes are unaffected
-// because zones keep shapes away anyway). The spadavka layer holds the crop
-// marks of a print sheet, drawn in a band outside the bleed; neither the trim
-// edge nor the margin (okraj) is drawn. All numbers rounded to 4 decimals,
-// output byte-deterministic.
+// fotky → pattern → text → spadavka (photos sit under the pattern, so a
+// negative okraj lets shapes reach over a photo). The spadavka layer holds the
+// crop marks of a print sheet, drawn in a band outside the bleed; neither the
+// trim edge nor the margin (okraj) is drawn. All numbers rounded to 4
+// decimals, output byte-deterministic.
 
 import { fmt } from '../geometry.js';
+import { obdlznikFotky } from './fotka.js';
 import { fontFeatureSettings } from './features.js';
 import { faceZony, facesFontov, fontFaceCss } from './pisma.js';
 import { orezoveZnacky } from './znacky.js';
@@ -67,15 +67,15 @@ export function styleForFonts(fontUrls) {
 
 // --- layers -----------------------------------------------------------------
 
-// The zone rect of a ramik photo zone, with its corners rounded: zaoblenie is
-// a whole % of half the shorter side, so 100 turns the shorter side into a
-// semicircle (a square into a circle). No rx at 0 keeps old sheets byte-identical.
+// The frame of a photo zone (its zone rect) with its corners rounded:
+// zaoblenie is a whole % of half the shorter side, so 100 turns the shorter
+// side into a semicircle (a square into a circle). No rx at 0 keeps old sheets byte-identical.
 function rectRamika(r, zaoblenie = 0) {
   const rx = (Math.min(r.w, r.h) / 2) * (zaoblenie / 100);
   return `x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}"${rx > 0 ? ` rx="${f(rx)}"` : ''}`;
 }
 
-// The border of a ramik photo zone, a whole % of one dielik thick, in the
+// The border of a photo zone, a whole % of one dielik thick, in the
 // pattern colour (so it flips with inverzia). The stroke runs centred on the
 // zone's (rounded) edge at twice the thickness and is clipped by the zone
 // shape, so only its inner half shows: it follows the corners and never
@@ -86,19 +86,15 @@ function borderRamika(z, fg, clipId) {
   return `<rect ${rectRamika(z.rect, z.zaoblenie)} fill="none" stroke="${fg}" stroke-width="${f(sirka)}" clip-path="url(#${clipId})"/>`;
 }
 
-function photoLayer(zony, placed, cfg, uid, fg) {
+function photoLayer(zony, cfg, uid, fg) {
   const parts = [];
   const defs = [];
   for (const z of zony) {
     if (z.typ !== 'fotka') continue;
     const r = z.rect;
     if (!z.zdroj) {
-      // empty photo zone — a light grey placeholder keeps the frame visible;
-      // in ramik it already takes the zone's rounded corners and border
-      if (z.rezim !== 'ramik') {
-        parts.push(`<rect x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" fill="${cfg.placeholderFarba}"/>`);
-        continue;
-      }
+      // empty photo zone — a light grey placeholder keeps the frame visible,
+      // already with the zone's rounded corners and border
       parts.push(`<rect ${rectRamika(r, z.zaoblenie)} fill="${cfg.placeholderFarba}"/>`);
       if (z.border > 0) {
         const id = `ramik-${uid()}`;
@@ -107,36 +103,13 @@ function photoLayer(zony, placed, cfg, uid, fg) {
       }
       continue;
     }
-    const href = esc(z.zdroj);
-    const w = r.w * z.zoom;
-    const h = r.h * z.zoom;
-    const x = r.x + (z.posun ? z.posun[0] : 0) * r.w;
-    const y = r.y + (z.posun ? z.posun[1] : 0) * r.h;
-    if (z.rezim === 'maska') {
-      // clip to the largest placed shape overlapping the zone, else the rect
-      const overlapping = placed
-        .filter((p) => p.bbox.x < r.x + r.w && p.bbox.x + p.bbox.w > r.x
-          && p.bbox.y < r.y + r.h && p.bbox.y + p.bbox.h > r.y)
-        .sort((a, b) => (b.bbox.w * b.bbox.h) - (a.bbox.w * a.bbox.h));
-      const shape = overlapping[0];
-      const id = `maska-${uid()}`;
-      if (shape) {
-        defs.push(`<clipPath id="${id}"><path d="${shape.d}" clip-rule="nonzero"/></clipPath>`);
-        parts.push(`<image href="${href}" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>`);
-      } else {
-        parts.push(`<image href="${href}" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid slice"/>`);
-      }
-      continue;
-    }
-    if (z.rezim === 'prekrytie') {
-      // full-zone image under the pattern layer — no clip at all
-      parts.push(`<image href="${href}" x="${f(r.x)}" y="${f(r.y)}" width="${f(r.w)}" height="${f(r.h)}" preserveAspectRatio="xMidYMid slice"/>`);
-      continue;
-    }
-    // ramik — clipped to the zone rect with its rounded corners, the border on top
+    // the photo has its own rect (mierka, posun and its proportions, see
+    // fotka.js), independent of the frame's; it is always clipped to the
+    // frame with its rounded corners, the border on top
+    const foto = obdlznikFotky(r, z);
     const id = `ramik-${uid()}`;
     defs.push(`<clipPath id="${id}"><rect ${rectRamika(r, z.zaoblenie)}/></clipPath>`);
-    parts.push(`<image href="${href}" x="${f(x)}" y="${f(y)}" width="${f(w)}" height="${f(h)}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>`);
+    parts.push(`<image href="${esc(z.zdroj)}" x="${f(foto.x)}" y="${f(foto.y)}" width="${f(foto.w)}" height="${f(foto.h)}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/>`);
     parts.push(borderRamika(z, fg, id));
   }
   return { parts, defs };
@@ -301,7 +274,7 @@ export function renderSvg({
   const uid = () => String(uidN++);
 
   const patternD = placed.map((p) => p.d).join(' ');
-  const { parts: fotoParts, defs: fotoDefs } = photoLayer(zony, placed, cfg, uid, fg);
+  const { parts: fotoParts, defs: fotoDefs } = photoLayer(zony, cfg, uid, fg);
   const { parts: textParts, varovania: varovaniaTextu } = textLayer(zony, fg, cfg, zmerajText);
   const style = styleForFonts(fontUrls);
 

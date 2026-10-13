@@ -91,6 +91,7 @@ test('JSON template zahodí zdroj fotky a načíta sa späť ako ten istý spec'
   const dobra = JSON.parse(readFileSync(new URL('dobra.json', FIXTURY), 'utf8'));
   const spec = normalizujSpec(structuredClone(dobra.spec));
   spec.zony[1].zdroj = FOTKA;
+  spec.zony[1].rozmer = [800, 600];
 
   const text = sablonaJson(spec, dobra.medium);
   assert.equal(text.includes(FOTKA), false);
@@ -105,9 +106,13 @@ test('JSON template zahodí zdroj fotky a načíta sa späť ako ten istý spec'
   assert.equal(data.popis, '');
   assert.deepEqual(data.medium, dobra.medium);
   assert.equal('zdroj' in data.spec.zony[1], false);
-  // rezim, posun, zoom and the place of the photo zone stay
-  const { zdroj, ...bezZdroja } = spec.zony[1];
+  // mierka, posun and the place of the photo zone stay, the photo's pixel
+  // size goes with the photo
+  assert.equal('rozmer' in data.spec.zony[1], false);
+  const { zdroj, rozmer, ...bezZdroja } = spec.zony[1];
   assert.deepEqual(data.spec.zony[1], bezZdroja);
+  assert.equal(data.spec.zony[1].mierka, 150);
+  assert.deepEqual(data.spec.zony[1].posun, [25, -25]);
 
   // loaded through the same validation path the page uses: same spec, no photo
   const nacitany = normalizujSpec(structuredClone(citajSablonu(data).spec));

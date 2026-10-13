@@ -139,12 +139,27 @@ Fotková zóna:
 | Parameter | Hodnoty | Poznámka |
 |---|---|---|
 | Fotka | súbor (tlačidlo „Nahrať fotku“ alebo pretiahnutím) | |
-| Režim | rámik / maska / prekrytie | Maska = fotka v plnej hmote veľkého tvaru |
-| Posun, zoom | čísla | Poloha fotky v ráme alebo maske |
-| Zaoblenie | 0–100 (celé %, predvolene 0) | Len rámik. Polomer rohov v % z polovice kratšej strany zóny: 100 urobí z kratšej strany polkruh, zo štvorca kruh. Posun a zoom fungujú ďalej. |
-| Border | 0–100 (celé %, predvolene 0) | Len rámik. Hrúbka v % jedného dielika, farbou vzoru (pri inverzii sa otočí s ním). Leží dovnútra zóny, kopíruje zaoblenie a obdĺžnik zóny nikdy nepresiahne. |
+| Mierka | celé %, 100–1000 (predvolene 100) | Veľkosť fotky: 100 = fotka presne pokryje rámik (najmenšia veľkosť jej pomeru strán, ktorá ho celý zakryje), 150 = o polovicu väčšia. Menej ako 100 nejde, v rámiku by vznikla diera. |
+| Posun | `[x, y]`, celé % z šírky a výšky rámika (predvolene `[0, 0]`) | O koľko je stred fotky posunutý od stredu rámika. Posun, pri ktorom by fotka rámik celý nepokryla, sa pritiahne späť na najbližšiu hodnotu, pri ktorej ho pokryje. |
+| Zaoblenie | 0–100 (celé %, predvolene 0) | Polomer rohov v % z polovice kratšej strany zóny: 100 urobí z kratšej strany polkruh, zo štvorca kruh. Fotka sa oreže na zaoblený tvar. |
+| Border | 0–100 (celé %, predvolene 0) | Hrúbka v % jedného dielika, farbou vzoru (pri inverzii sa otočí s ním). Leží dovnútra zóny, kopíruje zaoblenie a obdĺžnik zóny nikdy nepresiahne. |
 
-Zaoblenie a border sa ovládajú dvoma posuvníkmi v lište vybranej fotozóny (v režime rámik), klikom a ťahaním; šípky z klávesnice sú len doplnok. Platia aj pre prázdnu fotozónu — sivá plocha v exporte aj zástupný obrázok s tlačidlom **Nahrať fotku** v editore majú tvar a border ešte pred nahraním fotky. V spec sú to polia `zaoblenie` a `border` fotozóny; staré spec a šablóny bez nich fungujú ďalej (chýba = 0) a „JSON template“ ich prenesie.
+Fotka sa vždy oreže na tvar rámika (obdĺžnik zóny), vrátane zaoblenia a borderu, a vždy ho celý pokryje. Rámik a fotka majú vlastné súradnice: rámik je zóna (`x`, `y`, `w`, `h` v dielikoch), fotka je daná mierkou a posunom voči rámiku a vlastným pomerom strán.
+
+Lišta vybranej fotozóny s fotkou má dva **módy** (len stav editora, do spec sa neukladajú):
+
+| Mód | Čo ťahám | Čo sa stane |
+|---|---|---|
+| **Rámik** (predvolený) | rámik alebo jeho rohy | rámik a fotka sa hýbu a menia spolu (mierka a posun ostanú), fotka vždy vyplní rámik |
+| **Fotka** | stred fotky (v rámiku aj mimo neho) | posúva fotku v rámiku |
+| | roh fotky (okrúhle úchyty) | proporčne zväčšuje alebo zmenšuje fotku, protiľahlý roh ostane na mieste |
+| | roh alebo hrana rámika (štvorcové úchyty) | mení rámik, fotka ostane na mieste na liste |
+
+V móde Fotka je vidieť celú fotku: časť mimo rámika je priesvitná, aby bolo jasné, čo sa oreže. Ovládanie je len klikom a ťahaním, dvojklik ani koliesko fotku nemenia. Výsledok ťahania sa zaokrúhli na celé % a pritiahne tak, aby fotka rámik vždy pokryla.
+
+V spec sú to polia `mierka` a `posun` fotozóny. Pole `rozmer` (`[šírka, výška]` fotky v pixeloch, celé čísla) doplní editor sám, keď fotku načíta, aby jadro poznalo jej pomer strán; bez neho sa fotka berie v pomere strán rámika. Staré spec a šablóny sa načítajú ďalej: pole `rezim` (aj s hodnotou `maska` alebo `prekrytie`) sa ignoruje a fotka sa vykreslí ako rámik; zóna bez `mierka` nesie staré desatinné `zoom` a `posun` (podiel rámika, zoom od ľavého horného rohu), ktoré sa prepočítajú na `mierka` = zoom v % a `posun` = posun stredu fotky v % a zaokrúhlia.
+
+Zaoblenie a border sa ovládajú dvoma posuvníkmi v lište vybranej fotozóny, klikom a ťahaním; šípky z klávesnice sú len doplnok. Platia aj pre prázdnu fotozónu — sivá plocha v exporte aj zástupný obrázok s tlačidlom **Nahrať fotku** v editore majú tvar a border ešte pred nahraním fotky. V spec sú to polia `zaoblenie` a `border` fotozóny; staré spec a šablóny bez nich fungujú ďalej (chýba = 0) a „JSON template“ ich prenesie.
 
 ### Export
 
@@ -245,7 +260,7 @@ Jedna stránka pre počítač, mobil sa nerieši. Hore jedna lišta, pod ňou pl
 │                 │ · │ Brnos A. ▾ 1,5 ▾ ⫷ ≡ ⫸  ● ○ ○   ✕   │ · · · · · · ·    │                │
 │                 │ · ╰─────────────────────────────────────╯ · · · · · · ·    │                │
 │                 │ ·  ▌▌ · · · ┌───────────────┐ · · · ● · · · · · · · ·      │                │
-│                 │ ·   ◝ · · · │ FOTKA (maska) │ · · · · · · ◢ · · · · ·      │                │
+│                 │ ·   ◝ · · · │ FOTKA (rámik) │ · · · · · · ◢ · · · · ·      │                │
 │                 │ · · · · · · └───────────────┘ · · · · · ◢▌ · · · · ·       │                │
 │                 │ · · ┌┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┐ · · · · · · · ·      │                │
 │                 │ · · ┆ Píš text alebo pretiahni fotku ┆ · · · · · · · ·     │                │
@@ -286,7 +301,7 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
 
 - **Čo šablóna nesie:** názov, voliteľný popis (krátky text, jedna-dve vety, ukáže sa na dlaždici úvodnej obrazovky; keď chýba alebo je prázdny, dlaždica ho nezobrazí), médium (skupina a názov z `presets/media.json`, alebo `null`) a celý spec (formát, mriežka vrátane okraja, kresba, kompozícia, variant, inverzia a zóny so všetkými poľami). Jeden súbor `presets/sablony/<slug>.json` = `{ "nazov": "…", "popis": "…", "medium": { "skupina": "…", "nazov": "…" } | null, "spec": { … } }`; `popis` je reťazec alebo chýba. Poradie v paneli určuje `presets/sablony/index.json` = `{ "sablony": ["<slug>.json", …] }`.
 - **Panel:** len zoznam šablón ako tlačidlá v štýle médií, nič iné; bez šablón jediný riadok „Zatiaľ žiadne šablóny.“ Klik šablónu načíta: nahradí aktuálny spec (rovnakou cestou a validáciou ako stav uložený v prehliadači) a nastaví jej médium; panel ostane otvorený. Šablóna, ktorá validáciou neprejde, ukáže chybu a aktuálny spec nechá tak. Rozsvietená je naposledy načítaná šablóna, kým jej spec zodpovedá — fotka pretiahnutá do zástupného obrázka na tom nič nemení.
-- **Fotky šablóna nenesie.** Fotková zóna nemá `zdroj`; režim, posun, zoom, poloha a okraj ostanú. Po načítaní ukáže taká zóna v editore zástupný obrázok kreslený kódom (sivá plocha s uhlopriečnym krížom a tlačidlom **Nahrať fotku**, pod ním „alebo ju sem pretiahni“), kým do nej používateľ fotku nenahrá tlačidlom (otvorí výber súboru) alebo nepretiahne; fotka potom preberie režim, posun aj zoom zóny. Zástupný obrázok je len v editore: exportované súbory nesú to, čo jadro kreslí pre fotkovú zónu bez fotky odjakživa — svetlosivý obdĺžnik.
+- **Fotky šablóna nenesie.** Fotková zóna nemá `zdroj` ani `rozmer`; mierka, posun, zaoblenie, border, poloha a okraj ostanú. Po načítaní ukáže taká zóna v editore zástupný obrázok kreslený kódom (sivá plocha s uhlopriečnym krížom a tlačidlom **Nahrať fotku**, pod ním „alebo ju sem pretiahni“), kým do nej používateľ fotku nenahrá tlačidlom (otvorí výber súboru) alebo nepretiahne; fotka potom preberie mierku, posun, zaoblenie aj border zóny. Zástupný obrázok je len v editore: exportované súbory nesú to, čo jadro kreslí pre fotkovú zónu bez fotky odjakživa — svetlosivý obdĺžnik.
 - **Export → JSON template** skopíruje do schránky obsah jedného súboru šablóny z aktuálneho stavu (odsadený dvoma medzerami, fotky bez `zdroj`, médium to rozsvietené v paneli Dokument) s dočasným názvom „Nová šablóna“ a prázdnym `"popis": ""`, ktorý grafik doplní. Keď schránka nie je dostupná, ukáže sa text v paneli Export označený v poli len na čítanie.
 - **Ako pridať šablónu:** v generátore priprav dokument, klikni Export → JSON template, vlož text do nového súboru `presets/sablony/<slug>.json` (slug malými písmenami, číslicami a pomlčkami), prepíš `"nazov"`, doplň `"popis"`, pridaj `"<slug>.json"` do `presets/sablony/index.json` na miesto, kde sa má v paneli ukázať, a otvor PR. `npm test` overí, že každá šablóna v zozname existuje, je v ňom raz, nenesie fotku, popis je text (alebo chýba), jej médium existuje a spec prejde validáciou jadra.
 - **Načítanie:** rozhranie načítava `index.json` a súbory šablón za behu ako dáta (ako médiá); chýbajúci alebo nečitateľný súbor sa vynechá s varovaním v konzole. Pravidlá (zahodenie fotiek, text pre JSON template, tvar súboru, zhoda so specom) sú v `ui/state/sablony.js` bez DOM a testujú sa v Node.
@@ -298,8 +313,8 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
   - Pretiahneš fotku do zóny → fotková zóna.
   - Pretiahneš fotku na prázdne miesto → fotková zóna vznikne tam, na veľkosť dielikov pod kurzorom.
 - **Presun a zmena veľkosti:** ťahaním zóny a jej rohov.
-- **Fotka:** dvojklik prepne na posun a zoom fotky.
-- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, rez (statické písmo: select rezov, zamknutý kým je rez jeden; variabilné: číselné pole hrúbky v rozsahu osi), výšku riadku v dielikoch, veľkosť v % riadku, zarovnanie, typografické funkcie, okraj (celé číslo v dielikoch) a obtekanie (obtekať rámik / obtekať písmená, predvolené písmená), pri fotke režim (rámik / maska / prekrytie) a okraj. Polia a prepínače lišty majú ikonky, význam vysvetlí tooltip. ✕ zónu zmaže.
+- **Fotka:** v lište módy **Rámik** (rámik a fotka spolu) a **Fotka** (posun a mierka fotky, rámik zvlášť), pozri Fotková zóna vyššie.
+- **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, rez (statické písmo: select rezov, zamknutý kým je rez jeden; variabilné: číselné pole hrúbky v rozsahu osi), výšku riadku v dielikoch, veľkosť v % riadku, zarovnanie, typografické funkcie, okraj (celé číslo v dielikoch) a obtekanie (obtekať rámik / obtekať písmená, predvolené písmená), pri fotke mód (Rámik / Fotka, keď má zóna fotku), okraj, zaoblenie a border. Polia a prepínače lišty majú ikonky, význam vysvetlí tooltip. ✕ zónu zmaže.
 - **Typografické funkcie** (tlačidlo s ligatúrou fi) otvoria popover so zaškrtávacími prepínačmi funkcií aktuálneho písma; klik prepína a list aj editor sa prekreslia hneď. Zmena písma zachová spoločné tagy a zvyšok nastaví na predvolené hodnoty nového písma.
 - **Čiary gridu** sa ukážu samy, keď ťaháš zónu. Inak sú skryté, prepínač netreba.
 - **Spadávka** sa ukazuje rovnakými orezovými značkami ako v exporte (8 značiek mimo spadávky), kreslenými na obrazovke 1 px čiarou, aby boli vidieť pri každom zoome.

@@ -28,7 +28,7 @@ repozitára, takže jadro (`/core/`) aj fonty
 | `viewer.js` | prehliadač tvarov (odkaz Prehliadač tvarov… na spodku Parametrov) |
 | `meranie.js` | meranie šírky textu cez canvas (fonty a rezy ako v SVG) pre zalomenie do zóny a tesných obdĺžnikov písmen (`zmerajGlyfy`) pre obtekanie textu vzorom; funguje aj vo workeri |
 | `export.js` | SVG priamo, PNG/AVIF cez canvas s vloženými fontmi; v claude.ai artefakte ukladá cez hostiteľa (downloads, bez AVIF) |
-| `smoke.mjs` | smoke test cez Playwright s piatimi screenshotmi (úvodná obrazovka, plátno, zóna, Parametre, prehliadač tvarov) |
+| `smoke.mjs` | smoke test cez Playwright so šiestimi screenshotmi (úvodná obrazovka, plátno, zóna, Parametre, prehliadač tvarov, mód Fotka fotozóny) |
 
 ## Práca s rozhraním
 
@@ -39,8 +39,13 @@ repozitára, takže jadro (`/core/`) aj fonty
   posuvník „podiel“ v %, rozsah „veľkosť“). Podiely držia súčet presne 100 %:
   pohyb jedného posuvníka rozloží zvyšok pomerne na ostatné typy. Aj kvapka
   má rozsah veľkosti (jej šírku). Riadok „Krúžky a kvapky“ už neexistuje.
-- **Fotka:** dvojklik prepne posun a zoom (ťahaj, koliesko), ďalší dvojklik
-  ukončí.
+- **Fotka:** lišta fotozóny s fotkou má dva módy. **Rámik** (predvolený):
+  ťahanie zóny a jej rohov hýbe rámikom aj fotkou spolu. **Fotka:** celá
+  fotka je vidieť, časť mimo rámika priesvitne; ťahanie fotky ju posúva,
+  okrúhle rohy fotky ju proporčne zväčšia či zmenšia, štvorcové rohy a hrany
+  rámika menia rámik a fotka ostane na mieste. Fotka vždy pokryje rámik
+  (mierka aspoň 100 %), posun aj mierka sú celé %. Dvojklik ani koliesko
+  fotku nemenia; mód sa do spec neukladá.
 - **Klávesy len na vybranej zóne:** Delete/Backspace ju maže, Cmd/Ctrl+C
   kopíruje, Cmd/Ctrl+V prilepí kópiu o dielik vpravo dole, Cmd/Ctrl+D
   duplikuje, Escape ruší výber. V poliach (textový editor, čísla, ponuky)

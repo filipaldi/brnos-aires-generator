@@ -8,6 +8,7 @@ import { ValidationError } from '../core/errors.js';
 import { fontFeatureSettings, normalizujFeatures } from '../core/kompozicia/features.js';
 import { faceZony, facesFontov, fontFaceCss, normalizujRezZony } from '../core/kompozicia/pisma.js';
 import { pasyZaoblenia } from '../core/kompozicia/rozmiestnenie.js';
+import { obdlznikFotky, pritiahniFotku, zoStarehoZoomu } from '../core/kompozicia/fotka.js';
 import { hrubkaZnaciek, orezoveZnacky, rozmerPlatna } from '../core/kompozicia/znacky.js';
 
 const ALL_TYPES = TYPES.map((t) => t.id);
@@ -76,6 +77,24 @@ function naNovyText(z) {
   };
 }
 
+// Legacy photo zone → the current one, the same conversion as the core's
+// normalizujSpec: `rezim` is gone (every photo sits in its frame), a zone
+// without `mierka` carries the old decimal posun and zoom, converted to
+// whole % and pulled into range; with both models `mierka` wins.
+const MIERKA_MAX = proporcie.kompozicia.mierkaFotky.max;
+
+function naNovuFotku(z) {
+  const { rezim, zoom, ...zvysok } = z;
+  if ('mierka' in z || (zoom === undefined && z.posun === undefined)) return zvysok;
+  if (zoom !== undefined) num(zoom, 'Zóna: zoom', { min: 0.05, max: 10 });
+  const posun = z.posun ?? [0, 0];
+  if (!Array.isArray(posun) || posun.length !== 2 || posun.some((v) => typeof v !== 'number' || !Number.isFinite(v))) {
+    throw new ValidationError('Zóna: posun musí byť dvojica čísel.');
+  }
+  const nove = zoStarehoZoomu(posun, zoom ?? 1);
+  return { ...zvysok, mierka: Math.min(MIERKA_MAX, Math.max(100, nove.mierka)), posun: nove.posun };
+}
+
 function validateZone(z, index) {
   const kde = `Zóna č. ${index + 1}`;
   if (!z || typeof z !== 'object') throw new ValidationError(`${kde} nie je objekt.`);
@@ -105,14 +124,18 @@ function validateZone(z, index) {
     if (z.zdroj != null && typeof z.zdroj !== 'string') {
       throw new ValidationError(`${kde}: zdroj fotky musí byť reťazec.`);
     }
-    enumv(z.rezim, `${kde}: režim`, ['ramik', 'maska', 'prekrytie']);
+    // same contract as the core: the photo's pixel size, whole % mierka
+    // (100 covers the frame) and whole % posun of the frame
+    if (z.rozmer != null && (!Array.isArray(z.rozmer) || z.rozmer.length !== 2
+      || z.rozmer.some((v) => !Number.isInteger(v) || v < 1))) {
+      throw new ValidationError(`${kde}: rozmer fotky musí byť dvojica celých kladných čísel.`);
+    }
+    if (z.mierka !== undefined) num(z.mierka, `${kde}: mierka`, { min: 100, max: MIERKA_MAX, integer: true });
     if (z.posun !== undefined) {
-      if (!Array.isArray(z.posun) || z.posun.length !== 2
-        || typeof z.posun[0] !== 'number' || typeof z.posun[1] !== 'number') {
-        throw new ValidationError(`${kde}: posun musí byť dvojica čísel.`);
+      if (!Array.isArray(z.posun) || z.posun.length !== 2 || !z.posun.every(Number.isInteger)) {
+        throw new ValidationError(`${kde}: posun musí byť dvojica celých čísel (% rámika).`);
       }
     }
-    if (z.zoom !== undefined) num(z.zoom, `${kde}: zoom`, { min: 0.1, max: 10 });
     // same contract as the core: whole %, a missing field is 0
     if (z.zaoblenie !== undefined) num(z.zaoblenie, `${kde}: zaoblenie`, { min: 0, max: 100, integer: true });
     if (z.border !== undefined) num(z.border, `${kde}: border`, { min: 0, max: 100, integer: true });
@@ -181,6 +204,7 @@ export function normalizujSpec(input) {
     if (!Array.isArray(spec.zony)) throw new ValidationError('Zóny musia byť pole.');
     out.zony = spec.zony.map((z, i) => {
       if (z?.typ === 'text') z = naNovyText(z);
+      if (z?.typ === 'fotka') z = naNovuFotku(z);
       validateZone(z, i);
       const base = {
         typ: z.typ, x: z.x, y: z.y, w: z.w, h: z.h,
@@ -200,8 +224,9 @@ export function normalizujSpec(input) {
       }
       if (z.typ === 'fotka') {
         return {
-          ...base, zdroj: z.zdroj, rezim: z.rezim || 'ramik',
-          posun: z.posun ?? [0, 0], zoom: z.zoom ?? 1,
+          ...base, zdroj: z.zdroj,
+          ...(z.rozmer ? { rozmer: z.rozmer } : {}),
+          ...pritiahniFotku(z, { mierka: z.mierka ?? 100, posun: z.posun ?? [0, 0], rozmer: z.rozmer }, MIERKA_MAX),
           zaoblenie: z.zaoblenie ?? 0, border: z.border ?? 0,
         };
       }
@@ -273,14 +298,14 @@ function rectsIntersect(a, b, pad = 0) {
 function zoneBlockers(zony) {
   // Rects a placed shape's bbox must stay out of: okraj ≥ 0 grows the zone
   // by okraj on every side, a negative okraj shrinks it by |okraj| — a zone
-  // shrunk out of existence (w or h ≤ 0) blocks nothing. A rounded ramik
+  // shrunk out of existence (w or h ≤ 0) blocks nothing. A rounded
   // photo zone blocks its rounded shape as strips, as in the core, so the
   // pattern may fill the corners the rounding cuts off.
   const blockers = [];
   for (const z of zony) {
     const okraj = z.okraj ?? 0;
     if (okraj < 0 && (z.w + 2 * okraj <= 0 || z.h + 2 * okraj <= 0)) continue;
-    if (z.typ === 'fotka' && z.rezim === 'ramik' && z.zaoblenie > 0) {
+    if (z.typ === 'fotka' && z.zaoblenie > 0) {
       const n = Math.max(-okraj, 0);
       const r = { x: z.x + n, y: z.y + n, w: z.w - 2 * n, h: z.h - 2 * n };
       const rx = (Math.min(z.w, z.h) / 2) * (z.zaoblenie / 100) - n;
@@ -384,30 +409,17 @@ function photoZoneSvg(z, i, geom, fill) {
   if (!z.zdroj) return '';
   const hair = Math.max(geom.b, 0.02) * 0.35; // frame line, visible at any format
   const px = z.x, py = z.y, pw = z.w, ph = z.h;
-  const cx = px + pw / 2, cy = py + ph / 2;
-  const inner = `<g transform="translate(${fmt(z.posun[0])} ${fmt(z.posun[1])})">`
-    + `<image href="${escAttr(z.zdroj)}" x="${fmt(px)}" y="${fmt(py)}" width="${fmt(pw)}" height="${fmt(ph)}" `
-    + `preserveAspectRatio="xMidYMid slice" transform="translate(${fmt(cx)} ${fmt(cy)}) scale(${fmt(z.zoom)}) translate(${fmt(-cx)} ${fmt(-cy)})"/></g>`;
-  if (z.rezim === 'maska') {
-    const maskTyp = 'kruh';
-    const shape = buildShape(maskTyp, { priemer: Math.min(pw, ph) }, geom.axes);
-    const bx = shape.bbox.x, by = shape.bbox.y;
-    const offX = px + (pw - shape.bbox.w) / 2, offY = py + (ph - shape.bbox.h) / 2;
-    return `<clipPath id="maska-${i}"><path d="${shape.paths.join(' ')}" `
-      + `transform="translate(${fmt(offX - bx)} ${fmt(offY - by)})"/></clipPath>`
-      + `<g clip-path="url(#maska-${i})">${inner}</g>`;
-  }
-  if (z.rezim === 'prekrytie') {
-    return `<g style="mix-blend-mode:multiply">${inner}</g>`;
-  }
-  // ramik as in the core: clipped to the zone with its rounded corners
-  // (zaoblenie, % of half the shorter side), the border (% of a dielik) only
-  // inside the zone — a stroke of twice the width clipped by the same shape
+  // as in the core: the photo has its own rect (mierka, posun, its
+  // proportions), clipped to the frame with its rounded corners (zaoblenie,
+  // % of half the shorter side); the border (% of a dielik) only inside the
+  // zone — a stroke of twice the width clipped by the same shape
+  const foto = obdlznikFotky(z, z);
   const rx = (Math.min(pw, ph) / 2) * (z.zaoblenie / 100);
   const tvar = `x="${fmt(px)}" y="${fmt(py)}" width="${fmt(pw)}" height="${fmt(ph)}"${rx > 0 ? ` rx="${fmt(rx)}"` : ''}`;
   const stroke = z.border > 0 ? (2 * z.border) / 100 : hair;
   return `<clipPath id="ramik-${i}"><rect ${tvar}/></clipPath>`
-    + `<g clip-path="url(#ramik-${i})">${inner}</g>`
+    + `<image href="${escAttr(z.zdroj)}" x="${fmt(foto.x)}" y="${fmt(foto.y)}" width="${fmt(foto.w)}" height="${fmt(foto.h)}" `
+    + `preserveAspectRatio="xMidYMid slice" clip-path="url(#ramik-${i})"/>`
     + `<rect ${tvar} fill="none" stroke="${fill}" stroke-width="${fmt(stroke)}" clip-path="url(#ramik-${i})"/>`;
 }
 

@@ -358,7 +358,8 @@ test('neplatný spec skončí na ValidationError so slovenskou správou', () => 
     [{ zony: [{ typ: 'text', x: 1, y: 1, w: 2, h: 2, okraj: -21 }] }, /okraj/],
     [{ zony: [{ typ: 'text', x: 1, y: 1, w: 2, h: 2, okraj: 1.5 }] }, /okraj/],
     [{ zony: [{ typ: 'text', x: 0, y: 0, w: 2, h: 1, pismo: 'Comic Sans' }] }, /pismo/],
-    [{ zony: [{ typ: 'fotka', x: 0, y: 0, w: 2, h: 1, rezim: 'vyrez' }] }, /rezim/],
+    [{ zony: [{ typ: 'fotka', x: 0, y: 0, w: 2, h: 1, mierka: 99 }] }, /mierka/],
+    [{ zony: [{ typ: 'fotka', x: 0, y: 0, w: 2, h: 1, mierka: 110, posun: [0.5, 0] }] }, /posun/],
     [{ neviem: 1 }, /Neznáme pole/],
   ];
   for (const [spec, rx] of pripady) {

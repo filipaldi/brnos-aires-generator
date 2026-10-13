@@ -9,6 +9,7 @@ import {
   faceZony, facesFontov, fontFaceCss, jeVariabilne, osaPisma, predvolenePisma, rezyPisma,
 } from '../core/kompozicia/pisma.js';
 import { maxVelkost } from '../core/kompozicia/velkost.js';
+import { fotkaVRamiku, obdlznikFotky, pritiahniFotku } from '../core/kompozicia/fotka.js';
 import { orezoveZnacky, rozmerPlatna } from '../core/kompozicia/znacky.js';
 import { createViewer } from './viewer.js';
 import {
@@ -26,6 +27,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const LS_KEY = 'brnosaires-generator-spec-v1';
 const LS_MEDIUM_KEY = 'brnosaires-generator-medium-v1';
 const MM_TO_PX = 96 / 25.4; // CSS px per mm at zoom 100 %
+const MIERKA_MAX = proporcie.kompozicia.mierkaFotky.max;
 const ZOOM_STEPS = [25, 33, 50, 67, 75, 90, 100, 125, 150, 200];
 
 // The five fields a medium of presets/media.json sets on spec.format; the
@@ -42,7 +44,11 @@ let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, znackyD: 0, okrajD: 0, cols: 8, ro
 let zoomPct = 75;
 let selected = -1;
 let editorOpen = false;
-let photoPan = false;
+// The photo zone bar's mode: Rámik (false) moves and resizes the frame with
+// its photo, Fotka (true) edits the photo and the frame of the selected zone
+// apart. Editor state only, never saved in the spec.
+let fotkaMod = false;
+let fotkaCakaNaSheet = false; // a photo edit not yet on the composed sheet
 let dragging = null;
 
 const overlay = $('#overlay');
@@ -157,6 +163,8 @@ function vmestiZony() {
     z.h = clamp(z.h, 1, o.y1 - o.y0);
     z.x = clamp(z.x, o.x0, o.x1 - z.w);
     z.y = clamp(z.y, o.y0, o.y1 - z.h);
+    // a frame of other proportions may leave the photo short of an edge
+    if (z.typ === 'fotka') Object.assign(z, pritiahniFotku(z, z, MIERKA_MAX));
   }
 }
 
@@ -165,11 +173,13 @@ function vmestiZony() {
 // older request (id < poziadavka) is dropped.
 async function render() {
   vmestiZony();
+  zmerajFotky();
   const id = ++poziadavka;
   composeNote.hidden = false;
   const data = await engine.komponujAsync(id, spec, { fontUrls: fontUrlsAbsolute() });
   if (data.id !== poziadavka) return; // superseded by a newer spec
   composeNote.hidden = true;
+  fotkaCakaNaSheet = false;
   if (data.error) {
     toast(data.error);
     return; // keep the last good sheet on screen
@@ -298,7 +308,7 @@ function drawOverlay() {
   spec.zony.forEach((z, i) => {
     const div = document.createElement('div');
     div.className = 'zone' + (i === selected ? ' sel' : '') + (z.typ === 'prazdna' ? ' prazdna' : '');
-    if (i === selected && z.typ === 'fotka' && photoPan) div.classList.add('photo-pan');
+    if (i === selected && jeFotkaMod(z)) div.classList.add('foto-mod');
     Object.assign(div.style, styleRect(zoneRectPx(z)));
     div.dataset.i = String(i);
     if (z.typ === 'prazdna') {
@@ -309,7 +319,10 @@ function drawOverlay() {
     }
     if (z.typ === 'fotka' && !z.zdroj) div.append(tvarNahrady(nahradaFotky(i), z));
     if (i === selected) {
-      for (const corner of ['tl', 'tr', 'bl', 'br']) {
+      // in mode Fotka the frame also takes its edges, the photo's own
+      // corners take its corner handles
+      const uchyty = jeFotkaMod(z) ? ['tl', 'tr', 'bl', 'br', 't', 'b', 'l', 'r'] : ['tl', 'tr', 'bl', 'br'];
+      for (const corner of uchyty) {
         const handle = document.createElement('div');
         handle.className = `handle ${corner}`;
         handle.dataset.corner = corner;
@@ -318,6 +331,8 @@ function drawOverlay() {
     }
     zonesHost.append(div);
   });
+  const vybrana = spec.zony[selected];
+  if (vybrana && jeFotkaMod(vybrana)) zonesHost.append(...prvkyFotky(vybrana));
 
   drawZoneBar();
   positionEditor();
@@ -328,7 +343,7 @@ function drawOverlay() {
 // "Nahrať fotku" button that opens the file picker, until a photo is
 // uploaded or dropped in. It lives in the overlay only, so the exported
 // files keep what the core writes for such a zone (a plain light grey
-// rectangle). Translucent: in maska and prekrytie the pattern shows.
+// rectangle). Translucent, so a pattern reaching into the zone shows.
 function nahradaFotky(i) {
   const wrap = document.createElement('div');
   wrap.className = 'foto-nahrada';
@@ -347,21 +362,103 @@ function nahradaFotky(i) {
   return wrap;
 }
 
-// The placeholder takes the shape the sheet gives a ramik photo zone: its
+// The placeholder takes the shape the sheet gives a photo zone: its
 // rounded corners (zaoblenie, % of half the shorter side) and its border
 // (% of a dielik, the pattern colour from the stylesheet), drawn inside the
-// zone like the core draws it. Maska and prekrytie keep the plain rect.
+// zone like the core draws it.
 function tvarNahrady(el, z) {
-  const ramik = z.rezim === 'ramik';
-  const rx = ramik ? (Math.min(z.w, z.h) / 2) * ((z.zaoblenie ?? 0) / 100) : 0;
-  const b = ramik ? (z.border ?? 0) / 100 : 0;
+  const rx = (Math.min(z.w, z.h) / 2) * ((z.zaoblenie ?? 0) / 100);
+  const b = (z.border ?? 0) / 100;
   el.style.borderRadius = `${rx * view.s}px`;
   el.style.borderWidth = `${b * view.s}px`;
   return el;
 }
 
+// ---------- the photo of a zone in mode Fotka ----------
+
+// Mode Fotka applies to the selected photo zone once it has its photo.
+function jeFotkaMod(z) {
+  return fotkaMod && z?.typ === 'fotka' && Boolean(z.zdroj);
+}
+
+// The whole photo in mode Fotka: translucent over the sheet, so the part
+// outside the frame (what the frame crops) shows, with its own corner
+// handles. While the photo is dragged, and until the sheet is recomposed,
+// a full-strength copy clipped to the frame's shape shows the result.
+function prvkyFotky(z) {
+  const cela = document.createElement('div');
+  cela.className = 'foto-cela';
+  const obraz = document.createElement('img');
+  obraz.className = 'foto-obraz';
+  obraz.alt = '';
+  obraz.draggable = false;
+  obraz.src = z.zdroj;
+  const vnutro = obraz.cloneNode();
+  vnutro.className = 'foto-vnutro';
+  cela.append(obraz, vnutro);
+  const uchyty = ['tl', 'tr', 'bl', 'br'].map((corner) => {
+    const u = document.createElement('div');
+    u.className = `foto-uchyt ${corner}`;
+    u.dataset.fotoCorner = corner;
+    u.title = 'Ťahaj roh fotky: zväčší alebo zmenší ju';
+    return u;
+  });
+  polozFotku(z, [cela, ...uchyty]);
+  return [cela, ...uchyty];
+}
+
+// Places the photo elements of mode Fotka over the zone z (on every move
+// of a drag, so the image is never rebuilt).
+function polozFotku(z, prvky = zonesHost.querySelectorAll('.foto-cela, .foto-uchyt')) {
+  const foto = obdlznikFotky(z, z);
+  const r = zoneRectPx({ x: foto.x, y: foto.y, w: foto.w, h: foto.h });
+  for (const el of prvky) {
+    if (el.classList.contains('foto-cela')) {
+      Object.assign(el.style, styleRect(r));
+      // the frame's shape in the photo's own pixels: an inset with the
+      // zone's rounded corners
+      const s = view.s;
+      const rx = (Math.min(z.w, z.h) / 2) * ((z.zaoblenie ?? 0) / 100) * s;
+      const vnutro = el.querySelector('.foto-vnutro');
+      vnutro.style.clipPath = `inset(${(z.y - foto.y) * s}px ${(foto.x + foto.w - z.x - z.w) * s}px `
+        + `${(foto.y + foto.h - z.y - z.h) * s}px ${(z.x - foto.x) * s}px round ${rx}px)`;
+      el.classList.toggle('tahanie', Boolean(dragging?.fotka) || fotkaCakaNaSheet);
+    } else {
+      const c = el.dataset.fotoCorner;
+      el.style.left = `${r.left + (c.includes('r') ? r.width : 0)}px`;
+      el.style.top = `${r.top + (c.includes('b') ? r.height : 0)}px`;
+    }
+  }
+}
+
+// The pixel size of every photo that does not carry it yet (a photo just
+// dropped in, a spec saved before the field existed): read from the image
+// itself, then the sheet is recomposed with the photo's real proportions.
+const meraneFotky = new Set();
+function zmerajFotky() {
+  for (const z of spec.zony) {
+    if (z.typ !== 'fotka' || !z.zdroj || z.rozmer || meraneFotky.has(z.zdroj)) continue;
+    const zdroj = z.zdroj;
+    meraneFotky.add(zdroj);
+    const img = new Image();
+    img.onload = () => {
+      meraneFotky.delete(zdroj);
+      if (!(img.naturalWidth > 0 && img.naturalHeight > 0)) return;
+      for (const zona of spec.zony) {
+        if (zona.typ === 'fotka' && zona.zdroj === zdroj && !zona.rozmer) {
+          zona.rozmer = [img.naturalWidth, img.naturalHeight];
+        }
+      }
+      drawOverlay();
+      scheduleRender();
+    };
+    img.onerror = () => meraneFotky.delete(zdroj);
+    img.src = zdroj;
+  }
+}
+
 // Opens the file picker and puts the chosen image into photo zone i,
-// keeping the zone's own rezim, posun and zoom (as a drop does).
+// keeping the zone's own mierka, posun, zaoblenie and border (as a drop does).
 function vyberFotku(i) {
   const input = document.createElement('input');
   input.type = 'file';
@@ -376,6 +473,7 @@ function vyberFotku(i) {
     }
     try {
       z.zdroj = await readImageFile(file);
+      delete z.rozmer; // measured anew from this photo
       selected = i;
       scheduleRender();
     } catch (err) {
@@ -401,8 +499,8 @@ function drawZoneBar() {
   zoneBar.hidden = false;
   // rebuilding the bar while one of its fields has focus (every render
   // redraws the overlay) would throw away what the designer is typing
-  // the photo mode belongs to the key: only rámik carries zaoblenie and border
-  const key = `${selected}:${z.typ}:${photoPan}:${z.rezim}`;
+  // the photo mode belongs to the key: it lights one of the mode buttons
+  const key = `${selected}:${z.typ}:${jeFotkaMod(z)}`;
   if (zoneBar.dataset.key === key && zoneBar.contains(document.activeElement)) {
     placeZoneBar(z);
     return;
@@ -471,12 +569,12 @@ function drawZoneBar() {
   // has focus. A group with a label prefixes it to every option
   // („Zarovnanie: vľavo“); a group without one gives each option its whole
   // sentence as the title and names only the group itself.
-  const makeToggle = (label, options, aktualna, onInput) => {
+  const makeToggle = (label, options, aktualna, onInput, prekresli = true) => {
     const group = document.createElement('span');
     group.className = 'z-seg';
     group.setAttribute('role', 'group');
     if (label) group.setAttribute('aria-label', label);
-    const tlacidla = options.map(([val, nazov, ico]) => {
+    const tlacidla = options.map(([val, nazov, ico, napis]) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'z-tgl';
@@ -484,7 +582,16 @@ function drawZoneBar() {
       b.title = popis;
       b.setAttribute('aria-label', popis);
       b.append(ikona(ico, popis));
-      b.addEventListener('click', () => { onInput(val); obnov(); scheduleRender(); });
+      // a button may carry its short name beside the icon (the photo modes)
+      if (napis) {
+        const t = document.createElement('span');
+        t.className = 'z-tgl-napis';
+        t.textContent = napis;
+        b.classList.add('s-napisom');
+        b.append(t);
+      }
+      b.dataset.hodnota = val;
+      b.addEventListener('click', () => { onInput(val); obnov(); if (prekresli) scheduleRender(); });
       group.append(b);
       return [val, b];
     });
@@ -578,29 +685,27 @@ function drawZoneBar() {
       makeObtekanie(z),
     );
   } else if (z.typ === 'fotka') {
+    // the mode: Rámik moves and resizes frame and photo together, Fotka
+    // moves and scales the photo and resizes the frame apart — editor
+    // state, so switching never recomposes the sheet
+    if (z.zdroj) {
+      zoneBar.append(makeToggle('Mód', [
+        ['ramik', 'Rámik — ťahanie hýbe rámikom aj fotkou spolu', 'mod-ramik', 'Rámik'],
+        ['fotka', 'Fotka — ťahaj fotku, jej rohy menia veľkosť, rámik sa mení zvlášť', 'mod-fotka', 'Fotka'],
+      ], () => (jeFotkaMod(z) ? 'fotka' : 'ramik'), (v) => {
+        fotkaMod = v === 'fotka';
+        drawOverlay();
+      }, false));
+    }
     zoneBar.append(
-      makeToggle('Režim', [
-        ['ramik', 'rámik', 'rezim-ramik'],
-        ['maska', 'maska', 'rezim-maska'],
-        ['prekrytie', 'prekrytie', 'rezim-prekrytie'],
-      ], () => z.rezim, (v) => { z.rezim = v; }),
       makeNumber('okraj', 'Okraj', z.okraj, { min: -20, max: 20, step: 1 }, (v) => { z.okraj = v; }),
+      // whole % of half the zone's shorter side: 100 = a semicircle
+      makeSlider('zaoblenie', 'Zaoblenie % polovice kratšej strany', z.zaoblenie ?? 0,
+        (v) => { z.zaoblenie = v; nahradaVybranej(z); if (jeFotkaMod(z)) polozFotku(z); }),
+      // whole % of one dielik, drawn inside the zone in the pattern colour
+      makeSlider('border', 'Border % dielika', z.border ?? 0,
+        (v) => { z.border = v; nahradaVybranej(z); }),
     );
-    if (z.rezim === 'ramik') {
-      zoneBar.append(
-        // whole % of half the zone's shorter side: 100 = a semicircle
-        makeSlider('zaoblenie', 'Zaoblenie % polovice kratšej strany', z.zaoblenie ?? 0,
-          (v) => { z.zaoblenie = v; nahradaVybranej(z); }),
-        // whole % of one dielik, drawn inside the zone in the pattern colour
-        makeSlider('border', 'Border % dielika', z.border ?? 0,
-          (v) => { z.border = v; nahradaVybranej(z); }),
-      );
-    }
-    if (photoPan) {
-      const note = document.createElement('span');
-      note.textContent = 'Posun fotky: ťahaj, kolieskom zoom';
-      zoneBar.append(note);
-    }
   }
 
   const dup = document.createElement('button');
@@ -747,16 +852,17 @@ const IKONY = {
   'zarovnanie-vlavo': '<path d="M2 4h12M2 8h9M2 12h11"/>',
   'zarovnanie-stred': '<path d="M3 4h10M1.5 8h13M4 12h8"/>',
   'zarovnanie-vpravo': '<path d="M2 4h12M5 8h9M3 12h11"/>',
-  'rezim-ramik': '<rect x="2" y="3" width="12" height="10"/><path d="M2 10.5 5.8 7l3 3 2-2L14 11"/>',
-  'rezim-maska': '<circle cx="5.4" cy="10.6" r="3.9" fill="currentColor" stroke="none"/>'
-    + '<rect x="8.1" y="2.5" width="6" height="6"/>',
+  // mode Rámik: the frame with its photo inside, one piece
+  'mod-ramik': '<rect x="2" y="3" width="12" height="10"/><path d="M2 10.5 5.8 7l3 3 2-2L14 11"/>',
+  // mode Fotka: the photo larger than the frame, its corner handle outside
+  'mod-fotka': '<rect x="4.5" y="5" width="7" height="6"/>'
+    + '<path d="M1.5 2h13v12h-13z" stroke-dasharray="1.6 1.4"/>'
+    + '<rect x="12.6" y="12.1" width="3" height="3" fill="currentColor" stroke="none"/>',
   // a corner turning round: the photo zone's zaoblenie
   zaoblenie: '<path d="M2.5 13.5V8.5a6 6 0 0 1 6-6h5"/>',
   // a frame with a thick inner edge: the photo zone's border
   border: '<rect x="2" y="2" width="12" height="12"/>'
     + '<rect x="4.2" y="4.2" width="7.6" height="7.6" stroke-width="2.6"/>',
-  'rezim-prekrytie': '<rect x="2" y="2.5" width="9.5" height="9.5"/>'
-    + '<rect x="4.5" y="4.5" width="9" height="9" fill="currentColor" stroke="none"/>',
   // duplicate: a rect in front, the square behind it by its top and left edges
   duplikovat: '<rect x="5.5" y="5.5" width="9" height="9"/><path d="M10.5 3.5h-7v7"/>',
   // "fi" set in the interface font (its own ligature): the typographic
@@ -776,9 +882,20 @@ function ikona(nazov, popis) {
   return span;
 }
 
-// Place under the zone, above when there is no room.
+// Place under the zone, above when there is no room; in mode Fotka under
+// the photo where it reaches past the frame, clear of its handles.
 function placeZoneBar(z) {
-  const r = zoneRectPx(z);
+  let r = zoneRectPx(z);
+  if (jeFotkaMod(z)) {
+    const f = zoneRectPx(obdlznikFotky(z, z));
+    const top = Math.min(r.top, f.top);
+    const left = Math.min(r.left, f.left);
+    r = {
+      left, top,
+      width: Math.max(r.left + r.width, f.left + f.width) - left,
+      height: Math.max(r.top + r.height, f.top + f.height) - top,
+    };
+  }
   zoneBar.style.left = '0px';
   zoneBar.style.top = '0px';
   const bw = zoneBar.offsetWidth;
@@ -794,7 +911,7 @@ function placeZoneBar(z) {
 
 function selectZone(i) {
   selected = i;
-  photoPan = false;
+  fotkaMod = false;
   drawOverlay();
 }
 
@@ -830,7 +947,7 @@ document.addEventListener('keydown', (e) => {
     if (selected < 0) return;
     closeEditor();
     selected = -1;
-    photoPan = false;
+    fotkaMod = false;
     drawOverlay();
     e.preventDefault();
   } else if (key === 'Delete' || key === 'Backspace') {
@@ -877,7 +994,7 @@ function pasteZone(vzor) {
   z.y = clamp(Math.round(z.y) + 1, o.y0, o.y1 - z.h);
   spec.zony.push(z);
   selected = spec.zony.length - 1;
-  photoPan = false;
+  fotkaMod = false;
   drawOverlay(); // show the new zone now, the sheet follows after recomposing
   scheduleRender();
 }
@@ -888,13 +1005,33 @@ overlay.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
   if (e.target.closest('#zone-bar, #text-editor, .foto-cta')) return;
   const handle = e.target.closest('.handle');
+  const fotoUchyt = e.target.closest('.foto-uchyt');
   const zoneDiv = e.target.closest('.zone');
   const pos = cursorDieliks(e);
+  const vybrana = spec.zony[selected];
+
+  // mode Fotka: a corner of the photo scales it proportionally from the
+  // opposite corner, a press on the photo (inside the frame or out) moves it
+  if (vybrana && jeFotkaMod(vybrana) && (fotoUchyt || e.target.closest('.foto-cela')
+    || (zoneDiv && !handle && Number(zoneDiv.dataset.i) === selected))) {
+    const foto = obdlznikFotky(vybrana, vybrana);
+    dragging = fotoUchyt
+      ? { kind: 'foto-mierka', fotka: true, i: selected, corner: fotoUchyt.dataset.fotoCorner, foto }
+      : { kind: 'foto-posun', fotka: true, i: selected, start: pos, foto };
+    overlay.setPointerCapture(e.pointerId);
+    polozFotku(vybrana);
+    return;
+  }
 
   if (handle) {
     const i = Number(handle.closest('.zone').dataset.i);
     selected = i;
-    dragging = { kind: 'resize', corner: handle.dataset.corner, i };
+    const z = spec.zony[i];
+    // in mode Fotka the photo stays where it is on the sheet while its
+    // frame changes; in Rámik it is resized with the frame
+    dragging = jeFotkaMod(z)
+      ? { kind: 'resize', corner: handle.dataset.corner, i, fotka: true, foto: obdlznikFotky(z, z) }
+      : { kind: 'resize', corner: handle.dataset.corner, i };
     gridLines.hidden = false;
     overlay.setPointerCapture(e.pointerId);
     drawOverlay();
@@ -904,26 +1041,19 @@ overlay.addEventListener('pointerdown', (e) => {
   if (zoneDiv) {
     const i = Number(zoneDiv.dataset.i);
     const z = spec.zony[i];
-    if (isDoublePress(e, i)) {
+    // a photo zone has no double-click: its modes are buttons in the bar
+    if (z.typ !== 'fotka' && isDoublePress(e, i)) {
       e.preventDefault(); // keep the focus in the text editor it opens
       zoneDoubleClick(i);
       return;
     }
-    if (selected !== i) photoPan = false;
+    if (selected !== i) fotkaMod = false;
     selected = i;
-    if (z.typ === 'fotka' && photoPan) {
-      dragging = {
-        kind: 'photo-pan', i,
-        start: pos, posun: [...z.posun],
-      };
-      zoneDiv.classList.add('dragging-photo');
-    } else {
-      dragging = {
-        kind: 'move', i,
-        grabX: pos.x - z.x, grabY: pos.y - z.y,
-        moved: false,
-      };
-    }
+    dragging = {
+      kind: 'move', i,
+      grabX: pos.x - z.x, grabY: pos.y - z.y,
+      moved: false,
+    };
     gridLines.hidden = false;
     overlay.setPointerCapture(e.pointerId);
     drawOverlay();
@@ -982,15 +1112,37 @@ overlay.addEventListener('pointermove', (e) => {
     if (c.includes('b')) r.y = Math.max(l.y + 1, naCiaru(pos.y, o.y1, o.y0));
     z.x = l.x; z.y = l.y; z.w = r.x - l.x; z.h = r.y - l.y;
     if (editorOpen) positionEditor();
-  } else if (dragging.kind === 'photo-pan') {
-    z.posun = [
-      dragging.posun[0] + (pos.x - dragging.start.x),
-      dragging.posun[1] + (pos.y - dragging.start.y),
-    ];
+    if (z.typ === 'fotka') {
+      // mode Fotka: the photo stays put on the sheet, the frame changes
+      // under it; Rámik: the photo keeps its mierka and posun in the frame.
+      // Either way it is pulled back to cover the frame whole.
+      Object.assign(z, dragging.fotka
+        ? fotkaVRamiku(z, dragging.foto, z.rozmer, MIERKA_MAX)
+        : pritiahniFotku(z, z, MIERKA_MAX));
+    }
+  } else if (dragging.kind === 'foto-posun') {
+    const f = dragging.foto;
+    const posunuta = { ...f, x: f.x + pos.x - dragging.start.x, y: f.y + pos.y - dragging.start.y };
+    Object.assign(z, fotkaVRamiku(z, posunuta, z.rozmer, MIERKA_MAX));
+  } else if (dragging.kind === 'foto-mierka') {
+    // proportional: the corner opposite the dragged one stays, the size
+    // follows the cursor on whichever axis it reaches further
+    const f = dragging.foto;
+    const c = dragging.corner;
+    const sx = c.includes('r') ? 1 : -1;
+    const sy = c.includes('b') ? 1 : -1;
+    const ax = sx > 0 ? f.x : f.x + f.w;
+    const ay = sy > 0 ? f.y : f.y + f.h;
+    const pomer = f.w / f.h;
+    const w = Math.max(sx * (pos.x - ax), sy * (pos.y - ay) * pomer, 0);
+    const h = w / pomer;
+    const nova = { x: sx > 0 ? ax : ax - w, y: sy > 0 ? ay : ay - h, w, h };
+    Object.assign(z, fotkaVRamiku(z, nova, z.rozmer, MIERKA_MAX));
   }
 
   const div = zonesHost.querySelector(`.zone[data-i="${dragging.i}"]`);
   if (div) Object.assign(div.style, styleRect(zoneRectPx(z)));
+  if (jeFotkaMod(z)) polozFotku(z);
   drawZoneBar();
 });
 
@@ -1041,8 +1193,12 @@ overlay.addEventListener('pointerup', (e) => {
     return;
   }
 
-  if (d.kind === 'photo-pan') {
-    zonesHost.querySelector(`.zone[data-i="${d.i}"]`)?.classList.remove('dragging-photo');
+  if (d.fotka) {
+    // the photo clipped to the frame stays drawn over the sheet until the
+    // sheet comes back recomposed with it
+    fotkaCakaNaSheet = true;
+    const z = spec.zony[d.i];
+    if (jeFotkaMod(z)) polozFotku(z);
   }
   // a plain click only selects: nothing changed, no need to recompose
   if (d.kind === 'move' && !d.moved) return;
@@ -1077,7 +1233,7 @@ function isDoublePress(e, i) {
   return true;
 }
 
-// Double-click: text zone opens the editor, photo zone toggles pan/zoom.
+// Double-click: a text zone opens the editor, an empty zone becomes text.
 function zoneDoubleClick(i) {
   const z = spec.zony[i];
   if (!z) return;
@@ -1085,22 +1241,8 @@ function zoneDoubleClick(i) {
     openEditor(i);
   } else if (z.typ === 'prazdna') {
     zoneToText(i, 'Enter');
-  } else if (z.typ === 'fotka') {
-    photoPan = !photoPan;
-    drawOverlay();
-    if (photoPan) toast('Úprava fotky: ťahaj pre posun, kolieskom zoom, dvojklik ukončí.', 4000);
   }
 }
-
-// Wheel zooms the photo while its pan mode is on.
-overlay.addEventListener('wheel', (e) => {
-  if (!photoPan || selected < 0) return;
-  const z = spec.zony[selected];
-  if (!z || z.typ !== 'fotka') return;
-  e.preventDefault();
-  z.zoom = clamp(z.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08), 0.2, 8);
-  scheduleRender();
-}, { passive: false });
 
 // ---------- dropping photos ----------
 
@@ -1131,10 +1273,12 @@ overlay.addEventListener('drop', async (e) => {
       const z = spec.zony[hit];
       if (z.typ === 'fotka' && !z.zdroj) {
         // the placeholder of a template: the photo takes the zone's own
-        // rezim, posun and zoom, saved with the template
+        // mierka, posun, zaoblenie and border, saved with the template
         z.zdroj = zdroj;
+        delete z.rozmer; // measured anew from this photo
       } else {
-        Object.assign(z, { typ: 'fotka', zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1 });
+        Object.assign(z, { typ: 'fotka', zdroj, mierka: 100, posun: [0, 0] });
+        delete z.rozmer;
       }
       selected = hit;
     } else {
@@ -1148,7 +1292,7 @@ overlay.addEventListener('drop', async (e) => {
         x: naCiaru(pos.x - w / 2, o.x1 - w, o.x0),
         y: naCiaru(pos.y - h / 2, o.y1 - h, o.y0),
         w, h, okraj: 0,
-        zdroj, rezim: 'ramik', posun: [0, 0], zoom: 1,
+        zdroj, mierka: 100, posun: [0, 0],
       });
       selected = spec.zony.length - 1;
     }
@@ -1826,7 +1970,7 @@ function nacitajSablonu(s) {
   }
   closeEditor();
   selected = -1;
-  photoPan = false;
+  fotkaMod = false;
   spec = novy;
   customZvolene = false;
   zvoleneMedium = s.medium;

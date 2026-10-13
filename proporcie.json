@@ -115,15 +115,18 @@
       "fotka": {
         "okraj": 0,
         "zdroj": null,
-        "rezim": "ramik",
+        "mierka": 100,
         "posun": [
           0,
           0
         ],
-        "zoom": 1,
         "zaoblenie": 0,
         "border": 0
       }
+    },
+    "mierkaFotky": {
+      "_comment": "Najväčšia mierka fotky vo fotozóne v celých %: 100 = fotka presne pokryje rámik, viac ju zväčší. Menej ako 100 nejde, aby v rámiku nevznikla diera.",
+      "max": 1000
     },
     "velkostTvaru": {
       "noha": {

@@ -52,9 +52,8 @@
         "y": 8,
         "w": 42,
         "h": 44,
-        "rezim": "ramik",
-        "posun": [0, 0],
-        "zoom": 1
+        "mierka": 100,
+        "posun": [0, 0]
       }
     ]
   }
