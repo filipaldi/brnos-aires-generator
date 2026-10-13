@@ -6,6 +6,7 @@
 import { komponuj } from './engine.js';
 import { vytvorMeranie } from './meranie.js';
 import { suboryFontov } from '../core/kompozicia/pisma.js';
+import { rozmerPlatna } from '../core/kompozicia/znacky.js';
 
 // The font files come from the model in proporcie.json (kompozicia.pisma):
 // a variable font is one file, a static font one file per rez — a new Brnos
@@ -137,7 +138,9 @@ async function rasterise(spec, mime) {
     zmerajText: meranie.zmerajText,
     zmerajGlyfy: meranie.zmerajGlyfy,
   });
-  // The engine sizes the root in mm/px of the format; pin it to raster pixels.
+  // The engine sizes the root in mm/px of the format; pin it to raster pixels
+  // (sirkaPx × vyskaPx cover the whole canvas, crop-mark band included, so
+  // the trim area keeps its place and proportions).
   // (the callback must give back the whole tag, not only its attributes)
   const sized = svg.replace(/<svg([^>]*)>/, (m, attrs) => `<svg${attrs
     .replace(/\swidth="[^"]*"/, ` width="${sirkaPx}"`)
@@ -175,10 +178,9 @@ export async function exportAvifFile(spec) {
   await download(blob, `brnos-aires-${safeVariant(spec.variant)}.avif`);
 }
 
+// The raster size of an export: the whole canvas the engine writes (trim,
+// bleed and, for print, the crop-mark band), the same as komponuj's sirkaPx.
 export function rasterDimensions(spec) {
-  const pxPerUnit = spec.format.jednotka === 'mm' ? spec.format.dpi / 25.4 : 1;
-  return {
-    sirkaPx: Math.round(spec.format.sirka * pxPerUnit),
-    vyskaPx: Math.round(spec.format.vyska * pxPerUnit),
-  };
+  const { sirkaPx, vyskaPx } = rozmerPlatna(spec.format);
+  return { sirkaPx, vyskaPx };
 }

@@ -384,20 +384,28 @@ button, input, select { font: inherit; color: inherit; }
   -webkit-user-select: none;
 }
 
+/* the trimmed format; its children are the crop marks of the bleed, the
+   same as in the export, in the band outside the bleed. Always black: the
+   band is paper, also on an inverted sheet */
 #bleed-mark {
   position: absolute;
   pointer-events: none;
-  border: 1px dashed rgba(0, 0, 0, 0.38);
 }
 
-/* the format's margin (okraj): a guide like the bleed mark, but dotted to
-   tell it from the dashed bleed — it sits inside the trim edge, the bleed
-   mark outside it; hidden while okraj is 0 */
+#bleed-mark .znacka {
+  position: absolute;
+  background: #000;
+}
+
+/* the format's margin (okraj): a dotted guide inside the trim edge, hidden
+   while okraj is 0 and whenever the grid lines are hidden */
 #okraj-mark {
   position: absolute;
   pointer-events: none;
   border: 1px dotted rgba(0, 0, 0, 0.55);
 }
+
+#grid-lines[hidden] ~ #okraj-mark { display: none; }
 
 #grid-lines {
   position: absolute;

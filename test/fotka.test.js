@@ -52,7 +52,7 @@ test('bez zaoblenia a borderu ostane rámik ako doteraz (bez rx, bez obrysu)', (
   const { svg } = komponuj(specSFotkou({}));
   const clip = atributy(svg, 'rect', 'x="2" y="2"');
   assert.equal(clip.rx, undefined);
-  assert.ok(!svg.includes('stroke="#000" stroke-width'), 'žiadny border');
+  assert.ok(!svg.includes('fill="none" stroke='), 'žiadny border');
 });
 
 test('zaoblenie > 0: orezový rect má rx v % polovice kratšej strany', () => {

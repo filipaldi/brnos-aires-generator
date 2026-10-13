@@ -9,6 +9,7 @@ import {
   faceZony, facesFontov, fontFaceCss, jeVariabilne, osaPisma, predvolenePisma, rezyPisma,
 } from '../core/kompozicia/pisma.js';
 import { maxVelkost } from '../core/kompozicia/velkost.js';
+import { orezoveZnacky, rozmerPlatna } from '../core/kompozicia/znacky.js';
 import { createViewer } from './viewer.js';
 import {
   sablonaJson, suboryIndexu, citajSablonu, zhodujeSaSoSablonou,
@@ -37,7 +38,7 @@ const POLIA_FORMATU = ['sirka', 'vyska', 'jednotka', 'dpi', 'spadavka'];
 // screen offers it as Pokračovať and the clean canvas as the first tile.
 const ulozenySpec = nacitajUlozeny();
 let spec = ulozenySpec ?? cistySpec();
-let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, okrajD: 0, cols: 8, rowsD: 0 };
+let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, znackyD: 0, okrajD: 0, cols: 8, rowsD: 0 };
 let zoomPct = 75;
 let selected = -1;
 let editorOpen = false;
@@ -203,6 +204,7 @@ function layoutSheet(svgEl) {
   view = {
     s, vbX: vb.x, vbY: vb.y,
     bleedD: f.spadavka / dielikUnits,
+    znackyD: rozmerPlatna(f).pas / dielikUnits, // the crop-mark band, 0 without a bleed
     okrajD: g.okraj ?? 0,
     cols: g.stlpce,
     rowsD: f.vyska / dielikUnits,
@@ -212,8 +214,9 @@ function layoutSheet(svgEl) {
 function dielikPx() { return view.s; }
 
 // Cursor position in dieliks, relative to the trimmed format origin.
-// The viewBox starts one bleed left of the format (vbX = -bleedD), so a
-// client point maps to dieliks by adding vbX, never by adding the bleed.
+// The viewBox starts one bleed and one crop-mark band left of the format
+// (vbX = -bleedD - znackyD), so a client point maps to dieliks by adding
+// vbX, never by adding the bleed.
 function cursorDieliks(e) {
   const r = overlay.getBoundingClientRect();
   return {
@@ -254,17 +257,34 @@ function drawOverlay() {
   overlay.style.setProperty('--grid-ox', `${-view.vbX * view.s}px`);
   overlay.style.setProperty('--grid-oy', `${-view.vbY * view.s}px`);
 
-  // Bleed: always faintly marked, inset from the sheet edge.
-  const bi = view.bleedD * view.s;
-  bleedMark.style.left = `${bi}px`;
-  bleedMark.style.top = `${bi}px`;
-  bleedMark.style.right = `${bi}px`;
-  bleedMark.style.bottom = `${bi}px`;
+  // Bleed: the same eight crop marks as the export (core/kompozicia/znacky.js),
+  // drawn here as screen-pixel lines so they stay visible at any zoom. The
+  // element itself covers the trimmed format; the marks sit outside it, in
+  // the band beyond the bleed.
+  Object.assign(bleedMark.style, styleRect({
+    left: -view.vbX * view.s,
+    top: -view.vbY * view.s,
+    width: view.cols * view.s,
+    height: view.rowsD * view.s,
+  }));
+  bleedMark.replaceChildren(...(view.znackyD > 0 ? orezoveZnacky({
+    sirka: view.cols * view.s,
+    vyska: view.rowsD * view.s,
+    spadavka: view.bleedD * view.s,
+    dlzka: view.znackyD * view.s,
+  }) : []).map(([x1, y1, x2, y2]) => {
+    const znacka = document.createElement('div');
+    znacka.className = 'znacka';
+    Object.assign(znacka.style, y1 === y2
+      ? { left: `${Math.min(x1, x2)}px`, top: `${y1 - 0.5}px`, width: `${Math.abs(x2 - x1)}px`, height: '1px' }
+      : { left: `${x1 - 0.5}px`, top: `${Math.min(y1, y2)}px`, width: '1px', height: `${Math.abs(y2 - y1)}px` });
+    return znacka;
+  }));
 
   // Margin (okraj): a guide on grid lines, okraj whole dieliky in from the
-  // trimmed format's left, top and right edge and from the last whole row,
-  // shown only when the grid has one. Like the bleed mark it is an overlay;
-  // the composed SVG carries its own thin line, as for the bleed.
+  // trimmed format's left, top and right edge and from the last whole row.
+  // An editor guide only: it shows while the grid lines do (the stylesheet
+  // hides it with them), and the export draws no line for it at all.
   const ok = view.okrajD;
   okrajMark.hidden = ok <= 0;
   Object.assign(okrajMark.style, styleRect({

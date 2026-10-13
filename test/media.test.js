@@ -1,6 +1,6 @@
 // Médiá (presets/media.json) a okraj mriežky: tvar dát médií, celé čísla,
 // skupiny podľa issue, validácia okraja (v dielikoch) v jadre aj v náhradnom
-// engine, jeho vodiaca čiara v SVG a to, že vzor aj zóny ostávajú vnútri neho.
+// engine, to, že SVG okraj nekreslí, a to, že vzor aj zóny ostávajú vnútri neho.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -142,29 +142,28 @@ test('médium nenastavuje okraj: formát média prejde validáciou jadra', () =>
   assert.equal(spec.format.dpi, 300);
 });
 
-test('vodiaca čiara okraja je v SVG len pri nenulovom okraji, na čiarach gridu', () => {
+test('okraj nemá v SVG žiadnu čiaru, je to len prázdne miesto', () => {
   const zaklad = { variant: 'okraj', zony: [] };
-  const bez = komponuj(zaklad).svg;
-  assert.doesNotMatch(bez, /id="okraj"/);
-  assert.doesNotMatch(komponuj({ ...zaklad, grid: { okraj: 0 } }).svg, /id="okraj"/);
-  // A2 at 30 columns is 42.43… dieliky high: 42 whole rows, so the guide is
-  // 2 dieliky in from the left, top and right and from the last whole row
-  const s = komponuj({ ...zaklad, grid: { okraj: 2 } }).svg;
-  assert.match(s, /<g id="okraj"><rect x="2" y="2" width="26" height="38"/);
+  for (const okraj of [0, 2]) {
+    const s = komponuj({ ...zaklad, grid: { okraj } }).svg;
+    assert.doesNotMatch(s, /id="okraj"/, `okraj ${okraj}`);
+    assert.doesNotMatch(s, /stroke-dasharray/, `okraj ${okraj}`);
+  }
 });
 
 // SHA-256 of the SVG the composition wrote before the margin moved the
 // pattern: a grid without a margin must keep producing it byte for byte
-// (retuning the pattern itself changes these digests on purpose)
+// (retuning the pattern itself, or the print canvas with its crop marks,
+// changes these digests on purpose)
 const PRED_OKRAJOM = [
   [{ variant: 'okraj', zony: [] },
-    '4a08ea1e34bcd974cf782f4a710992829c81c1fcfcf6abf2cd8670b267552031'],
+    '70367e5e63e84b446b13ac33bfb7046f86764e3de45b0f49339629a2b0a408a0'],
   [{
     variant: '7',
     format: { sirka: 210, vyska: 297, jednotka: 'mm', dpi: 300, spadavka: 3 },
     grid: { stlpce: 30, okraj: 0 },
     zony: [{ typ: 'prazdna', x: 0, y: 0, w: 6, h: 4 }],
-  }, 'e9605fd459cc85f2dc5ba6a7a25a1d080f4a1b693581ed4cc60cd6aace268c56'],
+  }, '837241dc90a85835ad22cee81363fc87f280c1e9e3552432d8a7b23f887bd0f9'],
 ];
 
 test('okraj 0 nechá list bajt po bajte taký, aký bol pred okrajom', () => {
@@ -193,7 +192,7 @@ test('okraj posúva vzor: každý tvar leží vnútri vodiacej čiary okraja', (
       // deterministic for the same spec, and a different sheet than without the margin
       assert.equal(komponuj(spec).svg, svg);
       const bez = komponuj({ ...spec, grid: { stlpce: 30, zvysok, okraj: 0 } });
-      assert.notEqual(bez.svg.replace(/<g id="okraj">.*\n/, ''), svg.replace(/<g id="okraj">.*\n/, ''));
+      assert.notEqual(bez.svg, svg);
     }
   }
 });
@@ -237,7 +236,8 @@ test('CLI --format nastaví formát podľa názvu média, neznáme médium je ch
     const out = path.join(dir, 'a4.svg');
     await exec(NODE, [CLI, 'kompozicia', '--spec', specSubor, '--format', 'A4', '--out', out]);
     const svg = readFileSync(out, 'utf8');
-    assert.match(svg, /width="216mm" height="303mm"/);
+    // A4 + 2 × 3 mm bleed + 2 × 5 mm crop-mark band
+    assert.match(svg, /width="226mm" height="313mm"/);
     await assert.rejects(
       exec(NODE, [CLI, 'kompozicia', '--spec', specSubor, '--format', 'A7', '--out', out]),
       (e) => e.code === 1 && /Neznáme médium/.test(e.stderr),
