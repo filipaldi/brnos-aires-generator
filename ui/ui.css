@@ -257,6 +257,28 @@ button, input, select { font: inherit; color: inherit; }
 
 .popover .note { font-size: 12px; color: var(--dim); margin-top: 10px; }
 
+/* a quiet link-like row at the bottom of a popover, apart from the controls */
+.popover .pop-foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+.popover .link-btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--dim);
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.popover .link-btn:hover { color: var(--ink); }
+.popover .link-btn:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; color: var(--ink); }
+
 /* dual-thumb slider: two overlaid ranges share one drawn track */
 .range2-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 

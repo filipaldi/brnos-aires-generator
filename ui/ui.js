@@ -1997,6 +1997,21 @@ attachPopover($('#btn-parametre'), (pop) => {
     return h;
   };
 
+  // the shape viewer is a debugging tool, so it sits at the bottom as a quiet
+  // link rather than in the top bar; its changes never reach the poster
+  const prehliadac = document.createElement('button');
+  prehliadac.type = 'button';
+  prehliadac.id = 'btn-prehliadac';
+  prehliadac.className = 'link-btn';
+  prehliadac.textContent = 'Prehliadač tvarov…';
+  prehliadac.addEventListener('click', () => {
+    closePopovers();
+    viewer.open();
+  });
+  const prehliadacWrap = document.createElement('div');
+  prehliadacWrap.className = 'pop-foot';
+  prehliadacWrap.append(prehliadac);
+
   pop.replaceChildren(
     mkH('Kresba'),
     sliderRow('Weight', k.weight, (v) => { spec.kresba.weight = v; }),
@@ -2011,6 +2026,7 @@ attachPopover($('#btn-parametre'), (pop) => {
     note,
     mkH('Typy'),
     typesGrid,
+    prehliadacWrap,
   );
 });
 
@@ -2172,8 +2188,8 @@ function toast(message, ms = 3200) {
   toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
 
+// opened from the Parametre popover (Prehliadač tvarov…)
 const viewer = createViewer(() => spec.kresba);
-$('#btn-tvary').addEventListener('click', () => viewer.toggle());
 
 // ---------- boot ----------
 

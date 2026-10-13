@@ -265,7 +265,7 @@ Zľava doprava v poradí, v akom sa pri práci používa:
 |---|---|---|
 | `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba formátu (A2, A3, IG, web), rozmer a jednotka, DPI, spadávka, Grid, okraj, zvyšok výšky |
 | `Šablóny ▾` | na začiatku | Výber šablóny z repozitára: zoznam tlačidiel, klik načíta |
-| `Parametre ▾` | občas | Weight, Contrast, inverzia, veľkosť, rozloženie, typy, rozmiestnenie (voľné / dlaždice) |
+| `Parametre ▾` | občas | Weight, Contrast, inverzia, veľkosť, rozloženie, typy, rozmiestnenie (voľné / dlaždice); na spodku odkaz Prehliadač tvarov… |
 | `◀ Variant 42 ▶ ⟳` | neustále | Predchádzajúci, číslo variantu (dá sa prepísať), ďalší, náhodný |
 | `75 %` | podľa potreby | Zoom plátna |
 | `Export` | raz na konci | SVG / PNG / AVIF, text upraviteľný alebo v krivkách; JSON template skopíruje šablónu |
@@ -303,7 +303,7 @@ Všetko sa dá vyklikať. Štandardné klávesy na vybranej zóne (Delete/Backsp
 
 ### Prehliadač tvarov
 
-Nástroj na ladenie tvarov a `proporcie.json`, nie bežná práca. Vo fáze 1 ho nahrádzajú vzorkovníky z CLI. Otvára sa tlačidlom Tvary v lište cez celé okno.
+Nástroj na ladenie tvarov a `proporcie.json`, nie bežná práca. Vo fáze 1 ho nahrádzajú vzorkovníky z CLI. Otvára sa cez celé okno odkazom **Prehliadač tvarov…** na spodku panela `Parametre ▾` (klik panel zavrie); zatvára ho tlačidlo Zavrieť. V hornej lište tlačidlo nemá, jeho zmeny sa do plagátu nikdy nedostanú.
 
 - Vybraný typ vo veľkom.
 - Posuvníky Weight, Contrast, Zaoblenie a parametrov vybraného typu.
