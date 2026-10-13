@@ -31,6 +31,9 @@ function chybySablony(text) {
   }
   const chyby = [];
   if (typeof data?.nazov !== 'string' || !data.nazov.trim()) chyby.push('chýba názov');
+  if (data && typeof data === 'object' && 'popis' in data && typeof data.popis !== 'string') {
+    chyby.push('popis nie je text');
+  }
   if (data?.medium !== null) {
     const m = data?.medium;
     const skupina = MEDIA.skupiny.find((s) => s.nazov === m?.skupina);
@@ -98,8 +101,9 @@ test('JSON template zahodí zdroj fotky a načíta sa späť ako ten istý spec'
   assert.equal(spec.zony[1].zdroj, FOTKA);
 
   const data = JSON.parse(text);
-  assert.deepEqual(Object.keys(data), ['nazov', 'medium', 'spec']);
+  assert.deepEqual(Object.keys(data), ['nazov', 'popis', 'medium', 'spec']);
   assert.equal(data.nazov, NAZOV_NOVEJ_SABLONY);
+  assert.equal(data.popis, '');
   assert.deepEqual(data.medium, dobra.medium);
   assert.equal('zdroj' in data.spec.zony[1], false);
   // mierka, posun and the place of the photo zone stay, the photo's pixel
@@ -122,6 +126,22 @@ test('JSON template zahodí zdroj fotky a načíta sa späť ako ten istý spec'
 test('JSON template bez média nesie medium null', () => {
   assert.equal(JSON.parse(sablonaJson({ zony: [] }, null)).medium, null);
   assert.equal(JSON.parse(sablonaJson({ zony: [] }, { skupina: 'Web' })).medium, null);
+});
+
+test('popis šablóny je text alebo chýba', () => {
+  const dobra = JSON.parse(readFileSync(new URL('dobra.json', FIXTURY), 'utf8'));
+  const { popis, ...bezPopisu } = dobra;
+  assert.deepEqual(chybySablony(JSON.stringify(bezPopisu)), []);
+  assert.deepEqual(chybySablony(JSON.stringify({ ...dobra, popis: 'Plagát na milongu.' })), []);
+  for (const zly of [null, 7, true, ['a'], { text: 'a' }]) {
+    assert.ok(chybySablony(JSON.stringify({ ...dobra, popis: zly })).includes('popis nie je text'),
+      JSON.stringify(zly));
+  }
+  // citajSablonu keeps a string popis (trimmed) and leaves anything else out
+  assert.equal(citajSablonu({ ...dobra, popis: ' Plagát. ' }).popis, 'Plagát.');
+  assert.equal(citajSablonu({ ...dobra, popis: '' }).popis, '');
+  assert.equal('popis' in citajSablonu(bezPopisu), false);
+  assert.equal('popis' in citajSablonu({ ...dobra, popis: 7 }), false);
 });
 
 test('index a súbor šablóny: nečitateľné položky sa vynechajú', () => {

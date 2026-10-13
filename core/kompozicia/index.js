@@ -17,6 +17,7 @@ import { FONTY, normalizujFeatures } from './features.js';
 import { normalizujRezZony } from './pisma.js';
 import { maxVelkost } from './velkost.js';
 import { pritiahniFotku, zoStarehoZoomu } from './fotka.js';
+import { hrubkaZnaciek, rozmerPlatna } from './znacky.js';
 
 const KOMP = loadProporcie().kompozicia;
 
@@ -542,16 +543,17 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
     };
   });
 
+  // the exported canvas: trim + bleed + the crop-mark band (znacky.js)
+  const platno = rozmerPlatna(format);
   const { svg, varovania: varovaniaTextu } = renderSvg({
     stlpce: grid.stlpce,
     vyskaD,
     bleedD,
-    okrajD: grid.okraj,
-    riadkyD,
+    pasD: platno.pas / dielik,
+    hrubkaD: hrubkaZnaciek(format) / dielik,
     jednotka: format.jednotka,
-    sirka: format.sirka,
-    vyska: format.vyska,
-    spadavka: format.spadavka,
+    sirkaPlatna: platno.sirka,
+    vyskaPlatna: platno.vyska,
     placed: tvary,
     zony,
     inverzia: spec.inverzia,
@@ -561,11 +563,11 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
   });
   varovania.push(...varovaniaTextu);
 
-  const naPx = format.jednotka === 'mm' ? 25.4 / format.dpi : 1;
   return {
     svg,
-    sirkaPx: Math.round(format.sirka / naPx),
-    vyskaPx: Math.round(format.vyska / naPx),
+    // raster size of the whole canvas, so a PNG keeps the SVG's proportions
+    sirkaPx: platno.sirkaPx,
+    vyskaPx: platno.vyskaPx,
     dielik,
     tvary: tvary.map(({ d, ...t }) => t),
     varovania,

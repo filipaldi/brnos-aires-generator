@@ -30,7 +30,7 @@ V rozhraní pod `420 × 594 mm · Grid 8 ▾`, spolu s mriežkou a médiami.
 |---|---|---|
 | Šírka × výška | celé číslo + jednotka (mm / px) | Médiá sú len skratky, hodnoty sa dajú ďalej meniť |
 | DPI | celé číslo | Len pri mm, pre PNG |
-| Spadávka | celé číslo v jednotke formátu | Technická, pre tlač. Na plátne je vždy jemne vyznačená. |
+| Spadávka | celé číslo v jednotke formátu | Technická, pre tlač. Pri spadávke väčšej ako 0 má export (SVG, PNG, AVIF) štandardné orezové značky ako v InDesigne a editor ukazuje tie isté značky. Pozri Spadávka a orezové značky nižšie. |
 
 **Médiá** sú pevné formáty s názvom v `presets/media.json` (skupiny Tlač A, Tlač B, Ostatná tlač, Instagram, Facebook, LinkedIn, Web). Každé médium nesie `nazov`, `sirka`, `vyska`, `jednotka`, `dpi` a `spadavka`, všetky čísla celé. Okraj médium nenastavuje, patrí mriežke. Tlač má 300 DPI a spadávku 3 mm (Billboard 50 DPI), digitál 72 DPI a spadávku 0. Nové médium je nová položka v JSON, žiadny kód.
 
@@ -44,7 +44,7 @@ V CLI `node cli.js kompozicia --spec <súbor.json> --format "<médium>" --out <s
 |---|---|---|
 | Grid (N stĺpcov) | celé číslo | Dielik = šírka / N, štvorcový |
 | Zvyšok výšky | okraje / natiahnutie / presah a orez | Keď výška nie je násobkom dielika. Volí sa podľa potreby. |
-| Okraj | celé číslo v dielikoch, predvolene 0 | Vnútorný okraj ako súčasť gridu (`grid.okraj`): plocha pri okrajoch listu, do ktorej nejde grafika ani zóny. Vzor sa pri okraji väčšom ako 0 kladie len vnútri vodiacej čiary (pri okraji 0 ide ako doteraz po hranu orezu, list je bajt po bajte rovnaký) a zóny musia ležať vnútri nej, inak jadro spec odmietne. Rozhranie zóny pri ťahaní, zmene veľkosti, vkladaní aj pri zväčšení okraja či zmenšení formátu zatlačí dovnútra, v prípade potreby ich zmenší. Dvojnásobok okraja musí byť menší ako počet stĺpcov aj počet celých riadkov; menší grid okraj zmenší na najväčší možný. Leží na čiarach gridu: okraj dielikov od ľavého, horného a pravého okraja orezu a od poslednej celej čiary riadkov. Na plátne bodkovaná vodiaca čiara, v SVG tenká prerušovaná čiara ako pri spadávke. Médium okraj nemení. Starší spec bez okraja má okraj 0; `format.okraj` z predošlej verzie rozhranie pri načítaní zahodí. |
+| Okraj | celé číslo v dielikoch, predvolene 0 | Vnútorný okraj ako súčasť gridu (`grid.okraj`): plocha pri okrajoch listu, do ktorej nejde grafika ani zóny. Vzor sa pri okraji väčšom ako 0 kladie len vnútri vodiacej čiary (pri okraji 0 ide ako doteraz po hranu orezu, list je bajt po bajte rovnaký) a zóny musia ležať vnútri nej, inak jadro spec odmietne. Rozhranie zóny pri ťahaní, zmene veľkosti, vkladaní aj pri zväčšení okraja či zmenšení formátu zatlačí dovnútra, v prípade potreby ich zmenší. Dvojnásobok okraja musí byť menší ako počet stĺpcov aj počet celých riadkov; menší grid okraj zmenší na najväčší možný. Leží na čiarach gridu: okraj dielikov od ľavého, horného a pravého okraja orezu a od poslednej celej čiary riadkov. V editore bodkovaná vodiaca čiara, len keď sú vidieť čiary gridu; v exporte žiadna čiara, okraj je len prázdne miesto od kraja, kam sa kresba negeneruje. Médium okraj nemení. Starší spec bez okraja má okraj 0; `format.okraj` z predošlej verzie rozhranie pri načítaní zahodí. |
 
 ### Kresba
 
@@ -169,7 +169,15 @@ Zaoblenie a border sa ovládajú dvoma posuvníkmi v lište vybranej fotozóny, 
 | JSON template | do schránky | Aktuálny dokument ako šablóna, bez fotiek (pozri Šablóny) |
 | Text | upraviteľný / krivky | Len SVG |
 
-SVG má vrstvy `pattern`, `text`, `fotky`, `spadavka` a pri nenulovom okraji `okraj`.
+SVG má vrstvy `fotky`, `pattern`, `text` a `spadavka` (orezové značky, pri spadávke 0 prázdna). Okraj v exporte nemá vrstvu ani čiaru.
+
+#### Spadávka a orezové značky
+
+- Pri spadávke väčšej ako 0 (tlač) je plátno exportu formát + spadávka + pás pre značky na každej strane. Pozadie (biele, pri inverzii čierne) pokrýva len formát so spadávkou; pás ostáva biely papier, aj pri inverzii, aby boli značky vždy vidieť.
+- Značiek je 8, dve v každom rohu, každá v predĺžení orezovej hrany. Začínajú na okraji spadávky (odstup od orezu = spadávka) a vedú von cez pás, takže ležia mimo spadávky. Dĺžka 5 mm (zároveň šírka pásu), vlasová čiara 0,25 pt, čierna (registrácia). Hodnoty sú v `proporcie.json` (`kompozicia.svg.znacky`), do dielikov sa prepočítajú podľa jednotky formátu.
+- Po orezovej hrane sa nič nekreslí.
+- PNG a AVIF majú rozmer celého plátna vrátane pásu (pri DPI formátu), takže orez sedí na rovnakom mieste ako v SVG.
+- Pri spadávke 0 (digitálne formáty v px) nie je pás ani značky a rozmer exportu je presne formát.
 
 ### Technická poistka
 
@@ -237,7 +245,7 @@ proporcie.json ──► jadro ──┬─► webové rozhranie ──► SVG /
 
 ## Rozhranie
 
-Jedna stránka pre počítač, mobil sa nerieši. Hore jedna lišta, pod ňou plátno. Žiadne bočné panely, žiadne režimy.
+Jedna stránka pre počítač, mobil sa nerieši. Hore jedna lišta, pod ňou plátno. Žiadne bočné panely, žiadne režimy. Pri každom načítaní stránky sa najprv ukážu dlaždice (pozri Úvodná obrazovka).
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -262,6 +270,16 @@ Jedna stránka pre počítač, mobil sa nerieši. Hore jedna lišta, pod ňou pl
 └───────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Úvodná obrazovka
+
+Po každom načítaní stránky sa namiesto prázdneho plátna ukážu **dlaždice** cez celú stránku, pod nadpisom „Vyber, s čím začneš.“ Poradie:
+
+1. **Čistý canvas** — predvolený spec bez šablóny (prerušovaný rámik).
+2. **Pokračovať** — len keď je v prehliadači rozpracovaná práca (`brnosaires-generator-spec-v1`) a dá sa načítať. Načíta ju, takže sa po reloade nestratí.
+3. **Šablóny z repozitára** (`presets/sablony/`) v poradí podľa `index.json`; dorazia za behu, takže sa doplnia hneď po načítaní.
+
+Dlaždica ukazuje **názov**, **rozmer** (šírka × výška a jednotka, napr. `1080 × 1080 px`, `841 × 1189 mm`) a **popis**, ak ho šablóna má (čistý canvas a Pokračovať majú vlastnú krátku vetu). Bez vykresleného náhľadu. Klik na dlaždicu otvorí editor s danou šablónou (rovnako ako klik v paneli Šablóny), s čistým plátnom alebo s rozpracovanou prácou; šablóna, ktorá neprejde validáciou, ukáže chybu a dlaždice ostanú. Dlaždice sú tlačidlá, takže Tab a Enter fungujú ako doplnok. Kým sú dlaždice hore, list sa neskladá a lišta ani plátno za nimi nereagujú. Späť na dlaždice sa nejde: šablóny sú v paneli **Šablóny ▾** a dlaždice sa ukážu pri ďalšom načítaní. Čistý canvas alebo šablóna, na ktorej sa ešte nič nezmenilo, uloženú prácu neprepíše — prepíše ju až prvá úprava. Poradie a obsah dlaždíc určuje `ui/state/uvod.js` bez DOM, testuje sa v Node.
+
 ### Lišta
 
 Zľava doprava v poradí, v akom sa pri práci používa:
@@ -270,7 +288,7 @@ Zľava doprava v poradí, v akom sa pri práci používa:
 |---|---|---|
 | `420 × 594 mm · Grid 8 ▾` | raz na začiatku | Po kliknutí: predvoľba formátu (A2, A3, IG, web), rozmer a jednotka, DPI, spadávka, Grid, okraj, zvyšok výšky |
 | `Šablóny ▾` | na začiatku | Výber šablóny z repozitára: zoznam tlačidiel, klik načíta |
-| `Parametre ▾` | občas | Weight, Contrast, inverzia, veľkosť, rozloženie, typy, rozmiestnenie (voľné / dlaždice) |
+| `Parametre ▾` | občas | Weight, Contrast, inverzia, veľkosť, rozloženie, typy, rozmiestnenie (voľné / dlaždice); na spodku odkaz Prehliadač tvarov… |
 | `◀ Variant 42 ▶ ⟳` | neustále | Predchádzajúci, číslo variantu (dá sa prepísať), ďalší, náhodný |
 | `75 %` | podľa potreby | Zoom plátna |
 | `Export` | raz na konci | SVG / PNG / AVIF, text upraviteľný alebo v krivkách; JSON template skopíruje šablónu |
@@ -281,11 +299,11 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
 
 Šablóny sú súbory v repozitári; panel **Šablóny** (tlačidlo v hornej lište hneď za Dokumentom) z nich len vyberá.
 
-- **Čo šablóna nesie:** názov, médium (skupina a názov z `presets/media.json`, alebo `null`) a celý spec (formát, mriežka vrátane okraja, kresba, kompozícia, variant, inverzia a zóny so všetkými poľami). Jeden súbor `presets/sablony/<slug>.json` = `{ "nazov": "…", "medium": { "skupina": "…", "nazov": "…" } | null, "spec": { … } }`. Poradie v paneli určuje `presets/sablony/index.json` = `{ "sablony": ["<slug>.json", …] }`.
+- **Čo šablóna nesie:** názov, voliteľný popis (krátky text, jedna-dve vety, ukáže sa na dlaždici úvodnej obrazovky; keď chýba alebo je prázdny, dlaždica ho nezobrazí), médium (skupina a názov z `presets/media.json`, alebo `null`) a celý spec (formát, mriežka vrátane okraja, kresba, kompozícia, variant, inverzia a zóny so všetkými poľami). Jeden súbor `presets/sablony/<slug>.json` = `{ "nazov": "…", "popis": "…", "medium": { "skupina": "…", "nazov": "…" } | null, "spec": { … } }`; `popis` je reťazec alebo chýba. Poradie v paneli určuje `presets/sablony/index.json` = `{ "sablony": ["<slug>.json", …] }`.
 - **Panel:** len zoznam šablón ako tlačidlá v štýle médií, nič iné; bez šablón jediný riadok „Zatiaľ žiadne šablóny.“ Klik šablónu načíta: nahradí aktuálny spec (rovnakou cestou a validáciou ako stav uložený v prehliadači) a nastaví jej médium; panel ostane otvorený. Šablóna, ktorá validáciou neprejde, ukáže chybu a aktuálny spec nechá tak. Rozsvietená je naposledy načítaná šablóna, kým jej spec zodpovedá — fotka pretiahnutá do zástupného obrázka na tom nič nemení.
 - **Fotky šablóna nenesie.** Fotková zóna nemá `zdroj` ani `rozmer`; mierka, posun, zaoblenie, border, poloha a okraj ostanú. Po načítaní ukáže taká zóna v editore zástupný obrázok kreslený kódom (sivá plocha s uhlopriečnym krížom a tlačidlom **Nahrať fotku**, pod ním „alebo ju sem pretiahni“), kým do nej používateľ fotku nenahrá tlačidlom (otvorí výber súboru) alebo nepretiahne; fotka potom preberie mierku, posun, zaoblenie aj border zóny. Zástupný obrázok je len v editore: exportované súbory nesú to, čo jadro kreslí pre fotkovú zónu bez fotky odjakživa — svetlosivý obdĺžnik.
-- **Export → JSON template** skopíruje do schránky obsah jedného súboru šablóny z aktuálneho stavu (odsadený dvoma medzerami, fotky bez `zdroj`, médium to rozsvietené v paneli Dokument) s dočasným názvom „Nová šablóna“. Keď schránka nie je dostupná, ukáže sa text v paneli Export označený v poli len na čítanie.
-- **Ako pridať šablónu:** v generátore priprav dokument, klikni Export → JSON template, vlož text do nového súboru `presets/sablony/<slug>.json` (slug malými písmenami, číslicami a pomlčkami), prepíš `"nazov"`, pridaj `"<slug>.json"` do `presets/sablony/index.json` na miesto, kde sa má v paneli ukázať, a otvor PR. `npm test` overí, že každá šablóna v zozname existuje, je v ňom raz, nenesie fotku, jej médium existuje a spec prejde validáciou jadra.
+- **Export → JSON template** skopíruje do schránky obsah jedného súboru šablóny z aktuálneho stavu (odsadený dvoma medzerami, fotky bez `zdroj`, médium to rozsvietené v paneli Dokument) s dočasným názvom „Nová šablóna“ a prázdnym `"popis": ""`, ktorý grafik doplní. Keď schránka nie je dostupná, ukáže sa text v paneli Export označený v poli len na čítanie.
+- **Ako pridať šablónu:** v generátore priprav dokument, klikni Export → JSON template, vlož text do nového súboru `presets/sablony/<slug>.json` (slug malými písmenami, číslicami a pomlčkami), prepíš `"nazov"`, doplň `"popis"`, pridaj `"<slug>.json"` do `presets/sablony/index.json` na miesto, kde sa má v paneli ukázať, a otvor PR. `npm test` overí, že každá šablóna v zozname existuje, je v ňom raz, nenesie fotku, popis je text (alebo chýba), jej médium existuje a spec prejde validáciou jadra.
 - **Načítanie:** rozhranie načítava `index.json` a súbory šablón za behu ako dáta (ako médiá); chýbajúci alebo nečitateľný súbor sa vynechá s varovaním v konzole. Pravidlá (zahodenie fotiek, text pre JSON template, tvar súboru, zhoda so specom) sú v `ui/state/sablony.js` bez DOM a testujú sa v Node.
 
 ### Plátno
@@ -299,8 +317,8 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
 - **Vybraná zóna** má pod sebou malú plávajúcu lištu: pri texte písmo, rez (statické písmo: select rezov, zamknutý kým je rez jeden; variabilné: číselné pole hrúbky v rozsahu osi), výšku riadku v dielikoch, veľkosť v % riadku, zarovnanie, typografické funkcie, okraj (celé číslo v dielikoch) a obtekanie (obtekať rámik / obtekať písmená, predvolené písmená), pri fotke mód (Rámik / Fotka, keď má zóna fotku), okraj, zaoblenie a border. Polia a prepínače lišty majú ikonky, význam vysvetlí tooltip. ✕ zónu zmaže.
 - **Typografické funkcie** (tlačidlo s ligatúrou fi) otvoria popover so zaškrtávacími prepínačmi funkcií aktuálneho písma; klik prepína a list aj editor sa prekreslia hneď. Zmena písma zachová spoločné tagy a zvyšok nastaví na predvolené hodnoty nového písma.
 - **Čiary gridu** sa ukážu samy, keď ťaháš zónu. Inak sú skryté, prepínač netreba.
-- **Spadávka** je vždy jemne vyznačená.
-- **Okraj** formátu je vyznačený bodkovanou čiarou, keď je väčší ako 0.
+- **Spadávka** sa ukazuje rovnakými orezovými značkami ako v exporte (8 značiek mimo spadávky), kreslenými na obrazovke 1 px čiarou, aby boli vidieť pri každom zoome.
+- **Okraj** formátu je vyznačený bodkovanou čiarou, keď je väčší ako 0 a sú vidieť čiary gridu (počas ťahania); inak je skrytý.
 
 ### Klik a klávesy
 
@@ -308,7 +326,7 @@ Všetko sa dá vyklikať. Štandardné klávesy na vybranej zóne (Delete/Backsp
 
 ### Prehliadač tvarov
 
-Nástroj na ladenie tvarov a `proporcie.json`, nie bežná práca. Vo fáze 1 ho nahrádzajú vzorkovníky z CLI. Otvára sa tlačidlom Tvary v lište cez celé okno.
+Nástroj na ladenie tvarov a `proporcie.json`, nie bežná práca. Vo fáze 1 ho nahrádzajú vzorkovníky z CLI. Otvára sa cez celé okno odkazom **Prehliadač tvarov…** na spodku panela `Parametre ▾` (klik panel zavrie); zatvára ho tlačidlo Zavrieť. V hornej lište tlačidlo nemá, jeho zmeny sa do plagátu nikdy nedostanú.
 
 - Vybraný typ vo veľkom.
 - Posuvníky Weight, Contrast, Zaoblenie a parametrov vybraného typu.

@@ -246,8 +246,13 @@
         "Nunito": 0.5
       },
       "okraj": 1,
-      "spadavkaFarba": "#c8c8c8",
-      "spadavkaHrubka": 0.03,
+      "znacky": {
+        "_comment": "Orezové značky pri spadávke > 0 (tlač): dlzka = dĺžka značky v mm, zároveň šírka pásu, o ktorý plátno exportu narastie na každej strane za spadávkou; hrubka = vlasová čiara v pt; farba = farba značiek (registrácia, vždy čierna); papier = farba pásu pre značky, aj pri inverzii.",
+        "dlzka": 5,
+        "hrubka": 0.25,
+        "farba": "#000",
+        "papier": "#fff"
+      },
       "placeholderFarba": "#e3e3e3"
     },
     "png": {

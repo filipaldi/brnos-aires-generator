@@ -10,10 +10,12 @@ import {
 } from '../core/kompozicia/pisma.js';
 import { maxVelkost } from '../core/kompozicia/velkost.js';
 import { fotkaVRamiku, obdlznikFotky, pritiahniFotku } from '../core/kompozicia/fotka.js';
+import { orezoveZnacky, rozmerPlatna } from '../core/kompozicia/znacky.js';
 import { createViewer } from './viewer.js';
 import {
   sablonaJson, suboryIndexu, citajSablonu, zhodujeSaSoSablonou,
 } from './state/sablony.js';
+import { dlazdiceUvodu } from './state/uvod.js';
 import {
   exportSvgFile, exportPngFile, exportAvifFile, avifSupported,
   rasterDimensions, fontUrlsAbsolute,
@@ -34,8 +36,11 @@ const POLIA_FORMATU = ['sirka', 'vyska', 'jednotka', 'dpi', 'spadavka'];
 
 // ---------- state ----------
 
-let spec = loadSpec();
-let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, okrajD: 0, cols: 8, rowsD: 0 };
+// The saved work (or null) is kept apart from the current spec: the start
+// screen offers it as Pokračovať and the clean canvas as the first tile.
+const ulozenySpec = nacitajUlozeny();
+let spec = ulozenySpec ?? cistySpec();
+let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, znackyD: 0, okrajD: 0, cols: 8, rowsD: 0 };
 let zoomPct = 75;
 let selected = -1;
 let editorOpen = false;
@@ -80,13 +85,20 @@ function pripravSpec(saved) {
   return engine.normalizujSpec(saved);
 }
 
-function loadSpec() {
+// The work saved in the browser, validated, or null when there is none or
+// it no longer loads.
+function nacitajUlozeny() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) return pripravSpec(JSON.parse(raw));
   } catch (err) {
     console.warn('Uložený stav sa nepodarilo načítať, začínam odznova.', err);
   }
+  return null;
+}
+
+// A clean spec: the engine's default.
+function cistySpec() {
   try {
     return engine.normalizujSpec({});
   } catch (err) {
@@ -95,9 +107,18 @@ function loadSpec() {
   }
 }
 
+// The spec a start-screen tile opened (as JSON) while it is still untouched:
+// a clean canvas or a template that nobody edited yet does not overwrite the
+// saved work, so a wrong click on a tile loses nothing before a real edit.
+let neupravenyJson = null;
+
 let saveTimer = 0;
 function saveLocal() {
   clearTimeout(saveTimer);
+  if (neupravenyJson !== null) {
+    if (JSON.stringify(spec) === neupravenyJson) return;
+    neupravenyJson = null;
+  }
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(spec));
@@ -193,6 +214,7 @@ function layoutSheet(svgEl) {
   view = {
     s, vbX: vb.x, vbY: vb.y,
     bleedD: f.spadavka / dielikUnits,
+    znackyD: rozmerPlatna(f).pas / dielikUnits, // the crop-mark band, 0 without a bleed
     okrajD: g.okraj ?? 0,
     cols: g.stlpce,
     rowsD: f.vyska / dielikUnits,
@@ -202,8 +224,9 @@ function layoutSheet(svgEl) {
 function dielikPx() { return view.s; }
 
 // Cursor position in dieliks, relative to the trimmed format origin.
-// The viewBox starts one bleed left of the format (vbX = -bleedD), so a
-// client point maps to dieliks by adding vbX, never by adding the bleed.
+// The viewBox starts one bleed and one crop-mark band left of the format
+// (vbX = -bleedD - znackyD), so a client point maps to dieliks by adding
+// vbX, never by adding the bleed.
 function cursorDieliks(e) {
   const r = overlay.getBoundingClientRect();
   return {
@@ -244,17 +267,34 @@ function drawOverlay() {
   overlay.style.setProperty('--grid-ox', `${-view.vbX * view.s}px`);
   overlay.style.setProperty('--grid-oy', `${-view.vbY * view.s}px`);
 
-  // Bleed: always faintly marked, inset from the sheet edge.
-  const bi = view.bleedD * view.s;
-  bleedMark.style.left = `${bi}px`;
-  bleedMark.style.top = `${bi}px`;
-  bleedMark.style.right = `${bi}px`;
-  bleedMark.style.bottom = `${bi}px`;
+  // Bleed: the same eight crop marks as the export (core/kompozicia/znacky.js),
+  // drawn here as screen-pixel lines so they stay visible at any zoom. The
+  // element itself covers the trimmed format; the marks sit outside it, in
+  // the band beyond the bleed.
+  Object.assign(bleedMark.style, styleRect({
+    left: -view.vbX * view.s,
+    top: -view.vbY * view.s,
+    width: view.cols * view.s,
+    height: view.rowsD * view.s,
+  }));
+  bleedMark.replaceChildren(...(view.znackyD > 0 ? orezoveZnacky({
+    sirka: view.cols * view.s,
+    vyska: view.rowsD * view.s,
+    spadavka: view.bleedD * view.s,
+    dlzka: view.znackyD * view.s,
+  }) : []).map(([x1, y1, x2, y2]) => {
+    const znacka = document.createElement('div');
+    znacka.className = 'znacka';
+    Object.assign(znacka.style, y1 === y2
+      ? { left: `${Math.min(x1, x2)}px`, top: `${y1 - 0.5}px`, width: `${Math.abs(x2 - x1)}px`, height: '1px' }
+      : { left: `${x1 - 0.5}px`, top: `${Math.min(y1, y2)}px`, width: '1px', height: `${Math.abs(y2 - y1)}px` });
+    return znacka;
+  }));
 
   // Margin (okraj): a guide on grid lines, okraj whole dieliky in from the
-  // trimmed format's left, top and right edge and from the last whole row,
-  // shown only when the grid has one. Like the bleed mark it is an overlay;
-  // the composed SVG carries its own thin line, as for the bleed.
+  // trimmed format's left, top and right edge and from the last whole row.
+  // An editor guide only: it shows while the grid lines do (the stylesheet
+  // hides it with them), and the export draws no line for it at all.
   const ok = view.okrajD;
   okrajMark.hidden = ok <= 0;
   Object.assign(okrajMark.style, styleRect({
@@ -1914,17 +1954,19 @@ nacitajJson(new URL('index.json', SABLONY_URL))
   .then((zoznam) => {
     sablony = zoznam;
     if (sablonyPopover.isOpen()) sablonyPopover.rebuild();
+    if (!uvod.hidden) nakresliUvod();
   });
 
 // A template replaces the current spec through the same path as the saved
 // state; one that does not validate leaves the current spec as it is.
+// Returns whether the template was loaded.
 function nacitajSablonu(s) {
   let novy;
   try {
     novy = pripravSpec(structuredClone(s.spec));
   } catch (err) {
     toast(`Šablónu „${s.nazov}“ sa nepodarilo načítať: ${err.message}`, 5000);
-    return;
+    return false;
   }
   closeEditor();
   selected = -1;
@@ -1939,6 +1981,7 @@ function nacitajSablonu(s) {
   drawOverlay();
   sablonyPopover.rebuild();
   scheduleRender();
+  return true;
 }
 
 const sablonyPopover = attachPopover($('#btn-sablony'), (pop) => {
@@ -1959,6 +2002,66 @@ const sablonyPopover = attachPopover($('#btn-sablony'), (pop) => {
   }
   pop.replaceChildren(zoznam);
 });
+
+// ----- start screen -----
+
+// On every load the page opens on tiles (ui/state/uvod.js decides which, in
+// what order): the clean canvas, Pokračovať with the saved work, then the
+// templates as they arrive. A click opens the editor with that spec; the
+// tiles are buttons, so Tab and Enter work too. There is no way back — the
+// templates stay in the Šablóny panel and the tiles return on the next load.
+const uvod = $('#uvod');
+const uvodDlazdice = $('#uvod-dlazdice');
+
+function nakresliUvod() {
+  // the tile under the keyboard focus keeps it while templates arrive
+  const fokus = document.activeElement?.closest?.('.dlazdica');
+  const kluc = fokus ? `${fokus.dataset.druh}:${fokus.dataset.subor ?? ''}` : null;
+  const buttony = dlazdiceUvodu({ cisty: cistySpec(), ulozeny: ulozenySpec, sablony: sablony ?? [] })
+    .map((d) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dlazdica';
+      b.dataset.druh = d.druh;
+      if (d.sablona) b.dataset.subor = d.sablona.subor;
+      const casti = [['nazov', d.nazov], ['rozmer', d.rozmer], ['popis', d.popis]]
+        .filter(([, text]) => text)
+        .map(([className, textContent]) => Object.assign(document.createElement('span'), { className, textContent }));
+      b.append(...casti);
+      b.addEventListener('click', () => otvorDlazdicu(d));
+      return b;
+    });
+  uvodDlazdice.replaceChildren(...buttony);
+  const znova = kluc && buttony.find((b) => `${b.dataset.druh}:${b.dataset.subor ?? ''}` === kluc);
+  if (znova) znova.focus();
+}
+
+function otvorDlazdicu(d) {
+  if (d.druh === 'sablona') {
+    // a template that does not validate shows its error and keeps the tiles
+    if (!nacitajSablonu(d.sablona)) return;
+  } else {
+    const novy = d.druh === 'pokracovat' ? ulozenySpec : cistySpec();
+    if (!novy) return;
+    spec = novy;
+    if (d.druh === 'cisty') {
+      // kept in memory only: the saved work keeps its medium until an edit
+      customZvolene = false;
+      zvoleneMedium = null;
+    }
+    syncBar();
+    drawOverlay();
+    scheduleRender();
+  }
+  neupravenyJson = d.druh === 'pokracovat' ? null : JSON.stringify(spec);
+  uvod.hidden = true;
+  zamkniEditor(false);
+}
+
+// While the tiles are up, the editor behind them takes no focus or clicks.
+function zamkniEditor(zamknuty) {
+  for (const el of [$('#topbar'), $('#stage')]) el.inert = zamknuty;
+}
 
 // ----- parametre popover -----
 
@@ -2058,6 +2161,21 @@ attachPopover($('#btn-parametre'), (pop) => {
     return h;
   };
 
+  // the shape viewer is a debugging tool, so it sits at the bottom as a quiet
+  // link rather than in the top bar; its changes never reach the poster
+  const prehliadac = document.createElement('button');
+  prehliadac.type = 'button';
+  prehliadac.id = 'btn-prehliadac';
+  prehliadac.className = 'link-btn';
+  prehliadac.textContent = 'Prehliadač tvarov…';
+  prehliadac.addEventListener('click', () => {
+    closePopovers();
+    viewer.open();
+  });
+  const prehliadacWrap = document.createElement('div');
+  prehliadacWrap.className = 'pop-foot';
+  prehliadacWrap.append(prehliadac);
+
   pop.replaceChildren(
     mkH('Kresba'),
     sliderRow('Weight', k.weight, (v) => { spec.kresba.weight = v; }),
@@ -2072,6 +2190,7 @@ attachPopover($('#btn-parametre'), (pop) => {
     note,
     mkH('Typy'),
     typesGrid,
+    prehliadacWrap,
   );
 });
 
@@ -2233,8 +2352,8 @@ function toast(message, ms = 3200) {
   toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
 
+// opened from the Parametre popover (Prehliadač tvarov…)
 const viewer = createViewer(() => spec.kresba);
-$('#btn-tvary').addEventListener('click', () => viewer.toggle());
 
 // ---------- boot ----------
 
@@ -2242,4 +2361,6 @@ if (engine.isStubEngine) $('#stub-note').hidden = false;
 
 setZoomOptions();
 zoomSelect.value = 'fit';
-render();
+// the sheet is composed once a tile is clicked
+zamkniEditor(true);
+nakresliUvod();

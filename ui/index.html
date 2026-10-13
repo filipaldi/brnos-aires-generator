@@ -10,11 +10,19 @@
 </head>
 <body>
 
+  <!-- the start screen: shown on every load until a tile is clicked -->
+  <section id="uvod" aria-labelledby="uvod-nadpis">
+    <div id="uvod-obsah">
+      <h1 id="uvod-nadpis">Generátor Brnos Aires</h1>
+      <p id="uvod-vyzva">Vyber, s čím začneš.</p>
+      <div id="uvod-dlazdice"></div>
+    </div>
+  </section>
+
   <header id="topbar">
     <button id="btn-format" class="bar-btn" aria-haspopup="true" aria-expanded="false">Dokument</button>
     <button id="btn-sablony" class="bar-btn" aria-haspopup="true" aria-expanded="false">Šablóny ▾</button>
     <button id="btn-parametre" class="bar-btn" aria-haspopup="true" aria-expanded="false">Parametre ▾</button>
-    <button id="btn-tvary" class="bar-btn">Tvary</button>
 
     <div id="variant-group">
       <button id="variant-prev" class="bar-btn icon" title="Predchádzajúci variant">◀</button>
@@ -41,8 +49,8 @@
       <div id="svg-host"></div>
       <div id="overlay">
         <div id="bleed-mark" title="Spadávka"></div>
-        <div id="okraj-mark" title="Okraj" hidden></div>
         <div id="grid-lines" hidden></div>
+        <div id="okraj-mark" title="Okraj" hidden></div>
         <div id="zones"></div>
         <div id="zone-bar" hidden></div>
       </div>

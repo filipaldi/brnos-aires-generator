@@ -1,12 +1,15 @@
 // SVG assembly for compositions. One standalone document with layers
-// fotky → pattern → text → spadavka → okraj (photos sit under the pattern, so
-// a negative okraj lets shapes reach over a photo). All numbers rounded to 4
+// fotky → pattern → text → spadavka (photos sit under the pattern, so a
+// negative okraj lets shapes reach over a photo). The spadavka layer holds the
+// crop marks of a print sheet, drawn in a band outside the bleed; neither the
+// trim edge nor the margin (okraj) is drawn. All numbers rounded to 4
 // decimals, output byte-deterministic.
 
 import { fmt } from '../geometry.js';
 import { obdlznikFotky } from './fotka.js';
 import { fontFeatureSettings } from './features.js';
 import { faceZony, facesFontov, fontFaceCss } from './pisma.js';
+import { orezoveZnacky } from './znacky.js';
 
 export function esc(s) {
   return String(s)
@@ -249,8 +252,18 @@ function textLayer(zony, fg, cfg, zmerajText) {
 
 // --- document ---------------------------------------------------------------
 
+// The crop marks, eight hairlines in the band outside the bleed (see
+// znacky.js); empty without a band.
+function znackyLayer(stlpce, vyskaD, bleedD, pasD, hrubkaD, cfg) {
+  if (!(pasD > 0)) return '';
+  return orezoveZnacky({ sirka: stlpce, vyska: vyskaD, spadavka: bleedD, dlzka: pasD })
+    .map(([x1, y1, x2, y2]) => `<line x1="${f(x1)}" y1="${f(y1)}" x2="${f(x2)}" y2="${f(y2)}"`
+      + ` stroke="${cfg.farba}" stroke-width="${f(hrubkaD)}"/>`)
+    .join('');
+}
+
 export function renderSvg({
-  stlpce, vyskaD, bleedD, okrajD = 0, riadkyD = vyskaD, jednotka, sirka, vyska, spadavka,
+  stlpce, vyskaD, bleedD, pasD = 0, hrubkaD = 0, jednotka, sirkaPlatna, vyskaPlatna,
   placed, zony, inverzia, fontUrls, zmerajText, cfg,
 }) {
   const fg = inverzia ? '#fff' : '#000';
@@ -265,26 +278,23 @@ export function renderSvg({
   const { parts: textParts, varovania: varovaniaTextu } = textLayer(zony, fg, cfg, zmerajText);
   const style = styleForFonts(fontUrls);
 
-  const vb = `${f(-bleedD)} ${f(-bleedD)} ${f(stlpce + 2 * bleedD)} ${f(vyskaD + 2 * bleedD)}`;
+  // the canvas: trim + bleed + mark band; the background covers trim and
+  // bleed only, the band stays paper so the black marks always show
+  const o = bleedD + pasD;
+  const vb = `${f(-o)} ${f(-o)} ${f(stlpce + 2 * o)} ${f(vyskaD + 2 * o)}`;
   const out = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${f(sirka + 2 * spadavka)}${unit}"`
-    + ` height="${f(vyska + 2 * spadavka)}${unit}" viewBox="${vb}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${f(sirkaPlatna)}${unit}"`
+    + ` height="${f(vyskaPlatna)}${unit}" viewBox="${vb}">`,
     style,
     ...(fotoDefs.length ? [`<defs>${fotoDefs.join('')}</defs>`] : []),
+    pasD > 0
+      ? `<rect x="${f(-o)}" y="${f(-o)}" width="${f(stlpce + 2 * o)}" height="${f(vyskaD + 2 * o)}" fill="${cfg.znacky.papier}"/>`
+      : '',
     `<rect x="${f(-bleedD)}" y="${f(-bleedD)}" width="${f(stlpce + 2 * bleedD)}" height="${f(vyskaD + 2 * bleedD)}" fill="${bg}"/>`,
     `<g id="fotky">${fotoParts.join('')}</g>`,
     `<g id="pattern">${patternD ? `<path d="${patternD}" fill="${fg}" fill-rule="nonzero"/>` : ''}</g>`,
     `<g id="text">${textParts.join('')}</g>`,
-    `<g id="spadavka">${spadavka > 0
-      ? `<rect x="0" y="0" width="${f(stlpce)}" height="${f(vyskaD)}" fill="none" stroke="${cfg.spadavkaFarba}" stroke-width="${f(cfg.spadavkaHrubka)}"/>`
-      : ''}</g>`,
-    // the margin guide (okraj) is drawn like the trim line of the bleed, but
-    // dashed, on grid lines: okraj whole dieliky in from the trimmed format's
-    // left, top and right edge and from the last whole row; a grid without a
-    // margin keeps the document as it was
-    okrajD > 0
-      ? `<g id="okraj"><rect x="${f(okrajD)}" y="${f(okrajD)}" width="${f(stlpce - 2 * okrajD)}" height="${f(riadkyD - 2 * okrajD)}" fill="none" stroke="${cfg.spadavkaFarba}" stroke-width="${f(cfg.spadavkaHrubka)}" stroke-dasharray="${f(cfg.spadavkaHrubka * 6)}"/></g>`
-      : '',
+    `<g id="spadavka">${znackyLayer(stlpce, vyskaD, bleedD, pasD, hrubkaD, cfg.znacky)}</g>`,
     '</svg>',
   ];
   return { svg: `${out.filter(Boolean).join('\n')}\n`, varovania: varovaniaTextu };

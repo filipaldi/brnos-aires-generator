@@ -257,6 +257,28 @@ button, input, select { font: inherit; color: inherit; }
 
 .popover .note { font-size: 12px; color: var(--dim); margin-top: 10px; }
 
+/* a quiet link-like row at the bottom of a popover, apart from the controls */
+.popover .pop-foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+.popover .link-btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--dim);
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.popover .link-btn:hover { color: var(--ink); }
+.popover .link-btn:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; color: var(--ink); }
+
 /* dual-thumb slider: two overlaid ranges share one drawn track */
 .range2-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 
@@ -362,20 +384,28 @@ button, input, select { font: inherit; color: inherit; }
   -webkit-user-select: none;
 }
 
+/* the trimmed format; its children are the crop marks of the bleed, the
+   same as in the export, in the band outside the bleed. Always black: the
+   band is paper, also on an inverted sheet */
 #bleed-mark {
   position: absolute;
   pointer-events: none;
-  border: 1px dashed rgba(0, 0, 0, 0.38);
 }
 
-/* the format's margin (okraj): a guide like the bleed mark, but dotted to
-   tell it from the dashed bleed — it sits inside the trim edge, the bleed
-   mark outside it; hidden while okraj is 0 */
+#bleed-mark .znacka {
+  position: absolute;
+  background: #000;
+}
+
+/* the format's margin (okraj): a dotted guide inside the trim edge, hidden
+   while okraj is 0 and whenever the grid lines are hidden */
 #okraj-mark {
   position: absolute;
   pointer-events: none;
   border: 1px dotted rgba(0, 0, 0, 0.55);
 }
+
+#grid-lines[hidden] ~ #okraj-mark { display: none; }
 
 #grid-lines {
   position: absolute;
@@ -765,6 +795,71 @@ body.inverted #text-editor { background: var(--ink); color: var(--paper); }
   max-width: 70vw;
   z-index: 70;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------- start screen ----------
+   Tiles over the whole page until one is clicked: the clean canvas, saved
+   work, then the templates. The media button look, as cards: ink border on
+   paper, inverted under the pointer. */
+
+#uvod {
+  position: fixed;
+  inset: 0;
+  background: var(--paper);
+  z-index: 65;
+  overflow-y: auto;
+  padding: 48px 24px;
+}
+
+#uvod[hidden] { display: none; }
+
+#uvod-obsah { max-width: 980px; margin: 0 auto; }
+
+#uvod-nadpis { font-size: 22px; font-weight: 800; }
+
+#uvod-vyzva { margin: 4px 0 24px; color: var(--dim); }
+
+#uvod-dlazdice {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  gap: 12px;
+}
+
+.dlazdica {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 116px;
+  padding: 14px 16px;
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  background: var(--paper);
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+/* the clean canvas: an empty sheet, dashed like an empty zone */
+.dlazdica[data-druh="cisty"] { border-style: dashed; }
+
+.dlazdica .nazov { font-size: 16px; font-weight: 700; }
+.dlazdica .rozmer { font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.dlazdica .popis { font-size: 13px; margin-top: 6px; }
+
+.dlazdica:hover, .dlazdica:focus-visible {
+  background: var(--ink);
+  color: var(--paper);
+  border-style: solid;
+}
+
+.dlazdica:hover .rozmer, .dlazdica:focus-visible .rozmer { color: inherit; }
+
+.dlazdica:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+@media (max-width: 480px) {
+  #uvod { padding: 28px 16px; }
+  .dlazdica { min-height: 0; }
 }
 
 /* ---------- shape viewer ---------- */
