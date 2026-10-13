@@ -110,6 +110,9 @@ function validateZone(z, index) {
       }
     }
     if (z.zoom !== undefined) num(z.zoom, `${kde}: zoom`, { min: 0.1, max: 10 });
+    // same contract as the core: whole %, a missing field is 0
+    if (z.zaoblenie !== undefined) num(z.zaoblenie, `${kde}: zaoblenie`, { min: 0, max: 100, integer: true });
+    if (z.border !== undefined) num(z.border, `${kde}: border`, { min: 0, max: 100, integer: true });
   }
 }
 
@@ -196,6 +199,7 @@ export function normalizujSpec(input) {
         return {
           ...base, zdroj: z.zdroj, rezim: z.rezim || 'ramik',
           posun: z.posun ?? [0, 0], zoom: z.zoom ?? 1,
+          zaoblenie: z.zaoblenie ?? 0, border: z.border ?? 0,
         };
       }
       return base;
@@ -381,8 +385,15 @@ function photoZoneSvg(z, i, geom, fill) {
   if (z.rezim === 'prekrytie') {
     return `<g style="mix-blend-mode:multiply">${inner}</g>`;
   }
-  return inner + `<rect x="${fmt(px)}" y="${fmt(py)}" width="${fmt(pw)}" height="${fmt(ph)}" `
-    + `fill="none" stroke="${fill}" stroke-width="${fmt(hair)}"/>`;
+  // ramik as in the core: clipped to the zone with its rounded corners
+  // (zaoblenie, % of half the shorter side), the border (% of a dielik) only
+  // inside the zone — a stroke of twice the width clipped by the same shape
+  const rx = (Math.min(pw, ph) / 2) * (z.zaoblenie / 100);
+  const tvar = `x="${fmt(px)}" y="${fmt(py)}" width="${fmt(pw)}" height="${fmt(ph)}"${rx > 0 ? ` rx="${fmt(rx)}"` : ''}`;
+  const stroke = z.border > 0 ? (2 * z.border) / 100 : hair;
+  return `<clipPath id="ramik-${i}"><rect ${tvar}/></clipPath>`
+    + `<g clip-path="url(#ramik-${i})">${inner}</g>`
+    + `<rect ${tvar} fill="none" stroke="${fill}" stroke-width="${fmt(stroke)}" clip-path="url(#ramik-${i})"/>`;
 }
 
 function spadavkaSvg(geom, fill) {

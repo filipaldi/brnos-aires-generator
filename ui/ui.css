@@ -442,7 +442,13 @@ button, input, select { font: inherit; color: inherit; }
   background: rgba(128, 128, 128, 0.22);
   pointer-events: none;
   overflow: hidden;
+  /* rámik: zaoblenie and border set inline (tvarNahrady), the border inside
+     the zone in the pattern colour, which flips with the inverted sheet */
+  box-sizing: border-box;
+  border: 0 solid #000;
 }
+
+body.inverted .zone .foto-nahrada { border-color: #fff; }
 
 .zone .foto-nahrada svg {
   position: absolute;
@@ -535,6 +541,10 @@ button, input, select { font: inherit; color: inherit; }
 
 /* one row height for inputs, selects and toggle groups (seg = 22 + border) */
 #zone-bar .z-field input, #zone-bar .z-field select { color: var(--ink); height: 24px; }
+
+/* zaoblenie and border of a photo zone: a short slider and its whole value */
+#zone-bar .z-slider input[type="range"] { accent-color: var(--ink); width: 80px; height: auto; }
+#zone-bar .z-slider .num { min-width: 3ch; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 #zone-bar .z-ico { display: flex; color: var(--ink); cursor: help; }
 

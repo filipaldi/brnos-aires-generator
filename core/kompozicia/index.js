@@ -247,7 +247,7 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
   polia(raw, [
     'typ', 'x', 'y', 'w', 'h', 'okraj',
     'text', 'pismo', 'rez', 'hrubka', 'velkost', 'zarovnanie', 'riadok', 'features', 'obtekanie',
-    'zdroj', 'rezim', 'posun', 'zoom',
+    'zdroj', 'rezim', 'posun', 'zoom', 'zaoblenie', 'border',
   ], name);
   const d = KOMP.zona[typ] || {};
   const zona = { typ, okraj: 0, ...d, ...raw };
@@ -296,6 +296,11 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
       throw new ValidationError(`${name}.posun musí byť pole [x, y] čísel.`);
     }
     cislo(zona.zoom, `${name}.zoom`, { min: 0.05, max: 10 });
+    // rounded corners (whole % of half the zone's shorter side) and an inner
+    // border (whole % of one dielik); a missing field (old specs, templates)
+    // is 0 from KOMP.zona.fotka in proporcie.json
+    cislo(zona.zaoblenie, `${name}.zaoblenie`, { min: 0, max: 100, cele: true });
+    cislo(zona.border, `${name}.border`, { min: 0, max: 100, cele: true });
   }
   return zona;
 }
