@@ -141,6 +141,10 @@ Fotková zóna:
 | Fotka | súbor (tlačidlo „Nahrať fotku“ alebo pretiahnutím) | |
 | Režim | rámik / maska / prekrytie | Maska = fotka v plnej hmote veľkého tvaru |
 | Posun, zoom | čísla | Poloha fotky v ráme alebo maske |
+| Zaoblenie | 0–100 (celé %, predvolene 0) | Len rámik. Polomer rohov v % z polovice kratšej strany zóny: 100 urobí z kratšej strany polkruh, zo štvorca kruh. Posun a zoom fungujú ďalej. |
+| Border | 0–100 (celé %, predvolene 0) | Len rámik. Hrúbka v % jedného dielika, farbou vzoru (pri inverzii sa otočí s ním). Leží dovnútra zóny, kopíruje zaoblenie a obdĺžnik zóny nikdy nepresiahne. |
+
+Zaoblenie a border sa ovládajú dvoma posuvníkmi v lište vybranej fotozóny (v režime rámik), klikom a ťahaním; šípky z klávesnice sú len doplnok. Platia aj pre prázdnu fotozónu — sivá plocha v exporte aj zástupný obrázok s tlačidlom **Nahrať fotku** v editore majú tvar a border ešte pred nahraním fotky. V spec sú to polia `zaoblenie` a `border` fotozóny; staré spec a šablóny bez nich fungujú ďalej (chýba = 0) a „JSON template“ ich prenesie.
 
 ### Export
 

@@ -30,15 +30,41 @@ function prekryv(a, b, inset) {
   return dx > inset && dy > inset;
 }
 
+// A rect with corners rounded to radius `rx` as a stack of horizontal strips
+// the pattern stays out of: `naDielik` strips per dielik (at least one per
+// corner) down each corner band, every strip as wide as the rounded shape is
+// at its edge nearest the middle, so the strips cover the shape whole and
+// leave the pattern the rest of each corner; the straight middle is one box.
+// rx ≤ 0 is the rect itself.
+export function pasyZaoblenia(r, rx, naDielik = 4) {
+  const rr = Math.min(rx, r.w / 2, r.h / 2);
+  if (!(rr > 0)) return [{ ...r }];
+  const n = Math.max(1, Math.ceil(rr * naDielik - 1e-9));
+  const hp = rr / n;
+  const hore = [];
+  const dole = [];
+  for (let i = 0; i < n; i++) {
+    const dy = rr - (i + 1) * hp;
+    const inset = rr - Math.sqrt(Math.max(rr * rr - dy * dy, 0));
+    const x = r.x + inset;
+    const w = r.w - 2 * inset;
+    hore.push({ x, y: r.y + i * hp, w, h: hp });
+    dole.push({ x, y: r.y + r.h - (i + 1) * hp, w, h: hp });
+  }
+  const stred = r.h - 2 * rr > 1e-9 ? [{ x: r.x, y: r.y + rr, w: r.w, h: r.h - 2 * rr }] : [];
+  return [...hore, ...stred, ...dole.reverse()];
+}
+
 function vZone(box, zone) {
   // blizsieAko(gap) demands `gap` of separation between the two rects:
   // okraj ≥ 0 keeps shapes that many dieliks from the zone (0 = they may
   // touch its edge), a negative okraj shrinks the zone by |okraj| per side
   // instead — shapes may reach that deep into it, but no further.
   // A text zone with text carries its glyphs' tight boxes instead of the
-  // frame: `rect` is then their union, a cheap pre-test every candidate
-  // passes before the per-glyph scan (a shape far from the union is far
-  // from every glyph inside it).
+  // frame, a rounded photo zone the strips of its shape (pasyZaoblenia):
+  // `rect` is then their union, a cheap pre-test every candidate passes
+  // before the per-box scan (a shape far from the union is far from every
+  // box inside it).
   if (!blizsieAko(box, zone.rect, zone.okraj)) return false;
   return zone.glyfy ? zone.glyfy.some((g) => blizsieAko(box, g, zone.okraj)) : true;
 }
@@ -246,10 +272,11 @@ function prirast(rng, chain, ctx, pokusy, minDlzka = 1, { koniec = null, typy = 
 // zones: [{ rect: {x, y, w, h}, okraj, glyfy?, plocha? }] — okraj ≥ 0 is the
 // separation the pattern keeps from the zone; komponuj hands negative zone
 // okraje over already shrunk to the boxes the shapes must stay out of.
-// `glyfy` (a text zone with text) replaces the frame test with a test
-// against each glyph box, `rect` then being their union for the pre-test;
-// `plocha` is the area the zone blocks for the density target (a text zone
-// counts its glyphs' ink, not the whole frame).
+// `glyfy` (a text zone with text, or the strips of a rounded photo zone)
+// replaces the frame test with a test against each box, `rect` then being
+// their union for the pre-test; `plocha` is the area the zone blocks for the
+// density target (a text zone counts its glyphs' ink, a rounded photo zone
+// its strips, not the whole frame).
 export function placeShapes(rng, {
   build, axes, defaultsOf, typy, velkostTvaru, vahyTvaru,
   velkosti,
