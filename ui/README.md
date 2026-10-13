@@ -20,14 +20,15 @@ repozitára, takže jadro (`/core/`) aj fonty
 | `serve.js` | malý statický server (port 41235) |
 | `index.html`, `ui.css` | kostra stránky a štýl (čierno-biely) |
 | `ui.js` | lišta, popovery, plátno, zóny, ukladanie stavu |
-| `state/sablony.js` | pravidlá šablón bez DOM: zahodenie fotiek, text pre JSON template, čítanie `index.json` a súboru šablóny, zhoda so specom |
+| `state/sablony.js` | pravidlá šablón bez DOM: zahodenie fotiek, text pre JSON template, čítanie `index.json` a súboru šablóny (aj voliteľného popisu), zhoda so specom |
+| `state/uvod.js` | dlaždice úvodnej obrazovky bez DOM: čistý canvas, Pokračovať s uloženou prácou, šablóny v poradí indexu, rozmer a popis dlaždice |
 | `engine.js` | adapter: natiahne `core/kompozicia`, kým neexistuje, použije `stub.js`; skladanie posiela do workera, pri zlyhaní kreslí na hlavnom vlákne |
 | `worker.js` | web worker so skladaním (`komponuj` jadra mimo hlavné vlákno) |
 | `stub.js` | náhradný engine (rovnaké API, náhodné rozmiestnenie so seedom) |
 | `viewer.js` | prehliadač tvarov (tlačidlo Tvary) |
 | `meranie.js` | meranie šírky textu cez canvas (fonty a rezy ako v SVG) pre zalomenie do zóny a tesných obdĺžnikov písmen (`zmerajGlyfy`) pre obtekanie textu vzorom; funguje aj vo workeri |
 | `export.js` | SVG priamo, PNG/AVIF cez canvas s vloženými fontmi; v claude.ai artefakte ukladá cez hostiteľa (downloads, bez AVIF) |
-| `smoke.mjs` | smoke test cez Playwright so štyrmi screenshotmi |
+| `smoke.mjs` | smoke test cez Playwright s piatimi screenshotmi (úvodná obrazovka, plátno, zóna, Parametre, prehliadač tvarov) |
 
 ## Práca s rozhraním
 

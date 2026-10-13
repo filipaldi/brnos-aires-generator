@@ -218,7 +218,7 @@ proporcie.json ──► jadro ──┬─► webové rozhranie ──► SVG /
 
 ## Rozhranie
 
-Jedna stránka pre počítač, mobil sa nerieši. Hore jedna lišta, pod ňou plátno. Žiadne bočné panely, žiadne režimy.
+Jedna stránka pre počítač, mobil sa nerieši. Hore jedna lišta, pod ňou plátno. Žiadne bočné panely, žiadne režimy. Pri každom načítaní stránky sa najprv ukážu dlaždice (pozri Úvodná obrazovka).
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -243,6 +243,16 @@ Jedna stránka pre počítač, mobil sa nerieši. Hore jedna lišta, pod ňou pl
 └───────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Úvodná obrazovka
+
+Po každom načítaní stránky sa namiesto prázdneho plátna ukážu **dlaždice** cez celú stránku, pod nadpisom „Vyber, s čím začneš.“ Poradie:
+
+1. **Čistý canvas** — predvolený spec bez šablóny (prerušovaný rámik).
+2. **Pokračovať** — len keď je v prehliadači rozpracovaná práca (`brnosaires-generator-spec-v1`) a dá sa načítať. Načíta ju, takže sa po reloade nestratí.
+3. **Šablóny z repozitára** (`presets/sablony/`) v poradí podľa `index.json`; dorazia za behu, takže sa doplnia hneď po načítaní.
+
+Dlaždica ukazuje **názov**, **rozmer** (šírka × výška a jednotka, napr. `1080 × 1080 px`, `841 × 1189 mm`) a **popis**, ak ho šablóna má (čistý canvas a Pokračovať majú vlastnú krátku vetu). Bez vykresleného náhľadu. Klik na dlaždicu otvorí editor s danou šablónou (rovnako ako klik v paneli Šablóny), s čistým plátnom alebo s rozpracovanou prácou; šablóna, ktorá neprejde validáciou, ukáže chybu a dlaždice ostanú. Dlaždice sú tlačidlá, takže Tab a Enter fungujú ako doplnok. Kým sú dlaždice hore, list sa neskladá a lišta ani plátno za nimi nereagujú. Späť na dlaždice sa nejde: šablóny sú v paneli **Šablóny ▾** a dlaždice sa ukážu pri ďalšom načítaní. Čistý canvas alebo šablóna, na ktorej sa ešte nič nezmenilo, uloženú prácu neprepíše — prepíše ju až prvá úprava. Poradie a obsah dlaždíc určuje `ui/state/uvod.js` bez DOM, testuje sa v Node.
+
 ### Lišta
 
 Zľava doprava v poradí, v akom sa pri práci používa:
@@ -262,11 +272,11 @@ V rozhraní sa píšu slová, nie symboly. Slovo „seed“ sa v rozhraní nepou
 
 Šablóny sú súbory v repozitári; panel **Šablóny** (tlačidlo v hornej lište hneď za Dokumentom) z nich len vyberá.
 
-- **Čo šablóna nesie:** názov, médium (skupina a názov z `presets/media.json`, alebo `null`) a celý spec (formát, mriežka vrátane okraja, kresba, kompozícia, variant, inverzia a zóny so všetkými poľami). Jeden súbor `presets/sablony/<slug>.json` = `{ "nazov": "…", "medium": { "skupina": "…", "nazov": "…" } | null, "spec": { … } }`. Poradie v paneli určuje `presets/sablony/index.json` = `{ "sablony": ["<slug>.json", …] }`.
+- **Čo šablóna nesie:** názov, voliteľný popis (krátky text, jedna-dve vety, ukáže sa na dlaždici úvodnej obrazovky; keď chýba alebo je prázdny, dlaždica ho nezobrazí), médium (skupina a názov z `presets/media.json`, alebo `null`) a celý spec (formát, mriežka vrátane okraja, kresba, kompozícia, variant, inverzia a zóny so všetkými poľami). Jeden súbor `presets/sablony/<slug>.json` = `{ "nazov": "…", "popis": "…", "medium": { "skupina": "…", "nazov": "…" } | null, "spec": { … } }`; `popis` je reťazec alebo chýba. Poradie v paneli určuje `presets/sablony/index.json` = `{ "sablony": ["<slug>.json", …] }`.
 - **Panel:** len zoznam šablón ako tlačidlá v štýle médií, nič iné; bez šablón jediný riadok „Zatiaľ žiadne šablóny.“ Klik šablónu načíta: nahradí aktuálny spec (rovnakou cestou a validáciou ako stav uložený v prehliadači) a nastaví jej médium; panel ostane otvorený. Šablóna, ktorá validáciou neprejde, ukáže chybu a aktuálny spec nechá tak. Rozsvietená je naposledy načítaná šablóna, kým jej spec zodpovedá — fotka pretiahnutá do zástupného obrázka na tom nič nemení.
 - **Fotky šablóna nenesie.** Fotková zóna nemá `zdroj`; režim, posun, zoom, poloha a okraj ostanú. Po načítaní ukáže taká zóna v editore zástupný obrázok kreslený kódom (sivá plocha s uhlopriečnym krížom a tlačidlom **Nahrať fotku**, pod ním „alebo ju sem pretiahni“), kým do nej používateľ fotku nenahrá tlačidlom (otvorí výber súboru) alebo nepretiahne; fotka potom preberie režim, posun aj zoom zóny. Zástupný obrázok je len v editore: exportované súbory nesú to, čo jadro kreslí pre fotkovú zónu bez fotky odjakživa — svetlosivý obdĺžnik.
-- **Export → JSON template** skopíruje do schránky obsah jedného súboru šablóny z aktuálneho stavu (odsadený dvoma medzerami, fotky bez `zdroj`, médium to rozsvietené v paneli Dokument) s dočasným názvom „Nová šablóna“. Keď schránka nie je dostupná, ukáže sa text v paneli Export označený v poli len na čítanie.
-- **Ako pridať šablónu:** v generátore priprav dokument, klikni Export → JSON template, vlož text do nového súboru `presets/sablony/<slug>.json` (slug malými písmenami, číslicami a pomlčkami), prepíš `"nazov"`, pridaj `"<slug>.json"` do `presets/sablony/index.json` na miesto, kde sa má v paneli ukázať, a otvor PR. `npm test` overí, že každá šablóna v zozname existuje, je v ňom raz, nenesie fotku, jej médium existuje a spec prejde validáciou jadra.
+- **Export → JSON template** skopíruje do schránky obsah jedného súboru šablóny z aktuálneho stavu (odsadený dvoma medzerami, fotky bez `zdroj`, médium to rozsvietené v paneli Dokument) s dočasným názvom „Nová šablóna“ a prázdnym `"popis": ""`, ktorý grafik doplní. Keď schránka nie je dostupná, ukáže sa text v paneli Export označený v poli len na čítanie.
+- **Ako pridať šablónu:** v generátore priprav dokument, klikni Export → JSON template, vlož text do nového súboru `presets/sablony/<slug>.json` (slug malými písmenami, číslicami a pomlčkami), prepíš `"nazov"`, doplň `"popis"`, pridaj `"<slug>.json"` do `presets/sablony/index.json` na miesto, kde sa má v paneli ukázať, a otvor PR. `npm test` overí, že každá šablóna v zozname existuje, je v ňom raz, nenesie fotku, popis je text (alebo chýba), jej médium existuje a spec prejde validáciou jadra.
 - **Načítanie:** rozhranie načítava `index.json` a súbory šablón za behu ako dáta (ako médiá); chýbajúci alebo nečitateľný súbor sa vynechá s varovaním v konzole. Pravidlá (zahodenie fotiek, text pre JSON template, tvar súboru, zhoda so specom) sú v `ui/state/sablony.js` bez DOM a testujú sa v Node.
 
 ### Plátno

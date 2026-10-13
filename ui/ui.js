@@ -13,6 +13,7 @@ import { createViewer } from './viewer.js';
 import {
   sablonaJson, suboryIndexu, citajSablonu, zhodujeSaSoSablonou,
 } from './state/sablony.js';
+import { dlazdiceUvodu } from './state/uvod.js';
 import {
   exportSvgFile, exportPngFile, exportAvifFile, avifSupported,
   rasterDimensions, fontUrlsAbsolute,
@@ -32,7 +33,10 @@ const POLIA_FORMATU = ['sirka', 'vyska', 'jednotka', 'dpi', 'spadavka'];
 
 // ---------- state ----------
 
-let spec = loadSpec();
+// The saved work (or null) is kept apart from the current spec: the start
+// screen offers it as Pokračovať and the clean canvas as the first tile.
+const ulozenySpec = nacitajUlozeny();
+let spec = ulozenySpec ?? cistySpec();
 let view = { s: 1, vbX: 0, vbY: 0, bleedD: 0, okrajD: 0, cols: 8, rowsD: 0 };
 let zoomPct = 75;
 let selected = -1;
@@ -74,13 +78,20 @@ function pripravSpec(saved) {
   return engine.normalizujSpec(saved);
 }
 
-function loadSpec() {
+// The work saved in the browser, validated, or null when there is none or
+// it no longer loads.
+function nacitajUlozeny() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) return pripravSpec(JSON.parse(raw));
   } catch (err) {
     console.warn('Uložený stav sa nepodarilo načítať, začínam odznova.', err);
   }
+  return null;
+}
+
+// A clean spec: the engine's default.
+function cistySpec() {
   try {
     return engine.normalizujSpec({});
   } catch (err) {
@@ -89,9 +100,18 @@ function loadSpec() {
   }
 }
 
+// The spec a start-screen tile opened (as JSON) while it is still untouched:
+// a clean canvas or a template that nobody edited yet does not overwrite the
+// saved work, so a wrong click on a tile loses nothing before a real edit.
+let neupravenyJson = null;
+
 let saveTimer = 0;
 function saveLocal() {
   clearTimeout(saveTimer);
+  if (neupravenyJson !== null) {
+    if (JSON.stringify(spec) === neupravenyJson) return;
+    neupravenyJson = null;
+  }
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(spec));
@@ -1710,17 +1730,19 @@ nacitajJson(new URL('index.json', SABLONY_URL))
   .then((zoznam) => {
     sablony = zoznam;
     if (sablonyPopover.isOpen()) sablonyPopover.rebuild();
+    if (!uvod.hidden) nakresliUvod();
   });
 
 // A template replaces the current spec through the same path as the saved
 // state; one that does not validate leaves the current spec as it is.
+// Returns whether the template was loaded.
 function nacitajSablonu(s) {
   let novy;
   try {
     novy = pripravSpec(structuredClone(s.spec));
   } catch (err) {
     toast(`Šablónu „${s.nazov}“ sa nepodarilo načítať: ${err.message}`, 5000);
-    return;
+    return false;
   }
   closeEditor();
   selected = -1;
@@ -1735,6 +1757,7 @@ function nacitajSablonu(s) {
   drawOverlay();
   sablonyPopover.rebuild();
   scheduleRender();
+  return true;
 }
 
 const sablonyPopover = attachPopover($('#btn-sablony'), (pop) => {
@@ -1755,6 +1778,66 @@ const sablonyPopover = attachPopover($('#btn-sablony'), (pop) => {
   }
   pop.replaceChildren(zoznam);
 });
+
+// ----- start screen -----
+
+// On every load the page opens on tiles (ui/state/uvod.js decides which, in
+// what order): the clean canvas, Pokračovať with the saved work, then the
+// templates as they arrive. A click opens the editor with that spec; the
+// tiles are buttons, so Tab and Enter work too. There is no way back — the
+// templates stay in the Šablóny panel and the tiles return on the next load.
+const uvod = $('#uvod');
+const uvodDlazdice = $('#uvod-dlazdice');
+
+function nakresliUvod() {
+  // the tile under the keyboard focus keeps it while templates arrive
+  const fokus = document.activeElement?.closest?.('.dlazdica');
+  const kluc = fokus ? `${fokus.dataset.druh}:${fokus.dataset.subor ?? ''}` : null;
+  const buttony = dlazdiceUvodu({ cisty: cistySpec(), ulozeny: ulozenySpec, sablony: sablony ?? [] })
+    .map((d) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dlazdica';
+      b.dataset.druh = d.druh;
+      if (d.sablona) b.dataset.subor = d.sablona.subor;
+      const casti = [['nazov', d.nazov], ['rozmer', d.rozmer], ['popis', d.popis]]
+        .filter(([, text]) => text)
+        .map(([className, textContent]) => Object.assign(document.createElement('span'), { className, textContent }));
+      b.append(...casti);
+      b.addEventListener('click', () => otvorDlazdicu(d));
+      return b;
+    });
+  uvodDlazdice.replaceChildren(...buttony);
+  const znova = kluc && buttony.find((b) => `${b.dataset.druh}:${b.dataset.subor ?? ''}` === kluc);
+  if (znova) znova.focus();
+}
+
+function otvorDlazdicu(d) {
+  if (d.druh === 'sablona') {
+    // a template that does not validate shows its error and keeps the tiles
+    if (!nacitajSablonu(d.sablona)) return;
+  } else {
+    const novy = d.druh === 'pokracovat' ? ulozenySpec : cistySpec();
+    if (!novy) return;
+    spec = novy;
+    if (d.druh === 'cisty') {
+      // kept in memory only: the saved work keeps its medium until an edit
+      customZvolene = false;
+      zvoleneMedium = null;
+    }
+    syncBar();
+    drawOverlay();
+    scheduleRender();
+  }
+  neupravenyJson = d.druh === 'pokracovat' ? null : JSON.stringify(spec);
+  uvod.hidden = true;
+  zamkniEditor(false);
+}
+
+// While the tiles are up, the editor behind them takes no focus or clicks.
+function zamkniEditor(zamknuty) {
+  for (const el of [$('#topbar'), $('#stage')]) el.inert = zamknuty;
+}
 
 // ----- parametre popover -----
 
@@ -2038,4 +2121,6 @@ if (engine.isStubEngine) $('#stub-note').hidden = false;
 
 setZoomOptions();
 zoomSelect.value = 'fit';
-render();
+// the sheet is composed once a tile is clicked
+zamkniEditor(true);
+nakresliUvod();
