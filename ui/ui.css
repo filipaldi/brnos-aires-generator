@@ -485,8 +485,51 @@ body.inverted .zone .foto-nahrada { border-color: #fff; }
   cursor: pointer;
 }
 
-.zone.photo-pan { cursor: grab; }
-.zone.photo-pan.dragging-photo { cursor: grabbing; }
+/* mode Fotka: the frame is grabbed by its corners and edges, the photo
+   anywhere else; the frame's outline stays above the translucent photo */
+.zone.foto-mod { cursor: grab; z-index: 9; }
+
+/* the whole photo in mode Fotka: translucent, so what the frame crops
+   shows; a full-strength copy clipped to the frame's shape (inline
+   clip-path) only while the photo is dragged and the sheet catches up */
+.foto-cela {
+  position: absolute;
+  cursor: grab;
+  outline: 1px dashed var(--ink);
+  touch-action: none;
+}
+
+.foto-cela img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* the same fill as the sheet's image (xMidYMid slice) */
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.foto-cela .foto-obraz { opacity: 0.4; }
+.foto-cela .foto-vnutro { display: none; }
+.foto-cela.tahanie .foto-vnutro { display: block; }
+.foto-cela.tahanie { cursor: grabbing; }
+
+/* the photo's own corner handles: round, so they read apart from the
+   frame's square ones, and above them where the two coincide */
+.foto-uchyt {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--paper);
+  z-index: 10;
+}
+
+.foto-uchyt.tl, .foto-uchyt.br { cursor: nwse-resize; }
+.foto-uchyt.tr, .foto-uchyt.bl { cursor: nesw-resize; }
 
 .zone .handle {
   position: absolute;
@@ -503,6 +546,12 @@ body.inverted .zone .foto-nahrada { border-color: #fff; }
 .handle.tr { right: -5px; top: -5px; cursor: nesw-resize; }
 .handle.bl { left: -5px; bottom: -5px; cursor: nesw-resize; }
 .handle.br { right: -5px; bottom: -5px; cursor: nwse-resize; }
+
+/* the frame's edges, in mode Fotka */
+.handle.t { left: calc(50% - 5px); top: -5px; cursor: ns-resize; }
+.handle.b { left: calc(50% - 5px); bottom: -5px; cursor: ns-resize; }
+.handle.l { left: -5px; top: calc(50% - 5px); cursor: ew-resize; }
+.handle.r { right: -5px; top: calc(50% - 5px); cursor: ew-resize; }
 
 #zone-create-ghost {
   position: absolute;
@@ -550,8 +599,8 @@ body.inverted .zone .foto-nahrada { border-color: #fff; }
 
 #zone-bar .z-ico svg { display: block; width: 17px; height: 17px; }
 
-/* icon toggle group (zarovnanie, režim): one border around the buttons,
-   the pressed one fills with ink */
+/* icon toggle group (zarovnanie, mód fotky): one border around the
+   buttons, the pressed one fills with ink */
 #zone-bar .z-seg {
   display: flex;
   border: 1px solid var(--ink);
@@ -571,6 +620,9 @@ body.inverted .zone .foto-nahrada { border-color: #fff; }
   color: var(--ink);
   cursor: pointer;
 }
+
+/* a toggle with its name beside the icon (the photo modes Rámik / Fotka) */
+#zone-bar .z-tgl.s-napisom { width: auto; gap: 4px; padding: 0 7px 0 5px; font: inherit; font-size: 12px; }
 
 #zone-bar .z-tgl + .z-tgl { border-left: 1px solid var(--hairline); }
 

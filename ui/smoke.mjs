@@ -1,8 +1,10 @@
 // Smoke test for the generator UI. Starts serve.js when nothing listens on
 // the port, drives the page with Playwright (global node_modules, browser in
-// PLAYWRIGHT_BROWSERS_PATH) and saves four screenshots. Fails when the
+// PLAYWRIGHT_BROWSERS_PATH) and saves five screenshots. Fails when the
 // browser console reports errors. Also checks the grid snapping: every zone
-// edge lands on the grid line nearest to the cursor, threshold mid-cell.
+// edge lands on the grid line nearest to the cursor, threshold mid-cell, and
+// mode Fotka of a photo zone: dragging the photo and its corner changes
+// posun and mierka in whole %.
 //
 //   node ui/smoke.mjs [output-dir]
 //
@@ -25,6 +27,7 @@ const SHOTS = [
   'ui-zona-milonga.png',
   'ui-parametre.png',
   'ui-prehliadac-tvarov.png',
+  'ui-fotka-mod.png',
 ];
 
 mkdirSync(OUT_DIR, { recursive: true });
@@ -267,6 +270,84 @@ try {
 
   // the zones from the drags must compose like any other spec
   await cakajNaSkladanie();
+
+  // (c3) a photo zone in mode Fotka. A 16:9 photo dropped on the empty
+  // canvas makes a 4 × 3 frame centred on the cursor; the editor reads the
+  // photo's pixel size, then the photo is dragged by its middle (posun) and
+  // by its corner (mierka) — both stay whole numbers and keep the frame
+  // covered.
+  const ulozenaZona = (i) => page.evaluate((idx) => {
+    try {
+      return JSON.parse(localStorage.getItem('brnosaires-generator-spec-v1')).zony[idx] ?? null;
+    } catch {
+      return null;
+    }
+  }, i);
+  // the spec is saved 400 ms after the sheet is composed
+  const cakajNaZonu = async (i, podmienka, co) => {
+    for (let t = 0; t < 60; t++) {
+      const z = await ulozenaZona(i);
+      if (z && podmienka(z)) return z;
+      await page.waitForTimeout(250);
+    }
+    errors.push(`fotozóna: ${co} sa nedočkal`);
+    return ulozenaZona(i);
+  };
+  await page.evaluate(async ({ x, y }) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 180;
+    const ctx = canvas.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 320, 180);
+    g.addColorStop(0, '#d33');
+    g.addColorStop(1, '#33d');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 320, 180);
+    const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], 'fotka.png', { type: 'image/png' }));
+    document.querySelector('#overlay').dispatchEvent(new DragEvent('drop', {
+      dataTransfer: dt, clientX: x, clientY: y, bubbles: true, cancelable: true,
+    }));
+  }, { x: X(8.2), y: Y(30.2) });
+  const iFotky = 3;
+  let fz = await cakajNaZonu(iFotky, (z) => z.typ === 'fotka' && Array.isArray(z.rozmer), 'rozmer fotky');
+  porovnaj('fotozóna z pretiahnutia', await rectZony(iFotky), { x: 6, y: 29, w: 4, h: 3 });
+  if (JSON.stringify(fz?.rozmer) !== '[320,180]') errors.push(`fotozóna: rozmer ${JSON.stringify(fz?.rozmer)}, má byť [320,180]`);
+  if (fz?.mierka !== 100 || JSON.stringify(fz?.posun) !== '[0,0]') {
+    errors.push(`fotozóna: nová fotka má mierku ${fz?.mierka} a posun ${JSON.stringify(fz?.posun)}`);
+  }
+  await page.click('#zone-bar .z-tgl[data-hodnota="fotka"]');
+  await page.waitForSelector('.foto-cela', { timeout: 5000 });
+  if (!(await page.locator('#zone-bar .z-tgl[data-hodnota="fotka"].zapnute').count())) {
+    errors.push('fotozóna: tlačidlo módu Fotka nie je zapnuté');
+  }
+  // the whole photo: 16:9 at the height of the 3-dielik frame
+  porovnaj('celá fotka v móde Fotka', vDielikoch(await page.locator('.foto-cela').boundingBox()),
+    { x: 8 - 8 / 3, y: 29, w: 16 / 3, h: 3 });
+  const celeCisla = (z) => Number.isInteger(z.mierka) && z.posun.every(Number.isInteger);
+  // the middle of the photo, half a dielik to the left
+  await tahaj(X(8), Y(30.5), X(7.5), Y(30.5));
+  await page.mouse.up();
+  fz = await cakajNaZonu(iFotky, (z) => z.posun[0] !== 0, 'posun fotky');
+  if (!celeCisla(fz)) errors.push(`fotozóna: posun ${JSON.stringify(fz.posun)} nie sú celé čísla`);
+  if (fz.posun[0] !== -12 || fz.posun[1] !== 0) errors.push(`fotozóna: posun ${JSON.stringify(fz.posun)}, má byť [-12,0]`);
+  porovnaj('rámik po posune fotky', await rectZony(iFotky), { x: 6, y: 29, w: 4, h: 3 });
+  // the photo's bottom-right corner, one dielik further right: 6.33 / 5.33
+  // dieliks wide is a mierka of 119 %
+  const uchyt = await page.locator('.foto-uchyt.br').boundingBox();
+  const ux = uchyt.x + uchyt.width / 2;
+  const uy = uchyt.y + uchyt.height / 2;
+  await tahaj(ux, uy, ux + m.s, uy);
+  await page.mouse.up();
+  fz = await cakajNaZonu(iFotky, (z) => z.mierka > 100, 'mierka fotky');
+  if (!celeCisla(fz)) errors.push(`fotozóna: mierka ${fz.mierka} / posun ${JSON.stringify(fz.posun)} nie sú celé čísla`);
+  if (fz.mierka < 115 || fz.mierka > 125) errors.push(`fotozóna: mierka ${fz.mierka}, má byť okolo 119`);
+  await cakajNaSkladanie().catch(() => {});
+  await page.screenshot({ path: path.join(OUT_DIR, SHOTS[4]) });
+  // back to Rámik: the photo's own handles go away
+  await page.click('#zone-bar .z-tgl[data-hodnota="ramik"]');
+  if (await page.locator('.foto-cela, .foto-uchyt').count()) errors.push('fotozóna: v móde Rámik ostala celá fotka');
 
   // (d) the shape viewer, opened by the Tvary button
   await page.click('#btn-tvary');

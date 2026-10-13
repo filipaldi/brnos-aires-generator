@@ -16,6 +16,7 @@ import { prekazkyTextu, renderSvg, translatePathD } from './svg.js';
 import { FONTY, normalizujFeatures } from './features.js';
 import { normalizujRezZony } from './pisma.js';
 import { maxVelkost } from './velkost.js';
+import { pritiahniFotku, zoStarehoZoomu } from './fotka.js';
 
 const KOMP = loadProporcie().kompozicia;
 
@@ -26,7 +27,7 @@ const TYPY_ZONY = ['text', 'fotka', 'prazdna'];
 const PISMA = FONTY;
 const ZOROVNANIE = ['vlavo', 'stred', 'vpravo'];
 const OBTEKANIE = ['ram', 'text'];
-const REZIMY = ['ramik', 'maska', 'prekrytie'];
+const MIERKA_MAX = KOMP.mierkaFotky.max;
 
 // --- validation helpers -----------------------------------------------------
 
@@ -244,10 +245,30 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
       raw = zvysok; // riadkovanie is gone either way
     }
   }
+  // dropped settings of a photo zone: `rezim` (maska and prekrytie are gone,
+  // every photo sits in its frame, so any value is ignored) and the decimal
+  // `zoom`. A spec without `mierka` carries the old posun and zoom, which
+  // are converted to whole % (zoStarehoZoomu) and pulled into range; when a
+  // spec carries both models, its `mierka` wins.
+  if (typ === 'fotka') {
+    const { rezim, zoom, ...zvysok } = raw;
+    if (!('mierka' in raw) && (zoom !== undefined || raw.posun !== undefined)) {
+      if (zoom !== undefined) cislo(zoom, `${name}.zoom`, { min: 0.05, max: 10 });
+      const posun = raw.posun ?? [0, 0];
+      if (!Array.isArray(posun) || posun.length !== 2
+        || posun.some((v) => typeof v !== 'number' || !Number.isFinite(v))) {
+        throw new ValidationError(`${name}.posun musí byť pole [x, y] čísel.`);
+      }
+      const nove = zoStarehoZoomu(posun, zoom ?? 1);
+      zvysok.mierka = Math.min(MIERKA_MAX, Math.max(100, nove.mierka));
+      zvysok.posun = nove.posun;
+    }
+    raw = zvysok;
+  }
   polia(raw, [
     'typ', 'x', 'y', 'w', 'h', 'okraj',
     'text', 'pismo', 'rez', 'hrubka', 'velkost', 'zarovnanie', 'riadok', 'features', 'obtekanie',
-    'zdroj', 'rezim', 'posun', 'zoom', 'zaoblenie', 'border',
+    'zdroj', 'rozmer', 'mierka', 'posun', 'zaoblenie', 'border',
   ], name);
   const d = KOMP.zona[typ] || {};
   const zona = { typ, okraj: 0, ...d, ...raw };
@@ -290,12 +311,21 @@ function normalizujZonu(raw, index, stlpce, vyskaD) {
     if (zona.zdroj != null && typeof zona.zdroj !== 'string') {
       throw new ValidationError(`${name}.zdroj musí byť reťazec (cesta alebo data URL).`);
     }
-    moznosti(zona.rezim, `${name}.rezim`, REZIMY);
-    if (!Array.isArray(zona.posun) || zona.posun.length !== 2
-      || zona.posun.some((v) => typeof v !== 'number' || !Number.isFinite(v))) {
-      throw new ValidationError(`${name}.posun musí byť pole [x, y] čísel.`);
+    // the photo's own size in pixels, set by the editor when it reads the
+    // photo; without it the photo has the frame's proportions
+    if (zona.rozmer != null && (!Array.isArray(zona.rozmer) || zona.rozmer.length !== 2
+      || zona.rozmer.some((v) => !Number.isInteger(v) || v < 1))) {
+      throw new ValidationError(`${name}.rozmer musí byť pole [šírka, výška] celých kladných čísel.`);
     }
-    cislo(zona.zoom, `${name}.zoom`, { min: 0.05, max: 10 });
+    // whole % of the size that covers the frame, and the photo's offset in
+    // whole % of the frame; a posun past what keeps the frame covered is
+    // pulled back (a frame resized to other proportions may leave it there)
+    cislo(zona.mierka, `${name}.mierka`, { min: 100, max: MIERKA_MAX, cele: true });
+    if (!Array.isArray(zona.posun) || zona.posun.length !== 2
+      || zona.posun.some((v) => !Number.isInteger(v))) {
+      throw new ValidationError(`${name}.posun musí byť pole [x, y] celých čísel (% rámika).`);
+    }
+    Object.assign(zona, pritiahniFotku(zona, zona, MIERKA_MAX));
     // rounded corners (whole % of half the zone's shorter side) and an inner
     // border (whole % of one dielik); a missing field (old specs, templates)
     // is 0 from KOMP.zona.fotka in proporcie.json
@@ -444,8 +474,8 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
         plocha: prekazky.reduce((a, b) => a + b.w * b.h, 0),
       }];
     }
-    if (z.typ === 'fotka' && z.rezim === 'ramik' && z.zaoblenie > 0) {
-      // A rounded ramik photo zone blocks its rounded shape, not the frame,
+    if (z.typ === 'fotka' && z.zaoblenie > 0) {
+      // A rounded photo zone blocks its rounded shape, not the frame,
       // so the pattern may fill the corners the rounding cuts off. The
       // radius is the drawn one (rectRamika in svg.js); a negative okraj
       // shrinks the shape by |okraj| per side, its radius with it.

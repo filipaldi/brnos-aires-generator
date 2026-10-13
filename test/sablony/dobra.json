@@ -50,12 +50,11 @@
       {
         "typ": "fotka",
         "okraj": 2,
-        "rezim": "maska",
+        "mierka": 150,
         "posun": [
-          0.25,
-          -0.5
+          25,
+          -25
         ],
-        "zoom": 1.5,
         "zaoblenie": 0,
         "border": 0,
         "x": 2,

@@ -4,19 +4,23 @@
 // fetch: the page loads the files and hands their parsed JSON here, so
 // everything here runs (and is tested) in Node.
 //
-// A template never carries photos: every photo zone loses its `zdroj`
-// (rezim, posun, zoom and its place stay), and the editor shows a placeholder
-// in a photo zone without one until the user drops their own photo in.
+// A template never carries photos: every photo zone loses its `zdroj` and
+// the photo's pixel size `rozmer` (mierka, posun, zaoblenie, border and its
+// place stay), and the editor shows a placeholder in a photo zone without
+// one until the user drops their own photo in.
 
 // The name a copied template carries until the owner names it in its file.
 export const NAZOV_NOVEJ_SABLONY = 'Nová šablóna';
 
-// A deep copy of the spec with the photo sources removed.
+// A deep copy of the spec with the photos (source and pixel size) removed.
 export function bezFotiek(spec) {
   const kopia = structuredClone(spec);
   if (Array.isArray(kopia?.zony)) {
     for (const z of kopia.zony) {
-      if (z && typeof z === 'object' && z.typ === 'fotka') delete z.zdroj;
+      if (z && typeof z === 'object' && z.typ === 'fotka') {
+        delete z.zdroj;
+        delete z.rozmer;
+      }
     }
   }
   return kopia;
