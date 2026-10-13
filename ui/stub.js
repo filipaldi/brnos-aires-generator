@@ -7,8 +7,10 @@ import { buildShape, computeAxes, defaultParams, TYPES, proporcie } from '../cor
 import { ValidationError } from '../core/errors.js';
 import { fontFeatureSettings, normalizujFeatures } from '../core/kompozicia/features.js';
 import { faceZony, facesFontov, fontFaceCss, normalizujRezZony } from '../core/kompozicia/pisma.js';
+import { hrubkaZnaciek, orezoveZnacky, rozmerPlatna } from '../core/kompozicia/znacky.js';
 
 const ALL_TYPES = TYPES.map((t) => t.id);
+const ZNACKY = proporcie.kompozicia.svg.znacky;
 
 const DEFAULTS = {
   format: { sirka: 420, vyska: 594, jednotka: 'mm', dpi: 300, spadavka: 3 },
@@ -385,24 +387,14 @@ function photoZoneSvg(z, i, geom, fill) {
     + `fill="none" stroke="${fill}" stroke-width="${fmt(hair)}"/>`;
 }
 
-function spadavkaSvg(geom, fill) {
-  const { b, W, H } = geom;
-  if (b <= 0.0005) return '';
-  const o = b * 0.35; // gap between trim corner and mark
-  const l = b * 0.55; // mark length
-  const marks = [
-    // top-left
-    [-o, -o, -o - l, -o], [-o, -o, -o, -o - l],
-    // top-right
-    [W + o, -o, W + o + l, -o], [W + o, -o, W + o, -o - l],
-    // bottom-left
-    [-o, H + o, -o - l, H + o], [-o, H + o, -o, H + o + l],
-    // bottom-right
-    [W + o, H + o, W + o + l, H + o], [W + o, H + o, W + o, H + o + l],
-  ];
-  return marks.map(([x1, y1, x2, y2]) => (
+// The crop marks, the same as the core's (core/kompozicia/znacky.js): eight
+// hairlines in a band outside the bleed, empty without a bleed.
+function spadavkaSvg(geom) {
+  const { b, znackyD, hrubkaZnaciekD, W, H } = geom;
+  if (!(znackyD > 0)) return '';
+  return orezoveZnacky({ sirka: W, vyska: H, spadavka: b, dlzka: znackyD }).map(([x1, y1, x2, y2]) => (
     `<line x1="${fmt(x1)}" y1="${fmt(y1)}" x2="${fmt(x2)}" y2="${fmt(y2)}" `
-    + `stroke="${fill}" stroke-width="${fmt(b * 0.08)}"/>`
+    + `stroke="${ZNACKY.farba}" stroke-width="${fmt(hrubkaZnaciekD)}"/>`
   )).join('');
 }
 
@@ -420,7 +412,11 @@ export function komponuj(spec, { fontUrls = {} } = {}) {
   const pas = ok > 0
     ? { X0: ok, Y0: ok, W: W - 2 * ok, H: riadky - 2 * ok }
     : { X0: 0, Y0: 0, W, H };
-  const geom = { W, H, b, dielikUnits, axes, pas };
+  const platno = rozmerPlatna(f); // trim + bleed + crop-mark band
+  const geom = {
+    W, H, b, dielikUnits, axes, pas,
+    znackyD: platno.pas / dielikUnits, hrubkaZnaciekD: hrubkaZnaciek(f) / dielikUnits,
+  };
 
   const rng = mulberry32(hashString(spec.variant));
   const placed = placeShapes(spec, geom, rng, axes);
@@ -436,12 +432,18 @@ export function komponuj(spec, { fontUrls = {} } = {}) {
   }
 
   const svgParts = [];
+  // the canvas, as in the core: trim + bleed + crop-mark band; the band
+  // stays paper, the background covers trim and bleed only
+  const o = b + geom.znackyD;
   svgParts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${fmt(f.sirka)}${f.jednotka === 'mm' ? 'mm' : ''}" `
-    + `height="${fmt(f.vyska)}${f.jednotka === 'mm' ? 'mm' : ''}" `
-    + `viewBox="${fmt(-b)} ${fmt(-b)} ${fmt(W + 2 * b)} ${fmt(H + 2 * b)}">`);
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${fmt(platno.sirka)}${f.jednotka === 'mm' ? 'mm' : ''}" `
+    + `height="${fmt(platno.vyska)}${f.jednotka === 'mm' ? 'mm' : ''}" `
+    + `viewBox="${fmt(-o)} ${fmt(-o)} ${fmt(W + 2 * o)} ${fmt(H + 2 * o)}">`);
   const css = fontFacesStyl(fontUrls);
   if (css) svgParts.push(`<defs><style>${css}}</style></defs>`);
+  if (geom.znackyD > 0) {
+    svgParts.push(`<rect x="${fmt(-o)}" y="${fmt(-o)}" width="${fmt(W + 2 * o)}" height="${fmt(H + 2 * o)}" fill="${ZNACKY.papier}"/>`);
+  }
   svgParts.push(`<rect x="${fmt(-b)}" y="${fmt(-b)}" width="${fmt(W + 2 * b)}" height="${fmt(H + 2 * b)}" fill="${white}"/>`);
 
   svgParts.push('<g id="pattern">');
@@ -461,17 +463,16 @@ export function komponuj(spec, { fontUrls = {} } = {}) {
   svgParts.push('</g>');
 
   svgParts.push('<g id="spadavka">');
-  svgParts.push(spadavkaSvg(geom, spec.inverzia ? '#fff' : '#000'));
+  svgParts.push(spadavkaSvg(geom));
   svgParts.push('</g>');
 
   svgParts.push('</svg>');
   svgParts.push('');
 
-  const pxPerUnit = f.jednotka === 'mm' ? f.dpi / 25.4 : 1;
   return {
     svg: svgParts.join('\n'),
-    sirkaPx: Math.round(f.sirka * pxPerUnit),
-    vyskaPx: Math.round(f.vyska * pxPerUnit),
+    sirkaPx: platno.sirkaPx,
+    vyskaPx: platno.vyskaPx,
     dielik: dielikUnits,
     tvary: placed.map((p) => ({
       typ: p.typ,

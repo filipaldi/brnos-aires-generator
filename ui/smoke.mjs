@@ -268,6 +268,30 @@ try {
   // the zones from the drags must compose like any other spec
   await cakajNaSkladanie();
 
+  // (c3) the bleed shows as the eight crop marks of the export, and the
+  // margin guide (okraj) only while the grid lines are visible
+  const znacky = await page.locator('#bleed-mark .znacka').count();
+  const spadavka = await page.evaluate(() => {
+    const vb = document.querySelector('#sheet svg').viewBox.baseVal;
+    return vb.x < 0;
+  });
+  if (spadavka && znacky !== 8) errors.push(`orezových značiek v editore je ${znacky}, má byť 8`);
+  await page.click('#btn-format');
+  const okrajPole = page.locator('.row', { has: page.locator('label', { hasText: /^Okraj$/ }) }).locator('input');
+  await okrajPole.fill('1');
+  await okrajPole.dispatchEvent('change');
+  await page.click('#btn-format');
+  await cakajNaSkladanie();
+  if (await page.locator('#okraj-mark').isVisible()) errors.push('čiara okraja je vidieť, hoci grid je skrytý');
+  await page.mouse.move(X(2), Y(30));
+  await page.mouse.down();
+  const okrajSGridom = await page.locator('#okraj-mark').isVisible();
+  const gridViditelny = await page.locator('#grid-lines').isVisible();
+  await page.mouse.up();
+  if (!gridViditelny) errors.push('grid sa pri stlačení na plátne neukázal');
+  if (!okrajSGridom) errors.push('čiara okraja sa neukázala so zapnutým gridom');
+  if (await page.locator('#okraj-mark').isVisible()) errors.push('čiara okraja ostala po skrytí gridu');
+
   // (d) the shape viewer, opened by the Tvary button
   await page.click('#btn-tvary');
   await page.waitForSelector('#viewer:not([hidden])', { timeout: 5000 });
