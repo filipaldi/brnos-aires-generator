@@ -7,6 +7,7 @@ import { buildShape, computeAxes, defaultParams, TYPES, proporcie } from '../cor
 import { ValidationError } from '../core/errors.js';
 import { fontFeatureSettings, normalizujFeatures } from '../core/kompozicia/features.js';
 import { faceZony, facesFontov, fontFaceCss, normalizujRezZony } from '../core/kompozicia/pisma.js';
+import { pasyZaoblenia } from '../core/kompozicia/rozmiestnenie.js';
 
 const ALL_TYPES = TYPES.map((t) => t.id);
 
@@ -270,11 +271,23 @@ function rectsIntersect(a, b, pad = 0) {
 function zoneBlockers(zony) {
   // Rects a placed shape's bbox must stay out of: okraj ≥ 0 grows the zone
   // by okraj on every side, a negative okraj shrinks it by |okraj| — a zone
-  // shrunk out of existence (w or h ≤ 0) blocks nothing.
+  // shrunk out of existence (w or h ≤ 0) blocks nothing. A rounded ramik
+  // photo zone blocks its rounded shape as strips, as in the core, so the
+  // pattern may fill the corners the rounding cuts off.
   const blockers = [];
   for (const z of zony) {
     const okraj = z.okraj ?? 0;
     if (okraj < 0 && (z.w + 2 * okraj <= 0 || z.h + 2 * okraj <= 0)) continue;
+    if (z.typ === 'fotka' && z.rezim === 'ramik' && z.zaoblenie > 0) {
+      const n = Math.max(-okraj, 0);
+      const r = { x: z.x + n, y: z.y + n, w: z.w - 2 * n, h: z.h - 2 * n };
+      const rx = (Math.min(z.w, z.h) / 2) * (z.zaoblenie / 100) - n;
+      const g = Math.max(okraj, 0);
+      for (const p of pasyZaoblenia(r, rx)) {
+        blockers.push({ x: p.x - g, y: p.y - g, w: p.w + 2 * g, h: p.h + 2 * g });
+      }
+      continue;
+    }
     blockers.push({ x: z.x - okraj, y: z.y - okraj, w: z.w + 2 * okraj, h: z.h + 2 * okraj });
   }
   return blockers;

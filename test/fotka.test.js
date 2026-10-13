@@ -112,3 +112,67 @@ test('JSON template prenesie zaoblenie aj border fotozóny', async () => {
   assert.equal(z.zaoblenie, 40);
   assert.equal(z.border, 15);
 });
+
+// --- the pattern around a rounded zone --------------------------------------
+
+const E = 1e-9;
+const prekryv = (a, b) => a.x < b.x + b.w - E && b.x < a.x + a.w - E && a.y < b.y + b.h - E && b.y < a.y + a.h - E;
+const vnutri = (a, b) => a.x >= b.x - E && a.y >= b.y - E && a.x + a.w <= b.x + b.w + E && a.y + a.h <= b.y + b.h + E;
+// distance from the point (cx, cy) to the nearest point of the box
+const kBodu = (b, cx, cy) => Math.hypot(
+  Math.max(b.x - cx, 0, cx - b.x - b.w),
+  Math.max(b.y - cy, 0, cy - b.y - b.h),
+);
+
+const KRUH = { x: 2, y: 2, w: 8, h: 8 }; // zaoblenie 100 → a circle of radius 4 around (6, 6)
+const specKruhu = (variant, zona = {}) => ({
+  variant,
+  grid: { stlpce: 12, okraj: 0 },
+  zony: [{ typ: 'fotka', ...KRUH, rezim: 'ramik', zdroj: FOTKA, zaoblenie: 100, ...zona }],
+});
+
+test('zaoblená fotozóna: vzor vojde do rohov, ale nie do zaobleného tvaru', () => {
+  for (const zdroj of [FOTKA, null]) {
+    let vRohu = 0;
+    for (let v = 1; v <= 8; v++) {
+      for (const t of komponuj(specKruhu(v, { zdroj })).tvary) {
+        assert.ok(kBodu(t.bbox, 6, 6) >= 4 - 1e-6,
+          `variant ${v}: tvar ${t.typ} ${JSON.stringify(t.bbox)} zasahuje do kruhu`);
+        if (vnutri(t.bbox, KRUH)) vRohu++;
+      }
+    }
+    assert.ok(vRohu > 0, `aspoň jeden tvar celý v rohu rámika (zdroj ${zdroj ? 'fotka' : 'prázdny'})`);
+  }
+});
+
+test('zaoblená fotozóna drží okraj od zaobleného tvaru', () => {
+  for (let v = 1; v <= 3; v++) {
+    for (const t of komponuj(specKruhu(v, { okraj: 1 })).tvary) {
+      // the strips cover the shape, okraj 1 holds every shape 1 dielik (on
+      // each axis) from them, so at least 1 from the circle
+      assert.ok(kBodu(t.bbox, 6, 6) >= 5 - 1e-6, `variant ${v}: ${JSON.stringify(t.bbox)}`);
+    }
+  }
+});
+
+test('zaoblenie 0: prekážkou je celý rect zóny ako doteraz', () => {
+  for (let v = 1; v <= 3; v++) {
+    const s0 = komponuj(specKruhu(v, { zaoblenie: 0 }));
+    const bez = specKruhu(v);
+    delete bez.zony[0].zaoblenie;
+    assert.equal(s0.svg, komponuj(bez).svg, 'zaoblenie 0 je to isté ako bez poľa');
+    for (const t of s0.tvary) assert.ok(!prekryv(t.bbox, KRUH), `variant ${v}: ${JSON.stringify(t.bbox)}`);
+  }
+});
+
+test('stub: zaoblená fotozóna pustí vzor do rohov, nie do kruhu', async () => {
+  const { komponuj: komponujStub } = await import('../ui/stub.js');
+  let vRohu = 0;
+  for (let v = 1; v <= 12; v++) {
+    for (const t of komponujStub(specKruhu(v)).tvary) {
+      assert.ok(kBodu(t.bbox, 6, 6) >= 4 - 1e-6, `variant ${v}: ${JSON.stringify(t.bbox)}`);
+      if (prekryv(t.bbox, KRUH)) vRohu++;
+    }
+  }
+  assert.ok(vRohu > 0, 'aspoň jeden tvar v rohu rámika');
+});

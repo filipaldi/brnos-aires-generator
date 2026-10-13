@@ -11,7 +11,7 @@
 import { buildShape, computeAxes, defaultParams, loadProporcie, paramSpec, TYPES } from '../index.js';
 import { ValidationError } from '../errors.js';
 import { createRng } from './rng.js';
-import { placeShapes } from './rozmiestnenie.js';
+import { pasyZaoblenia, placeShapes } from './rozmiestnenie.js';
 import { prekazkyTextu, renderSvg, translatePathD } from './svg.js';
 import { FONTY, normalizujFeatures } from './features.js';
 import { normalizujRezZony } from './pisma.js';
@@ -410,9 +410,10 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
   // tight boxes of the glyphs (measured, or one box per line without a
   // measure) and okraj is the pattern's distance from the letters; a
   // negative okraj shrinks every glyph box by |okraj| per side and a box
-  // shrunk out of existence is ignored. Every other zone — a text zone set
-  // to obtekanie 'ram', a text zone whose text has no ink, foto and empty
-  // zones — stays a frame: a negative okraj lets shapes into the zone by
+  // shrunk out of existence is ignored. A ramik photo zone with zaoblenie
+  // blocks its rounded shape as strips (below). Every other zone — a text
+  // zone set to obtekanie 'ram', a text zone whose text has no ink, foto and
+  // empty zones — stays a frame: a negative okraj lets shapes into the zone by
   // |okraj| from each edge, so the zone shrinks accordingly; one shrunk out
   // of existence (w or h ≤ 0) is ignored entirely.
   const zonyVzor = zony.flatMap((z) => {
@@ -441,6 +442,23 @@ export function komponuj(input, { fontUrls, zmerajText, zmerajGlyfy } = {}) {
         okraj,
         glyfy: prekazky,
         plocha: prekazky.reduce((a, b) => a + b.w * b.h, 0),
+      }];
+    }
+    if (z.typ === 'fotka' && z.rezim === 'ramik' && z.zaoblenie > 0) {
+      // A rounded ramik photo zone blocks its rounded shape, not the frame,
+      // so the pattern may fill the corners the rounding cuts off. The
+      // radius is the drawn one (rectRamika in svg.js); a negative okraj
+      // shrinks the shape by |okraj| per side, its radius with it.
+      const n = Math.max(-z.okraj, 0);
+      const r = { x: z.rect.x + n, y: z.rect.y + n, w: z.rect.w - 2 * n, h: z.rect.h - 2 * n };
+      if (!(r.w > 0 && r.h > 0)) return [];
+      const rx = (Math.min(z.rect.w, z.rect.h) / 2) * (z.zaoblenie / 100) - n;
+      const pasy = pasyZaoblenia(r, rx);
+      return [{
+        rect: r,
+        okraj: Math.max(z.okraj, 0),
+        glyfy: pasy,
+        plocha: pasy.reduce((a, b) => a + b.w * b.h, 0),
       }];
     }
     if (z.okraj >= 0) return [{ rect: z.rect, okraj: z.okraj }];
